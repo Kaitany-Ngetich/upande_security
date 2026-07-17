@@ -1,0 +1,300 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "SG-.######",
+ "creation": "2026-07-17 13:18:19.147345",
+ "description": "DocType for managing Security Guard records",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "section_personal_info",
+  "series",
+  "contrators_payroll_no",
+  "cb_personal_1",
+  "first_name",
+  "middle_name",
+  "full_name",
+  "cb_personal_2",
+  "date_of_birth",
+  "gender",
+  "section_employment",
+  "date_of_joining",
+  "status",
+  "default_shift_type",
+  "security_guard_shift_assignment",
+  "active_assignment",
+  "cb_employment_1",
+  "company",
+  "designation",
+  "farm",
+  "location",
+  "section_identification",
+  "national_id",
+  "tax_id",
+  "cb_identification_1",
+  "nssf_no",
+  "shif_no",
+  "section_contact",
+  "phone_number",
+  "section_bank",
+  "bank_name",
+  "account_number",
+  "cb_bank_1",
+  "branch_name",
+  "account_name"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "SG-.######"
+  },
+  {
+   "fieldname": "section_personal_info",
+   "fieldtype": "Section Break",
+   "label": "Personal Information"
+  },
+  {
+   "fieldname": "series",
+   "fieldtype": "Data",
+   "label": "Series (Payroll No)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "contrators_payroll_no",
+   "fieldtype": "Data",
+   "label": "Contrator's Payroll No"
+  },
+  {
+   "fieldname": "cb_personal_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "First Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "middle_name",
+   "fieldtype": "Data",
+   "label": "Middle Name"
+  },
+  {
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "label": "Full Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_personal_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "date_of_birth",
+   "fieldtype": "Date",
+   "label": "Date of Birth"
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Select",
+   "label": "Gender",
+   "options": "Male\nFemale\nOther",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_employment",
+   "fieldtype": "Section Break",
+   "label": "Employment Details"
+  },
+  {
+   "fieldname": "date_of_joining",
+   "fieldtype": "Date",
+   "label": "Date of Joining"
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Active\nInactive\nSuspended\nLeft"
+  },
+  {
+   "fieldname": "default_shift_type",
+   "fieldtype": "Link",
+   "label": "Default Shift Type",
+   "options": "Shift Type"
+  },
+  {
+   "fieldname": "security_guard_shift_assignment",
+   "fieldtype": "Link",
+   "label": "Security Guard Shift Assignment",
+   "options": "Security Guard Shift Assignment",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "security_guard_shift_assignment.shift_type",
+   "fieldname": "active_assignment",
+   "fieldtype": "Data",
+   "label": "Active Assignment",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_employment_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "reqd": 1
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "label": "Farm",
+   "options": "Farm",
+   "reqd": 1
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Select",
+   "label": "Location",
+   "options": "\nRavine\nKaren\nKitale"
+  },
+  {
+   "fieldname": "section_identification",
+   "fieldtype": "Section Break",
+   "label": "Identification"
+  },
+  {
+   "fieldname": "national_id",
+   "fieldtype": "Data",
+   "label": "National ID",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "tax_id",
+   "fieldtype": "Data",
+   "label": "Tax ID",
+   "unique": 1
+  },
+  {
+   "fieldname": "cb_identification_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "nssf_no",
+   "fieldtype": "Data",
+   "label": "NSSF No",
+   "unique": 1
+  },
+  {
+   "fieldname": "shif_no",
+   "fieldtype": "Data",
+   "label": "SHIF No",
+   "unique": 1
+  },
+  {
+   "fieldname": "section_contact",
+   "fieldtype": "Section Break",
+   "label": "Contact Information"
+  },
+  {
+   "fieldname": "phone_number",
+   "fieldtype": "Phone",
+   "label": "Phone Number"
+  },
+  {
+   "fieldname": "section_bank",
+   "fieldtype": "Section Break",
+   "label": "Bank Details"
+  },
+  {
+   "fieldname": "bank_name",
+   "fieldtype": "Data",
+   "label": "Bank Name"
+  },
+  {
+   "fieldname": "account_number",
+   "fieldtype": "Data",
+   "label": "Account Number",
+   "unique": 1
+  },
+  {
+   "fieldname": "cb_bank_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch_name",
+   "fieldtype": "Data",
+   "label": "Branch Name"
+  },
+  {
+   "fieldname": "account_name",
+   "fieldtype": "Data",
+   "label": "Account Name"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-17 13:18:19.147345",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Security Guard",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "select": 1,
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "select": 1,
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "full_name,first_name,national_id",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "full_name"
+}

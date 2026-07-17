@@ -1,0 +1,389 @@
+{
+ "actions": [],
+ "autoname": "format:APMT-{customer_name}-{####}",
+ "creation": "2019-08-27 10:48:27.926283",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "scheduled_time",
+  "status",
+  "host_whatsapp_no",
+  "farmunit",
+  "details_section",
+  "customer_name",
+  "customer_phone_number",
+  "skype_id",
+  "customer_email",
+  "col_br_2",
+  "customer_details",
+  "linked_docs_section",
+  "appointment_with",
+  "party",
+  "col_br_3",
+  "calendar_event",
+  "visitorcontractor_tab_tab",
+  "scheduled_t",
+  "statuss",
+  "meeting_with",
+  "whatsapp_no",
+  "compan",
+  "farm_unit",
+  "number_passengers",
+  "visitor_details",
+  "name1",
+  "phone_no",
+  "skype_id_",
+  "mail",
+  "mode_of_transport",
+  "vehicles_number_plate",
+  "vehicles_color",
+  "motorcycles_plate",
+  "column_break_ctjo",
+  "detail",
+  "visitor_type",
+  "customer",
+  "contractor_ref",
+  "link_documents",
+  "appointment",
+  "party_",
+  "column_break_xcqv",
+  "calendar",
+  "check_in_out",
+  "check_in_time",
+  "check_out_time",
+  "reporting_status"
+ ],
+ "fields": [
+  {
+   "fieldname": "scheduled_time",
+   "fieldtype": "Datetime",
+   "label": "Scheduled Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Open\nUnverified\nClosed",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "meet_with.cell_number",
+   "fieldname": "host_whatsapp_no",
+   "fieldtype": "Data",
+   "label": "Host WhatsAPP No."
+  },
+  {
+   "fieldname": "farmunit",
+   "fieldtype": "Data",
+   "label": "Farm/Unit"
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "customer_phone_number",
+   "fieldtype": "Data",
+   "label": "Phone Number"
+  },
+  {
+   "fieldname": "skype_id",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Skype ID"
+  },
+  {
+   "fieldname": "customer_email",
+   "fieldtype": "Data",
+   "label": "Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "col_br_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "customer_details",
+   "fieldtype": "Long Text",
+   "label": "Details"
+  },
+  {
+   "fieldname": "linked_docs_section",
+   "fieldtype": "Section Break",
+   "label": "Linked Documents"
+  },
+  {
+   "fieldname": "appointment_with",
+   "fieldtype": "Link",
+   "label": "Appointment With",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Link",
+   "label": "Party",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "col_br_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "calendar_event",
+   "fieldtype": "Link",
+   "label": "Calendar Event",
+   "options": "Event"
+  },
+  {
+   "depends_on": "eval:doc.mode_of_transport==\"Vehicle\"",
+   "fieldname": "visitorcontractor_tab_tab",
+   "fieldtype": "Tab Break",
+   "label": "Visitor/Contractor Tab",
+   "mandatory_depends_on": "eval:doc.mode_of_transport==\"Vehicle\""
+  },
+  {
+   "fieldname": "scheduled_t",
+   "fieldtype": "Datetime",
+   "label": "Scheduled Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "statuss",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Open\nUnverified\nClosed"
+  },
+  {
+   "fieldname": "meeting_with",
+   "fieldtype": "Link",
+   "label": "Meet With?",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fieldname": "whatsapp_no",
+   "fieldtype": "Data",
+   "label": "Host WhatsApp No."
+  },
+  {
+   "fieldname": "compan",
+   "fieldtype": "Data",
+   "label": "Company"
+  },
+  {
+   "fieldname": "farm_unit",
+   "fieldtype": "Data",
+   "label": "Farm/Unit"
+  },
+  {
+   "fieldname": "number_passengers",
+   "fieldtype": "Data",
+   "label": "Number Of Paddengers"
+  },
+  {
+   "fieldname": "visitor_details",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "name1",
+   "fieldtype": "Data",
+   "label": "Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "phone_no",
+   "fieldtype": "Data",
+   "label": "Phone Number"
+  },
+  {
+   "fieldname": "skype_id_",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Skype ID"
+  },
+  {
+   "fieldname": "mail",
+   "fieldtype": "Data",
+   "label": "Email"
+  },
+  {
+   "fieldname": "mode_of_transport",
+   "fieldtype": "Select",
+   "label": "Mode Of Transport",
+   "options": "On Foot\nVehicle\nMotorcycle"
+  },
+  {
+   "depends_on": "eval:doc.mode_of_transport==\"Vehicle\"",
+   "fieldname": "vehicles_number_plate",
+   "fieldtype": "Data",
+   "label": "Vehicle's Number Plate",
+   "mandatory_depends_on": "eval:doc.mode_of_transport==\"Vehicle\""
+  },
+  {
+   "depends_on": "eval:doc.mode_of_transport==\"Vehicle\"",
+   "fieldname": "vehicles_color",
+   "fieldtype": "Data",
+   "label": "Vehicle's Color",
+   "mandatory_depends_on": "eval:doc.mode_of_transport==\"Vehicle\""
+  },
+  {
+   "depends_on": "eval:doc.mode_of_transport==\"Motorcycle\"",
+   "fieldname": "motorcycles_plate",
+   "fieldtype": "Data",
+   "label": "Motorcycles Plate",
+   "mandatory_depends_on": "eval:doc.mode_of_transport==\"Motorcycle\""
+  },
+  {
+   "fieldname": "column_break_ctjo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "detail",
+   "fieldtype": "Long Text",
+   "label": "Details"
+  },
+  {
+   "fieldname": "visitor_type",
+   "fieldtype": "Select",
+   "label": "Visitor Type",
+   "options": "Visitor\nCustomer\nContractor"
+  },
+  {
+   "depends_on": "eval:doc.customer==\"Customer\"",
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "mandatory_depends_on": "eval:doc.customer==\"Customer\"",
+   "options": "Customer"
+  },
+  {
+   "depends_on": "eval:doc.contractor_ref==\"contractor_ref\"",
+   "fieldname": "contractor_ref",
+   "fieldtype": "Link",
+   "label": "Contractor Ref",
+   "mandatory_depends_on": "eval:doc.contractor_ref==\"contractor_ref\"",
+   "options": "Supplier"
+  },
+  {
+   "fieldname": "link_documents",
+   "fieldtype": "Section Break",
+   "label": "Linked Documents"
+  },
+  {
+   "fieldname": "appointment",
+   "fieldtype": "Link",
+   "label": "Appointment With",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "party_",
+   "fieldtype": "Link",
+   "label": "Party",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "column_break_xcqv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "calendar",
+   "fieldtype": "Link",
+   "label": "Calendar Event",
+   "options": "Event"
+  },
+  {
+   "fieldname": "check_in_out",
+   "fieldtype": "Section Break",
+   "label": "Check In and Check Out"
+  },
+  {
+   "fieldname": "check_in_time",
+   "fieldtype": "Datetime",
+   "label": "Check In Time"
+  },
+  {
+   "fieldname": "check_out_time",
+   "fieldtype": "Datetime",
+   "label": "Check Out Time"
+  },
+  {
+   "fieldname": "reporting_status",
+   "fieldtype": "Select",
+   "label": "Reporting Status",
+   "options": "Scheduled\nChecked In\nChecked Out\nExpired\nPending Host Review"
+  }
+ ],
+ "links": [],
+ "modified": "2026-07-17 18:14:55.187229",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Appointment",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Employee",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

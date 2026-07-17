@@ -1,0 +1,120 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "hash",
+ "creation": "2026-07-17 12:08:07.661519",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "patrol",
+  "personel",
+  "internal_guard",
+  "external_guard",
+  "captured_at",
+  "latitude",
+  "longitude",
+  "gps_accuracy"
+ ],
+ "fields": [
+  {
+   "fieldname": "patrol",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patrol",
+   "reqd": 1
+  },
+  {
+   "fieldname": "captured_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Captured At",
+   "reqd": 1
+  },
+  {
+   "fieldname": "latitude",
+   "fieldtype": "Data",
+   "label": "Latitude",
+   "reqd": 1
+  },
+  {
+   "fieldname": "longitude",
+   "fieldtype": "Data",
+   "label": "Longitude",
+   "reqd": 1
+  },
+  {
+   "fieldname": "gps_accuracy",
+   "fieldtype": "Data",
+   "label": "GPS Accuracy"
+  },
+  {
+   "fieldname": "personel",
+   "fieldtype": "Select",
+   "label": "Personel",
+   "options": "Internal Guard\nExternal Guard"
+  },
+  {
+   "depends_on": "eval:doc.personel==\"Internal Guard\"",
+   "fieldname": "internal_guard",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Internal Guard",
+   "mandatory_depends_on": "eval:doc.personel==\"Internal Guard\"",
+   "options": "Employee"
+  },
+  {
+   "depends_on": "eval:doc.personel==\"External Guard\"",
+   "fieldname": "external_guard",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "External Guard",
+   "mandatory_depends_on": "eval:doc.personel==\"External Guard\"",
+   "options": "Security Guard"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-17 13:57:33.287193",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Patrol GPS Log",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Employee",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
