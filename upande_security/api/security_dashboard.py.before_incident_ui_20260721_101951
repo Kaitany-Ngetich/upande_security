@@ -1,0 +1,1451 @@
+from __future__ import annotations
+
+from typing import Any
+
+import frappe
+from frappe import _
+from frappe.utils import get_datetime
+
+
+@frappe.whitelist()
+def get_visitors_dashboard(
+    company: str | None = None,
+    farm: str | None = None,
+    status: str | None = None,
+    transport: str | None = None,
+    search: str | None = None,
+    start: int | str = 0,
+    page_length: int | str = 50,
+) -> dict[str, Any]:
+    """
+    Return Appointment records for the Visitors dashboard.
+
+    Contractor appointments are excluded where the Appointment With
+    field is available.
+    """
+
+    if not frappe.has_permission("Appointment", ptype="read"):
+        frappe.throw(
+            _("You do not have permission to view Appointments."),
+            frappe.PermissionError,
+        )
+
+    meta = frappe.get_meta("Appointment")
+    field_map = get_appointment_field_map(meta)
+
+    base_filters: dict[str, Any] = {}
+
+    appointment_type_field = field_map["appointment_type"]
+
+    if appointment_type_field:
+        base_filters[appointment_type_field] = ["!=", "Contractor"]
+
+    if company and company not in {
+        "All companies",
+        "All Companies",
+    }:
+        company_field = field_map["company"]
+
+        if company_field:
+            base_filters[company_field] = company
+
+    if farm and farm not in {
+        "All farms/units",
+        "All Farms/Units",
+        "All Sites",
+    }:
+        farm_field = field_map["farm"]
+
+        if farm_field:
+            base_filters[farm_field] = farm
+
+    summary = get_visitor_summary(
+        base_filters=base_filters,
+        status_field=field_map["status"],
+    )
+
+    row_filters = dict(base_filters)
+
+    status_field = field_map["status"]
+    transport_field = field_map["transport"]
+
+    if status and status != "All statuses" and status_field:
+        row_filters[status_field] = status
+
+    if (
+        transport
+        and transport != "All transport"
+        and transport_field
+    ):
+        row_filters[transport_field] = transport
+
+    or_filters: list[list[Any]] = []
+
+    if search:
+        search_value = f"%{search.strip()}%"
+
+        for fieldname in [
+            field_map["visitor_name"],
+            field_map["meet_with"],
+            field_map["phone"],
+            field_map["email"],
+            field_map["plate"],
+        ]:
+            if fieldname:
+                or_filters.append(
+                    [fieldname, "like", search_value]
+                )
+
+        or_filters.append(["name", "like", search_value])
+
+    query_fields = [
+        "name",
+        "creation",
+        "modified",
+    ]
+
+    for fieldname in field_map.values():
+        if fieldname and fieldname not in query_fields:
+            query_fields.append(fieldname)
+
+    order_field = (
+        field_map["scheduled_time"]
+        or field_map["check_in"]
+        or "modified"
+    )
+
+    records = frappe.get_list(
+        "Appointment",
+        filters=row_filters,
+        or_filters=or_filters or None,
+        fields=query_fields,
+        order_by=f"{order_field} desc",
+        start=max(int(start or 0), 0),
+        page_length=min(max(int(page_length or 50), 1), 200),
+    )
+
+    filtered_total = permission_aware_count(
+        filters=row_filters,
+        or_filters=or_filters,
+    )
+
+    rows = [
+        normalise_appointment(record, field_map)
+        for record in records
+    ]
+
+    return {
+        "summary": summary,
+        "rows": rows,
+        "filtered_total": filtered_total,
+        "status_options": get_distinct_options(
+            field_map["status"],
+            base_filters,
+        ),
+        "transport_options": get_distinct_options(
+            field_map["transport"],
+            base_filters,
+        ),
+        "field_map": field_map,
+    }
+
+
+def get_appointment_field_map(meta) -> dict[str, str | None]:
+    return {
+        "visitor_name": first_field(
+            meta,
+            [
+                "customer_name",
+                "visitor_name",
+                "full_name",
+                "party_name",
+                "contact_name",
+            ],
+            [
+                "Name",
+                "Visitor Name",
+                "Customer Name",
+            ],
+        ),
+        "meet_with": first_field(
+            meta,
+            [
+                "custom_meet_with",
+                "meeting_with",
+                "meet_with",
+                "custom_host",
+                "host",
+                "party",
+            ],
+            [
+                "Meet With",
+                "Host",
+            ],
+        ),
+        "transport": first_field(
+            meta,
+            [
+                "custom_mode_of_transport",
+                "mode_of_transport",
+                "transport_mode",
+            ],
+            [
+                "Mode of Transport",
+                "Transport",
+            ],
+        ),
+        "plate": first_field(
+            meta,
+            [
+                "custom_vehicles_number_plate",
+                "custom_vehicle_number_plate",
+                "vehicles_number_plate",
+                "motorcycles_plate",
+                "vehicle_number_plate",
+                "registration_number",
+                "vehicle_number",
+            ],
+            [
+                "Vehicle Number Plate",
+                "Number Plate",
+                "Plate",
+            ],
+        ),
+        "check_in": first_field(
+            meta,
+            [
+                "custom_check_in",
+                "custom_check_in_time",
+                "check_in",
+                "checkin",
+                "check_in_time",
+            ],
+            [
+                "Check In",
+                "Check In Time",
+            ],
+        ),
+        "check_out": first_field(
+            meta,
+            [
+                "custom_check_out",
+                "custom_check_out_time",
+                "check_out",
+                "checkout",
+                "check_out_time",
+            ],
+            [
+                "Check Out",
+                "Check Out Time",
+            ],
+        ),
+        "status": first_field(
+            meta,
+            [
+                "workflow_state",
+                "status",
+            ],
+            [
+                "Workflow State",
+                "Status",
+            ],
+        ),
+        "scheduled_time": first_field(
+            meta,
+            [
+                "scheduled_time",
+                "appointment_time",
+                "appointment_date",
+            ],
+            [
+                "Scheduled Time",
+            ],
+        ),
+        "appointment_type": first_field(
+            meta,
+            [
+                "appointment_with",
+                "party_type",
+                "custom_visitor_type",
+                "visitor_type",
+            ],
+            [
+                "Appointment With",
+                "Visitor Type",
+            ],
+        ),
+        "company": first_field(
+            meta,
+            [
+                "company",
+                "compan",
+                "custom_company",
+            ],
+            [
+                "Company",
+            ],
+        ),
+        "farm": first_field(
+            meta,
+            [
+                "custom_farm",
+                "custom_farm_unit",
+                "farm",
+                "farmunit",
+                "farm_unit",
+                "site",
+            ],
+            [
+                "Farm/Unit",
+                "Farm / Unit",
+                "Farm",
+                "Site",
+            ],
+        ),
+        "phone": first_field(
+            meta,
+            [
+                "customer_phone_number",
+                "phone_number",
+                "mobile_no",
+                "phone",
+            ],
+            [
+                "Phone Number",
+                "Mobile Number",
+            ],
+        ),
+        "email": first_field(
+            meta,
+            [
+                "customer_email",
+                "email",
+                "email_id",
+            ],
+            [
+                "Email",
+                "Email Address",
+            ],
+        ),
+    }
+
+
+def first_field(
+    meta,
+    fieldnames: list[str],
+    labels: list[str] | None = None,
+) -> str | None:
+    for fieldname in fieldnames:
+        if meta.has_field(fieldname):
+            return fieldname
+
+    normalised_labels = {
+        normalise_label(label)
+        for label in (labels or [])
+    }
+
+    for field in meta.fields:
+        if normalise_label(field.label) in normalised_labels:
+            return field.fieldname
+
+    return None
+
+
+def normalise_label(value: str | None) -> str:
+    return " ".join(
+        str(value or "").strip().lower().split()
+    )
+
+
+def get_visitor_summary(
+    base_filters: dict[str, Any],
+    status_field: str | None,
+) -> dict[str, int]:
+    summary = {
+        "total": 0,
+        "checked_in": 0,
+        "checked_out": 0,
+        "scheduled": 0,
+    }
+
+    if not status_field:
+        summary["total"] = permission_aware_count(
+            filters=base_filters
+        )
+        return summary
+
+    status_groups = frappe.get_list(
+        "Appointment",
+        filters=base_filters,
+        fields=[
+            status_field,
+            {"COUNT": "name", "as": "record_count"},
+        ],
+        group_by=status_field,
+        page_length=1000,
+    )
+
+    for row in status_groups:
+        state = str(row.get(status_field) or "")
+        count = int(row.get("record_count") or 0)
+        normalised = state.lower().strip()
+
+        summary["total"] += count
+
+        if "checked in" in normalised:
+            summary["checked_in"] += count
+
+        elif "checked out" in normalised:
+            summary["checked_out"] += count
+
+        elif any(
+            phrase in normalised
+            for phrase in [
+                "scheduled",
+                "approved",
+                "rescheduled",
+                "open",
+            ]
+        ):
+            summary["scheduled"] += count
+
+    return summary
+
+
+def permission_aware_count(
+    filters: dict[str, Any],
+    or_filters: list[list[Any]] | None = None,
+) -> int:
+    result = frappe.get_list(
+        "Appointment",
+        filters=filters,
+        or_filters=or_filters or None,
+        fields=[{"COUNT": "name", "as": "record_count"}],
+        page_length=1,
+    )
+
+    if not result:
+        return 0
+
+    return int(result[0].get("record_count") or 0)
+
+
+def get_distinct_options(
+    fieldname: str | None,
+    filters: dict[str, Any],
+) -> list[str]:
+    if not fieldname:
+        return []
+
+    records = frappe.get_list(
+        "Appointment",
+        filters={
+            **filters,
+            fieldname: ["is", "set"],
+        },
+        fields=[fieldname],
+        group_by=fieldname,
+        order_by=fieldname,
+        page_length=200,
+    )
+
+    return [
+        row.get(fieldname)
+        for row in records
+        if row.get(fieldname)
+    ]
+
+
+def normalise_appointment(
+    record,
+    fields: dict[str, str | None],
+) -> dict[str, Any]:
+    check_in = value_from(record, fields["check_in"])
+    check_out = value_from(record, fields["check_out"])
+    status = value_from(record, fields["status"])
+
+    return {
+        "name": record.name,
+        "visitor_name": (
+            value_from(record, fields["visitor_name"])
+            or record.name
+        ),
+        "meet_with": value_from(
+            record,
+            fields["meet_with"],
+        ),
+        "transport": value_from(
+            record,
+            fields["transport"],
+        ),
+        "plate": value_from(
+            record,
+            fields["plate"],
+        ),
+        "check_in": format_time(check_in),
+        "check_out": format_time(check_out),
+        "duration": calculate_duration(
+            check_in,
+            check_out,
+        ),
+        "status": clean_status(status),
+        "raw_status": status,
+        "scheduled_time": format_datetime(
+            value_from(
+                record,
+                fields["scheduled_time"],
+            )
+        ),
+    }
+
+
+def value_from(record, fieldname: str | None):
+    if not fieldname:
+        return None
+
+    return record.get(fieldname)
+
+
+def clean_status(value) -> str:
+    status = str(value or "")
+
+    if status.startswith("Visitor "):
+        status = status[len("Visitor "):]
+
+    return status or "Not Set"
+
+
+def format_time(value) -> str:
+    if not value:
+        return ""
+
+    try:
+        return get_datetime(value).strftime("%H:%M")
+    except Exception:
+        return str(value)
+
+
+def format_datetime(value) -> str:
+    if not value:
+        return ""
+
+    try:
+        return get_datetime(value).strftime(
+            "%d %b %Y %H:%M"
+        )
+    except Exception:
+        return str(value)
+
+
+def calculate_duration(check_in, check_out) -> str:
+    if not check_in or not check_out:
+        return ""
+
+    try:
+        start = get_datetime(check_in)
+        end = get_datetime(check_out)
+        seconds = max(int((end - start).total_seconds()), 0)
+    except Exception:
+        return ""
+
+    hours, remainder = divmod(seconds, 3600)
+    minutes = remainder // 60
+
+    if hours:
+        return f"{hours}h {minutes}m"
+
+    return f"{minutes}m"
+
+# BEGIN PATROL DASHBOARD API
+
+@frappe.whitelist()
+def get_patrols_dashboard(
+    date: str | None = None,
+    personnel: str | None = None,
+    search: str | None = None,
+    active_window_minutes: int | str = 15,
+) -> dict[str, Any]:
+    """
+    Return live Patrol GPS Log information for the patrol dashboard.
+
+    One dashboard row represents one distinct patrol ID. The row uses
+    the most recent GPS point recorded for that patrol.
+    """
+
+    doctype = "Patrol GPS Log"
+
+    if not frappe.has_permission(doctype, ptype="read"):
+        frappe.throw(
+            _("You do not have permission to view Patrol GPS Logs."),
+            frappe.PermissionError,
+        )
+
+    selected_date = (
+        frappe.utils.getdate(date)
+        if date
+        else frappe.utils.getdate()
+    )
+
+    active_minutes = max(
+        int(active_window_minutes or 15),
+        1,
+    )
+
+    day_start = f"{selected_date} 00:00:00"
+    day_end = f"{selected_date} 23:59:59"
+
+    filters: dict[str, Any] = {
+        "captured_at": [
+            "between",
+            [day_start, day_end],
+        ],
+    }
+
+    if personnel and personnel not in {
+        "All Personnel",
+        "All personnel",
+    }:
+        filters["personel"] = personnel
+
+    or_filters: list[list[Any]] = []
+
+    if search:
+        search_value = f"%{search.strip()}%"
+
+        or_filters = [
+            ["patrol", "like", search_value],
+            ["internal_guard", "like", search_value],
+            ["external_guard", "like", search_value],
+        ]
+
+    points = frappe.get_list(
+        doctype,
+        filters=filters,
+        or_filters=or_filters or None,
+        fields=[
+            "name",
+            "patrol",
+            "personel",
+            "internal_guard",
+            "external_guard",
+            "captured_at",
+            "latitude",
+            "longitude",
+            "gps_accuracy",
+            "creation",
+            "modified",
+        ],
+        order_by="captured_at desc",
+        page_length=5000,
+    )
+
+    patrol_groups: dict[str, dict[str, Any]] = {}
+
+    for point in points:
+        patrol_id = str(point.get("patrol") or "").strip()
+
+        if not patrol_id:
+            patrol_id = _("Unassigned Patrol")
+
+        if patrol_id not in patrol_groups:
+            patrol_groups[patrol_id] = {
+                "latest": point,
+                "first": point,
+                "point_count": 0,
+            }
+
+        patrol_groups[patrol_id]["point_count"] += 1
+        patrol_groups[patrol_id]["first"] = point
+
+    now = frappe.utils.now_datetime()
+    today = frappe.utils.getdate()
+    selected_is_today = selected_date == today
+
+    rows: list[dict[str, Any]] = []
+    active_count = 0
+    stale_count = 0
+    alert_count = 0
+    guards: set[str] = set()
+
+    for patrol_id, group in patrol_groups.items():
+        latest = group["latest"]
+        first = group["first"]
+
+        latest_datetime = (
+            frappe.utils.get_datetime(
+                latest.get("captured_at")
+            )
+            if latest.get("captured_at")
+            else None
+        )
+
+        minutes_since_update = None
+        tracking_status = "Historical"
+
+        if selected_is_today and latest_datetime:
+            minutes_since_update = max(
+                int(
+                    (
+                        now - latest_datetime
+                    ).total_seconds()
+                    / 60
+                ),
+                0,
+            )
+
+            if minutes_since_update <= active_minutes:
+                tracking_status = "Active"
+                active_count += 1
+            else:
+                tracking_status = "Stale"
+                stale_count += 1
+                alert_count += 1
+
+        personnel_type = latest.get("personel") or ""
+        guard = (
+            latest.get("internal_guard")
+            or latest.get("external_guard")
+            or ""
+        )
+
+        if guard:
+            guards.add(str(guard))
+
+        latitude = _patrol_float(
+            latest.get("latitude")
+        )
+        longitude = _patrol_float(
+            latest.get("longitude")
+        )
+        accuracy = _patrol_float(
+            latest.get("gps_accuracy")
+        )
+
+        coordinate_valid = (
+            latitude is not None
+            and longitude is not None
+            and -90 <= latitude <= 90
+            and -180 <= longitude <= 180
+        )
+
+        poor_accuracy = (
+            accuracy is not None
+            and accuracy > 50
+        )
+
+        if not coordinate_valid:
+            alert_count += 1
+
+        if poor_accuracy:
+            alert_count += 1
+
+        rows.append(
+            {
+                "patrol": patrol_id,
+                "personnel_type": personnel_type,
+                "guard": guard,
+                "latest_log": latest.get("name"),
+                "latest_captured_at": _patrol_datetime(
+                    latest.get("captured_at")
+                ),
+                "first_captured_at": _patrol_datetime(
+                    first.get("captured_at")
+                ),
+                "latitude": latitude,
+                "longitude": longitude,
+                "gps_accuracy": accuracy,
+                "point_count": group["point_count"],
+                "tracking_status": tracking_status,
+                "minutes_since_update": minutes_since_update,
+                "last_seen": _patrol_last_seen(
+                    minutes_since_update,
+                    selected_is_today,
+                ),
+                "coordinate_valid": coordinate_valid,
+                "poor_accuracy": poor_accuracy,
+                "route": (
+                    f"Form/Patrol GPS Log/"
+                    f"{latest.get('name')}"
+                ),
+            }
+        )
+
+    rows.sort(
+        key=lambda row: (
+            0
+            if row["tracking_status"] == "Active"
+            else 1
+            if row["tracking_status"] == "Stale"
+            else 2,
+            row["patrol"],
+        )
+    )
+
+    return {
+        "selected_date": str(selected_date),
+        "active_window_minutes": active_minutes,
+        "summary": {
+            "total_patrols": len(rows),
+            "active_patrols": active_count,
+            "stale_patrols": stale_count,
+            "guards_tracked": len(guards),
+            "gps_points": len(points),
+            "tracking_alerts": alert_count,
+        },
+        "rows": rows,
+        "map_points": [
+            {
+                "patrol": row["patrol"],
+                "guard": row["guard"],
+                "latitude": row["latitude"],
+                "longitude": row["longitude"],
+                "status": row["tracking_status"],
+                "latest_log": row["latest_log"],
+            }
+            for row in rows
+            if row["coordinate_valid"]
+        ],
+        "personnel_options": [
+            "Internal Guard",
+            "External Guard",
+        ],
+    }
+
+
+def _patrol_float(value) -> float | None:
+    if value in (None, ""):
+        return None
+
+    raw_value = str(value).strip().lower()
+
+    for suffix in [
+        "metres",
+        "meters",
+        "metre",
+        "meter",
+        "m",
+    ]:
+        if raw_value.endswith(suffix):
+            raw_value = raw_value[
+                : -len(suffix)
+            ].strip()
+            break
+
+    try:
+        return float(raw_value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _patrol_datetime(value) -> str:
+    if not value:
+        return ""
+
+    try:
+        return frappe.utils.get_datetime(value).strftime(
+            "%d %b %Y %H:%M:%S"
+        )
+    except Exception:
+        return str(value)
+
+
+def _patrol_last_seen(
+    minutes: int | None,
+    selected_is_today: bool,
+) -> str:
+    if not selected_is_today or minutes is None:
+        return _("Historical")
+
+    if minutes < 1:
+        return _("Just now")
+
+    if minutes == 1:
+        return _("1 minute ago")
+
+    if minutes < 60:
+        return _("{0} minutes ago").format(minutes)
+
+    hours = minutes // 60
+    remaining_minutes = minutes % 60
+
+    if remaining_minutes:
+        return _("{0}h {1}m ago").format(
+            hours,
+            remaining_minutes,
+        )
+
+    return _("{0}h ago").format(hours)
+
+
+# END PATROL DASHBOARD API
+
+
+# BEGIN INCIDENTS DASHBOARD API
+
+
+@frappe.whitelist()
+def get_incidents_dashboard(
+    date_from=None,
+    date_to=None,
+    status=None,
+    severity=None,
+    category=None,
+    location=None,
+    assigned_to=None,
+    search=None,
+    limit=500,
+):
+    """
+    Return permission-aware Incident Report data for the
+    Security Command Centre.
+
+    Incident Report is the parent DocType.
+
+    Supporting DocTypes:
+        Incident Category
+        Incident Person
+    """
+
+    doctype = "Incident Report"
+
+    if not frappe.has_permission(
+        doctype,
+        ptype="read",
+    ):
+        frappe.throw(
+            _("You do not have permission to view Incident Reports."),
+            frappe.PermissionError,
+        )
+
+    try:
+        row_limit = int(limit or 500)
+    except (TypeError, ValueError):
+        row_limit = 500
+
+    row_limit = max(1, min(row_limit, 2000))
+
+    filters = []
+
+    if date_from:
+        start_date = frappe.utils.getdate(date_from)
+
+        filters.append(
+            [
+                "incident_datetime",
+                ">=",
+                f"{start_date} 00:00:00",
+            ]
+        )
+
+    if date_to:
+        end_date = frappe.utils.getdate(date_to)
+
+        filters.append(
+            [
+                "incident_datetime",
+                "<=",
+                f"{end_date} 23:59:59",
+            ]
+        )
+
+    if status and status not in {
+        "All",
+        "All Statuses",
+        "All statuses",
+    }:
+        filters.append(
+            ["status", "=", status]
+        )
+
+    if severity and severity not in {
+        "All",
+        "All Severities",
+        "All severities",
+    }:
+        filters.append(
+            ["severity", "=", severity]
+        )
+
+    if category:
+        filters.append(
+            [
+                "nature_of_incident",
+                "=",
+                category,
+            ]
+        )
+
+    if location:
+        filters.append(
+            ["location", "=", location]
+        )
+
+    if assigned_to:
+        filters.append(
+            ["assigned_to", "=", assigned_to]
+        )
+
+    search_value = str(search or "").strip()
+    or_filters = []
+
+    if search_value:
+        like_value = f"%{search_value}%"
+
+        or_filters = [
+            ["name", "like", like_value],
+            [
+                "nature_of_incident",
+                "like",
+                like_value,
+            ],
+            ["location", "like", like_value],
+            ["reporter_name", "like", like_value],
+            ["reported_by", "like", like_value],
+            ["assigned_to", "like", like_value],
+            ["description", "like", like_value],
+        ]
+
+    query_options = {
+        "doctype": doctype,
+        "filters": filters,
+        "fields": [
+            "name",
+            "incident_datetime",
+            "location",
+            "nature_of_incident",
+            "severity",
+            "status",
+            "reported_by",
+            "reporter_name",
+            "reported_datetime",
+            "assigned_to",
+            "description",
+            "resolution",
+            "corrective_actions",
+            "resolution_datetime",
+            "remarks",
+            "attachment_1",
+            "attachment_2",
+            "attachment_3",
+            "attachment_4",
+            "owner",
+            "creation",
+            "modified",
+        ],
+        "order_by": "incident_datetime desc",
+        "limit_page_length": row_limit,
+    }
+
+    if or_filters:
+        query_options["or_filters"] = or_filters
+
+    incidents = frappe.get_list(
+        **query_options
+    )
+
+    incident_names = [
+        row.get("name")
+        for row in incidents
+        if row.get("name")
+    ]
+
+    person_counts = {
+        incident_name: {
+            "responsible_persons": 0,
+            "victims": 0,
+            "witnesses": 0,
+            "total_persons": 0,
+        }
+        for incident_name in incident_names
+    }
+
+    if incident_names:
+        child_rows = frappe.get_all(
+            "Incident Person",
+            filters={
+                "parenttype": "Incident Report",
+                "parent": [
+                    "in",
+                    incident_names,
+                ],
+                "parentfield": [
+                    "in",
+                    [
+                        "responsible_persons",
+                        "victims",
+                        "witnesses",
+                    ],
+                ],
+            },
+            fields=[
+                "parent",
+                "parentfield",
+            ],
+            limit_page_length=10000,
+        )
+
+        for child in child_rows:
+            parent = child.get("parent")
+            parentfield = child.get("parentfield")
+
+            if parent not in person_counts:
+                continue
+
+            if parentfield in {
+                "responsible_persons",
+                "victims",
+                "witnesses",
+            }:
+                person_counts[parent][parentfield] += 1
+                person_counts[parent]["total_persons"] += 1
+
+    categories = []
+
+    if frappe.has_permission(
+        "Incident Category",
+        ptype="read",
+    ):
+        categories = frappe.get_list(
+            "Incident Category",
+            filters={"is_active": 1},
+            fields=[
+                "name",
+                "category_name",
+                "default_severity",
+                "color",
+            ],
+            order_by="category_name asc",
+            limit_page_length=500,
+        )
+
+    category_details = {}
+
+    for category_row in categories:
+        category_name = (
+            category_row.get("category_name")
+            or category_row.get("name")
+        )
+
+        if not category_name:
+            continue
+
+        category_details[category_name] = {
+            "default_severity":
+                category_row.get(
+                    "default_severity"
+                ),
+            "color":
+                category_row.get("color"),
+        }
+
+    summary = {
+        "total_incidents": len(incidents),
+        "open_incidents": 0,
+        "in_progress_incidents": 0,
+        "high_critical_incidents": 0,
+        "resolved_incidents": 0,
+        "closed_incidents": 0,
+        "unassigned_incidents": 0,
+    }
+
+    category_totals = {}
+    rows = []
+
+    for incident in incidents:
+        incident_name = incident.get("name")
+        incident_status = (
+            incident.get("status")
+            or "Not Set"
+        )
+        incident_severity = (
+            incident.get("severity")
+            or "Not Set"
+        )
+        incident_category = (
+            incident.get("nature_of_incident")
+            or "Not Set"
+        )
+
+        if incident_status == "Open":
+            summary["open_incidents"] += 1
+
+        elif incident_status == "In Progress":
+            summary[
+                "in_progress_incidents"
+            ] += 1
+
+        elif incident_status == "Resolved":
+            summary["resolved_incidents"] += 1
+
+        elif incident_status == "Closed":
+            summary["closed_incidents"] += 1
+
+        if incident_severity in {
+            "High",
+            "Critical",
+        }:
+            summary[
+                "high_critical_incidents"
+            ] += 1
+
+        if not incident.get("assigned_to"):
+            summary["unassigned_incidents"] += 1
+
+        category_totals.setdefault(
+            incident_category,
+            0,
+        )
+        category_totals[incident_category] += 1
+
+        attachments = [
+            incident.get("attachment_1"),
+            incident.get("attachment_2"),
+            incident.get("attachment_3"),
+            incident.get("attachment_4"),
+        ]
+
+        attachments = [
+            attachment
+            for attachment in attachments
+            if attachment
+        ]
+
+        counts = person_counts.get(
+            incident_name,
+            {
+                "responsible_persons": 0,
+                "victims": 0,
+                "witnesses": 0,
+                "total_persons": 0,
+            },
+        )
+
+        category_meta = category_details.get(
+            incident_category,
+            {},
+        )
+
+        rows.append(
+            {
+                "name": incident_name,
+                "incident_datetime":
+                    _incident_format_datetime(
+                        incident.get(
+                            "incident_datetime"
+                        )
+                    ),
+                "incident_datetime_raw":
+                    incident.get(
+                        "incident_datetime"
+                    ),
+                "location":
+                    incident.get("location")
+                    or "",
+                "nature_of_incident":
+                    incident_category,
+                "severity":
+                    incident_severity,
+                "status":
+                    incident_status,
+                "reported_by":
+                    incident.get("reported_by")
+                    or "",
+                "reporter_name":
+                    incident.get("reporter_name")
+                    or incident.get("reported_by")
+                    or "",
+                "reported_datetime":
+                    _incident_format_datetime(
+                        incident.get(
+                            "reported_datetime"
+                        )
+                    ),
+                "assigned_to":
+                    incident.get("assigned_to")
+                    or "",
+                "description":
+                    _incident_text_preview(
+                        incident.get("description")
+                    ),
+                "resolution":
+                    _incident_text_preview(
+                        incident.get("resolution")
+                    ),
+                "corrective_actions":
+                    _incident_text_preview(
+                        incident.get(
+                            "corrective_actions"
+                        )
+                    ),
+                "resolution_datetime":
+                    _incident_format_datetime(
+                        incident.get(
+                            "resolution_datetime"
+                        )
+                    ),
+                "remarks":
+                    _incident_text_preview(
+                        incident.get("remarks")
+                    ),
+                "responsible_persons":
+                    counts[
+                        "responsible_persons"
+                    ],
+                "victims":
+                    counts["victims"],
+                "witnesses":
+                    counts["witnesses"],
+                "total_persons":
+                    counts["total_persons"],
+                "evidence_count":
+                    len(attachments),
+                "attachments":
+                    attachments,
+                "category_color":
+                    category_meta.get("color"),
+                "default_category_severity":
+                    category_meta.get(
+                        "default_severity"
+                    ),
+                "owner":
+                    incident.get("owner"),
+                "modified":
+                    _incident_format_datetime(
+                        incident.get("modified")
+                    ),
+            }
+        )
+
+    category_summary = []
+
+    for category_name, count in sorted(
+        category_totals.items(),
+        key=lambda item: (
+            -item[1],
+            item[0],
+        ),
+    ):
+        category_meta = category_details.get(
+            category_name,
+            {},
+        )
+
+        category_summary.append(
+            {
+                "category": category_name,
+                "count": count,
+                "color":
+                    category_meta.get("color"),
+                "default_severity":
+                    category_meta.get(
+                        "default_severity"
+                    ),
+            }
+        )
+
+    locations = sorted(
+        {
+            row["location"]
+            for row in rows
+            if row["location"]
+        }
+    )
+
+    assigned_users = sorted(
+        {
+            row["assigned_to"]
+            for row in rows
+            if row["assigned_to"]
+        }
+    )
+
+    return {
+        "summary": summary,
+        "rows": rows,
+        "category_summary": category_summary,
+        "filter_options": {
+            "statuses": [
+                "Open",
+                "In Progress",
+                "Resolved",
+                "Closed",
+            ],
+            "severities": [
+                "Low",
+                "Medium",
+                "High",
+                "Critical",
+            ],
+            "categories": [
+                {
+                    "value":
+                        category.get(
+                            "category_name"
+                        )
+                        or category.get("name"),
+                    "label":
+                        category.get(
+                            "category_name"
+                        )
+                        or category.get("name"),
+                    "default_severity":
+                        category.get(
+                            "default_severity"
+                        ),
+                    "color":
+                        category.get("color"),
+                }
+                for category in categories
+            ],
+            "locations": locations,
+            "assigned_users": assigned_users,
+        },
+        "applied_filters": {
+            "date_from": date_from,
+            "date_to": date_to,
+            "status": status,
+            "severity": severity,
+            "category": category,
+            "location": location,
+            "assigned_to": assigned_to,
+            "search": search_value,
+        },
+    }
+
+
+def _incident_format_datetime(value):
+    if not value:
+        return ""
+
+    try:
+        return frappe.utils.get_datetime(
+            value
+        ).strftime(
+            "%d %b %Y %H:%M"
+        )
+    except Exception:
+        return str(value)
+
+
+def _incident_text_preview(
+    value,
+    maximum_length=180,
+):
+    if not value:
+        return ""
+
+    text = " ".join(
+        str(value).split()
+    )
+
+    if len(text) <= maximum_length:
+        return text
+
+    return (
+        text[: maximum_length - 1].rstrip()
+        + "…"
+    )
+
+
+# END INCIDENTS DASHBOARD API
+

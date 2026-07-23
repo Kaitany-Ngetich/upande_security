@@ -1,0 +1,553 @@
+frappe.pages["security-dashboard"].on_page_load = function (wrapper) {
+	const page = frappe.ui.make_app_page({
+		parent: wrapper,
+		title: __("Security Command Centre"),
+		single_column: true,
+	});
+
+	wrapper.security_dashboard_page = page;
+
+	setup_filters(page);
+	render_dashboard(page);
+	bind_dashboard_events(page);
+	update_dashboard_time(page);
+
+	page.set_primary_action(
+		__("Refresh"),
+		() => {
+			update_dashboard_time(page);
+
+			frappe.show_alert({
+				message: __("Security dashboard refreshed"),
+				indicator: "green",
+			});
+		},
+		"refresh"
+	);
+};
+
+frappe.pages["security-dashboard"].on_page_show = function (wrapper) {
+	if (wrapper.security_dashboard_page) {
+		update_dashboard_time(wrapper.security_dashboard_page);
+	}
+};
+
+function setup_filters(page) {
+	page.add_field({
+		label: __("Company"),
+		fieldname: "company",
+		fieldtype: "Link",
+		options: "Company",
+		default: frappe.defaults.get_default("company"),
+		change: () => update_dashboard_time(page),
+	});
+
+	page.add_field({
+		label: __("Site / Farm"),
+		fieldname: "site",
+		fieldtype: "Select",
+		options: [
+			__("All Sites"),
+			__("Karen Roses"),
+			__("Kisumu Farm"),
+		],
+		default: __("All Sites"),
+		change: () => update_dashboard_time(page),
+	});
+
+	page.add_field({
+		label: __("Gate"),
+		fieldname: "gate",
+		fieldtype: "Select",
+		options: [
+			__("All Gates"),
+			__("Main Gate"),
+			__("North Gate"),
+			__("Service Gate"),
+		],
+		default: __("All Gates"),
+	});
+
+	page.add_field({
+		label: __("Shift"),
+		fieldname: "shift",
+		fieldtype: "Select",
+		options: [
+			__("Day Shift"),
+			__("Night Shift"),
+			__("All Shifts"),
+		],
+		default: __("Day Shift"),
+	});
+
+	page.add_field({
+		label: __("Date"),
+		fieldname: "date",
+		fieldtype: "Date",
+		default: frappe.datetime.get_today(),
+	});
+}
+
+function render_dashboard(page) {
+	$(page.main).html(`
+		<div class="security-command-centre">
+
+			<section class="sd-intro">
+				<div>
+					<h2>${__("Security Command Centre")}</h2>
+					<p>
+						${__(
+							"Real-time overview of security operations and site activity"
+						)}
+					</p>
+				</div>
+
+				<div class="sd-live-status">
+					<span class="sd-live-dot"></span>
+					<span>${__("Auto-refresh")}: 30s</span>
+					<span class="sd-updated-time"></span>
+				</div>
+			</section>
+
+			<section class="sd-kpi-grid">
+				${make_kpi_card(
+					"🛡",
+					__("Guards On Duty"),
+					"48",
+					__("52 scheduled"),
+					"blue",
+					"Security Guard"
+				)}
+
+				${make_kpi_card(
+					"♟",
+					__("Visitors On Site"),
+					"23",
+					__("Currently checked in"),
+					"green",
+					"Appointment"
+				)}
+
+				${make_kpi_card(
+					"▣",
+					__("Contractors On Site"),
+					"17",
+					__("Approved entries"),
+					"purple",
+					"Contractor"
+				)}
+
+				${make_kpi_card(
+					"🚙",
+					__("Vehicles On Site"),
+					"31",
+					__("Inside the perimeter"),
+					"blue",
+					"Appointment"
+				)}
+
+				${make_kpi_card(
+					"!",
+					__("Open Incidents"),
+					"6",
+					__("Require attention"),
+					"red",
+					"Incident"
+				)}
+
+				${make_kpi_card(
+					"✓",
+					__("Patrol Compliance"),
+					"86%",
+					__("Today's completion"),
+					"green",
+					"Patrol GPS Log"
+				)}
+			</section>
+
+			<section class="sd-main-grid">
+
+				<div class="sd-panel sd-map-panel">
+					<div class="sd-panel-header">
+						<div>
+							<h3>${__("Live Site Map")}</h3>
+							<p>${__(
+								"Gates, checkpoints, guards and patrol routes"
+							)}</p>
+						</div>
+
+						<button
+							type="button"
+							class="btn btn-sm btn-default"
+							data-page-route="patrol-map"
+						>
+							${__("Open Full Map")}
+						</button>
+					</div>
+
+					<div class="sd-map">
+						<div class="sd-map-road sd-road-one"></div>
+						<div class="sd-map-road sd-road-two"></div>
+
+						<div class="sd-map-marker sd-gate-a">
+							<strong>Gate A</strong>
+							<span>Main Entrance</span>
+						</div>
+
+						<div class="sd-map-marker sd-gate-b">
+							<strong>Gate B</strong>
+							<span>North Gate</span>
+						</div>
+
+						<div class="sd-map-marker sd-checkpoint-one">
+							<strong>Checkpoint</strong>
+							<span>North Perimeter</span>
+						</div>
+
+						<div class="sd-map-marker sd-checkpoint-two">
+							<strong>Checkpoint</strong>
+							<span>Central Zone</span>
+						</div>
+
+						<div class="sd-restricted-zone">
+							<strong>${__("Restricted Area")}</strong>
+							<span>${__("Authorised access only")}</span>
+						</div>
+
+						<div class="sd-map-footer">
+							<span class="sd-live-dot"></span>
+							${__("Map awaiting live GPS integration")}
+						</div>
+					</div>
+				</div>
+
+				<div class="sd-panel">
+					<div class="sd-panel-header">
+						<div>
+							<h3>${__("Live Alerts")}</h3>
+							<p>${__("Items needing immediate attention")}</p>
+						</div>
+
+						<button
+							type="button"
+							class="btn btn-sm btn-default"
+							data-doctype="Incident"
+						>
+							${__("View All")}
+						</button>
+					</div>
+
+					<div class="sd-alert-list">
+						${make_alert(
+							__("Missed Patrol – North Perimeter"),
+							__("Checkpoint NP-04"),
+							"10:18",
+							__("High"),
+							"high"
+						)}
+
+						${make_alert(
+							__("Visitor Overstayed"),
+							"John Kamau",
+							"10:12",
+							__("Medium"),
+							"medium"
+						)}
+
+						${make_alert(
+							__("Contractor Approval Pending"),
+							"BuildCo – 3 persons",
+							"09:58",
+							__("Medium"),
+							"medium"
+						)}
+
+						${make_alert(
+							__("Vehicle Awaiting Verification"),
+							"KDL 123A",
+							"09:45",
+							__("Low"),
+							"low"
+						)}
+					</div>
+				</div>
+
+				<div class="sd-panel">
+					<div class="sd-panel-header">
+						<div>
+							<h3>${__("Patrol Performance")}</h3>
+							<p>${__("Completed, late and missed patrols")}</p>
+						</div>
+					</div>
+
+					<div class="sd-patrol-chart">
+						${make_bar(36, 8, 4, "00:00")}
+						${make_bar(45, 12, 6, "04:00")}
+						${make_bar(73, 15, 7, "08:00")}
+						${make_bar(62, 18, 9, "12:00")}
+						${make_bar(82, 11, 5, "16:00")}
+						${make_bar(67, 17, 8, "20:00")}
+					</div>
+
+					<div class="sd-chart-legend">
+						<span><i class="sd-legend-completed"></i>${__("Completed")}</span>
+						<span><i class="sd-legend-late"></i>${__("Late")}</span>
+						<span><i class="sd-legend-missed"></i>${__("Missed")}</span>
+					</div>
+
+					<div class="sd-patrol-summary">
+						<div><strong>86</strong><span>${__("Completed")}</span></div>
+						<div><strong>16</strong><span>${__("Late")}</span></div>
+						<div><strong>12</strong><span>${__("Missed")}</span></div>
+						<div class="sd-compliance-ring">86%</div>
+					</div>
+				</div>
+
+			</section>
+
+			<section class="sd-bottom-grid">
+
+				<div class="sd-panel">
+					<div class="sd-panel-header">
+						<div>
+							<h3>${__("Current Site Occupancy")}</h3>
+							<p>${__("People and vehicles currently inside")}</p>
+						</div>
+					</div>
+
+					<div class="sd-occupancy">
+						<div class="sd-donut">
+							<div>
+								<strong>119</strong>
+								<span>${__("Total On Site")}</span>
+							</div>
+						</div>
+
+						<div class="sd-occupancy-list">
+							<div><i class="sd-dot-blue"></i><span>${__("Employees")}</span><strong>64</strong></div>
+							<div><i class="sd-dot-green"></i><span>${__("Visitors")}</span><strong>23</strong></div>
+							<div><i class="sd-dot-purple"></i><span>${__("Contractors")}</span><strong>17</strong></div>
+							<div><i class="sd-dot-orange"></i><span>${__("Vehicles")}</span><strong>15</strong></div>
+						</div>
+					</div>
+				</div>
+
+				<div class="sd-panel sd-actions-panel">
+					<div class="sd-panel-header">
+						<div>
+							<h3>${__("Items Requiring Action")}</h3>
+							<p>${__("Pending security decisions")}</p>
+						</div>
+					</div>
+
+					<div class="sd-table-wrapper">
+						<table class="table table-hover sd-actions-table">
+							<thead>
+								<tr>
+									<th>${__("Priority")}</th>
+									<th>${__("Type")}</th>
+									<th>${__("Name / Vehicle")}</th>
+									<th>${__("Location")}</th>
+									<th>${__("Status")}</th>
+									<th>${__("Action")}</th>
+								</tr>
+							</thead>
+
+							<tbody>
+								${make_action_row(
+									__("High"),
+									__("Incident"),
+									__("Unauthorised Access"),
+									__("North Fence"),
+									__("Open"),
+									__("Resolve"),
+									"high",
+									"Incident"
+								)}
+
+								${make_action_row(
+									__("Medium"),
+									__("Visitor"),
+									"John Kamau",
+									__("Reception"),
+									__("Overstayed"),
+									__("Check Out"),
+									"medium",
+									"Appointment"
+								)}
+
+								${make_action_row(
+									__("Medium"),
+									__("Contractor"),
+									"BuildCo – 3 persons",
+									__("Gate B"),
+									__("Pending Approval"),
+									__("Approve"),
+									"medium",
+									"Contractor"
+								)}
+
+								${make_action_row(
+									__("Low"),
+									__("Vehicle"),
+									"KDL 123A",
+									__("Main Gate"),
+									__("Verification"),
+									__("Verify"),
+									"low",
+									"Appointment"
+								)}
+							</tbody>
+						</table>
+					</div>
+				</div>
+
+				<div class="sd-panel">
+					<div class="sd-panel-header">
+						<div>
+							<h3>${__("Recent Security Activity")}</h3>
+							<p>${__("Latest site events")}</p>
+						</div>
+					</div>
+
+					<div class="sd-activity-list">
+						${make_activity("10:24", __("Patrol completed"), __("South Perimeter"))}
+						${make_activity("10:18", __("Missed patrol detected"), __("North Perimeter"))}
+						${make_activity("10:12", __("Visitor checked in"), "John Kamau")}
+						${make_activity("09:58", __("Contractor approval requested"), "BuildCo")}
+						${make_activity("09:45", __("Vehicle entered site"), "KDL 123A")}
+					</div>
+				</div>
+
+			</section>
+		</div>
+	`);
+}
+
+function make_kpi_card(icon, label, value, subtitle, colour, doctype) {
+	return `
+		<button type="button" class="sd-kpi-card" data-doctype="${doctype}">
+			<span class="sd-kpi-icon sd-icon-${colour}">${icon}</span>
+
+			<span class="sd-kpi-body">
+				<span class="sd-kpi-label">${label}</span>
+				<strong>${value}</strong>
+				<small>${subtitle}</small>
+			</span>
+		</button>
+	`;
+}
+
+function make_alert(title, description, time, priority, level) {
+	return `
+		<div class="sd-alert sd-alert-${level}">
+			<div>
+				<strong>${title}</strong>
+				<span>${description}</span>
+			</div>
+
+			<div class="sd-alert-meta">
+				<time>${time}</time>
+				<span>${priority}</span>
+			</div>
+		</div>
+	`;
+}
+
+function make_bar(completed, late, missed, label) {
+	return `
+		<div class="sd-bar-column">
+			<div class="sd-bar-stack">
+				<div class="sd-bar-missed" style="height:${missed}%"></div>
+				<div class="sd-bar-late" style="height:${late}%"></div>
+				<div class="sd-bar-completed" style="height:${completed}%"></div>
+			</div>
+			<span>${label}</span>
+		</div>
+	`;
+}
+
+function make_action_row(
+	priority,
+	type,
+	name,
+	location,
+	status,
+	action,
+	level,
+	doctype
+) {
+	return `
+		<tr>
+			<td><span class="sd-badge sd-badge-${level}">${priority}</span></td>
+			<td>${type}</td>
+			<td><strong>${name}</strong></td>
+			<td>${location}</td>
+			<td><span class="sd-status">${status}</span></td>
+			<td>
+				<button
+					type="button"
+					class="btn btn-xs btn-default"
+					data-doctype="${doctype}"
+				>
+					${action}
+				</button>
+			</td>
+		</tr>
+	`;
+}
+
+function make_activity(time, title, description) {
+	return `
+		<div class="sd-activity">
+			<time>${time}</time>
+			<i></i>
+			<div>
+				<strong>${title}</strong>
+				<span>${description}</span>
+			</div>
+		</div>
+	`;
+}
+
+function bind_dashboard_events(page) {
+	const $main = $(page.main);
+
+	$main.off(".security-dashboard");
+
+	$main.on(
+		"click.security-dashboard",
+		"[data-doctype]",
+		function () {
+			const doctype = $(this).attr("data-doctype");
+
+			if (doctype) {
+				frappe.set_route("List", doctype);
+			}
+		}
+	);
+
+	$main.on(
+		"click.security-dashboard",
+		"[data-page-route]",
+		function () {
+			const route = $(this).attr("data-page-route");
+
+			if (route) {
+				frappe.set_route(route);
+			}
+		}
+	);
+}
+
+function update_dashboard_time(page) {
+	const currentTime = new Date().toLocaleTimeString([], {
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+	});
+
+	$(page.main)
+		.find(".sd-updated-time")
+		.text(`${__("Updated")} ${currentTime}`);
+}

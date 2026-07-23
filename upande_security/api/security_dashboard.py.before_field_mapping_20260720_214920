@@ -1,0 +1,552 @@
+from __future__ import annotations
+
+from typing import Any
+
+import frappe
+from frappe import _
+from frappe.utils import get_datetime
+
+
+@frappe.whitelist()
+def get_visitors_dashboard(
+    company: str | None = None,
+    farm: str | None = None,
+    status: str | None = None,
+    transport: str | None = None,
+    search: str | None = None,
+    start: int | str = 0,
+    page_length: int | str = 50,
+) -> dict[str, Any]:
+    """
+    Return Appointment records for the Visitors dashboard.
+
+    Contractor appointments are excluded where the Appointment With
+    field is available.
+    """
+
+    if not frappe.has_permission("Appointment", ptype="read"):
+        frappe.throw(
+            _("You do not have permission to view Appointments."),
+            frappe.PermissionError,
+        )
+
+    meta = frappe.get_meta("Appointment")
+    field_map = get_appointment_field_map(meta)
+
+    base_filters: dict[str, Any] = {}
+
+    appointment_type_field = field_map["appointment_type"]
+
+    if appointment_type_field:
+        base_filters[appointment_type_field] = ["!=", "Contractor"]
+
+    if company and company not in {
+        "All companies",
+        "All Companies",
+    }:
+        company_field = field_map["company"]
+
+        if company_field:
+            base_filters[company_field] = company
+
+    if farm and farm not in {
+        "All farms/units",
+        "All Farms/Units",
+        "All Sites",
+    }:
+        farm_field = field_map["farm"]
+
+        if farm_field:
+            base_filters[farm_field] = farm
+
+    summary = get_visitor_summary(
+        base_filters=base_filters,
+        status_field=field_map["status"],
+    )
+
+    row_filters = dict(base_filters)
+
+    status_field = field_map["status"]
+    transport_field = field_map["transport"]
+
+    if status and status != "All statuses" and status_field:
+        row_filters[status_field] = status
+
+    if (
+        transport
+        and transport != "All transport"
+        and transport_field
+    ):
+        row_filters[transport_field] = transport
+
+    or_filters: list[list[Any]] = []
+
+    if search:
+        search_value = f"%{search.strip()}%"
+
+        for fieldname in [
+            field_map["visitor_name"],
+            field_map["meet_with"],
+            field_map["phone"],
+            field_map["email"],
+            field_map["plate"],
+        ]:
+            if fieldname:
+                or_filters.append(
+                    [fieldname, "like", search_value]
+                )
+
+        or_filters.append(["name", "like", search_value])
+
+    query_fields = [
+        "name",
+        "creation",
+        "modified",
+    ]
+
+    for fieldname in field_map.values():
+        if fieldname and fieldname not in query_fields:
+            query_fields.append(fieldname)
+
+    order_field = (
+        field_map["scheduled_time"]
+        or field_map["check_in"]
+        or "modified"
+    )
+
+    records = frappe.get_list(
+        "Appointment",
+        filters=row_filters,
+        or_filters=or_filters or None,
+        fields=query_fields,
+        order_by=f"{order_field} desc",
+        start=max(int(start or 0), 0),
+        page_length=min(max(int(page_length or 50), 1), 200),
+    )
+
+    filtered_total = permission_aware_count(
+        filters=row_filters,
+        or_filters=or_filters,
+    )
+
+    rows = [
+        normalise_appointment(record, field_map)
+        for record in records
+    ]
+
+    return {
+        "summary": summary,
+        "rows": rows,
+        "filtered_total": filtered_total,
+        "status_options": get_distinct_options(
+            field_map["status"],
+            base_filters,
+        ),
+        "transport_options": get_distinct_options(
+            field_map["transport"],
+            base_filters,
+        ),
+        "field_map": field_map,
+    }
+
+
+def get_appointment_field_map(meta) -> dict[str, str | None]:
+    return {
+        "visitor_name": first_field(
+            meta,
+            [
+                "customer_name",
+                "visitor_name",
+                "full_name",
+                "party_name",
+                "contact_name",
+            ],
+            [
+                "Name",
+                "Visitor Name",
+                "Customer Name",
+            ],
+        ),
+        "meet_with": first_field(
+            meta,
+            [
+                "custom_meet_with",
+                "meet_with",
+                "custom_host",
+                "host",
+                "party",
+            ],
+            [
+                "Meet With",
+                "Host",
+            ],
+        ),
+        "transport": first_field(
+            meta,
+            [
+                "custom_mode_of_transport",
+                "mode_of_transport",
+                "transport_mode",
+            ],
+            [
+                "Mode of Transport",
+                "Transport",
+            ],
+        ),
+        "plate": first_field(
+            meta,
+            [
+                "custom_vehicles_number_plate",
+                "custom_vehicle_number_plate",
+                "vehicle_number_plate",
+                "registration_number",
+                "vehicle_number",
+            ],
+            [
+                "Vehicle Number Plate",
+                "Number Plate",
+                "Plate",
+            ],
+        ),
+        "check_in": first_field(
+            meta,
+            [
+                "custom_check_in",
+                "custom_check_in_time",
+                "check_in",
+                "checkin",
+                "check_in_time",
+            ],
+            [
+                "Check In",
+                "Check In Time",
+            ],
+        ),
+        "check_out": first_field(
+            meta,
+            [
+                "custom_check_out",
+                "custom_check_out_time",
+                "check_out",
+                "checkout",
+                "check_out_time",
+            ],
+            [
+                "Check Out",
+                "Check Out Time",
+            ],
+        ),
+        "status": first_field(
+            meta,
+            [
+                "workflow_state",
+                "status",
+            ],
+            [
+                "Workflow State",
+                "Status",
+            ],
+        ),
+        "scheduled_time": first_field(
+            meta,
+            [
+                "scheduled_time",
+                "appointment_time",
+                "appointment_date",
+            ],
+            [
+                "Scheduled Time",
+            ],
+        ),
+        "appointment_type": first_field(
+            meta,
+            [
+                "appointment_with",
+                "party_type",
+                "custom_visitor_type",
+                "visitor_type",
+            ],
+            [
+                "Appointment With",
+                "Visitor Type",
+            ],
+        ),
+        "company": first_field(
+            meta,
+            [
+                "company",
+                "custom_company",
+            ],
+            [
+                "Company",
+            ],
+        ),
+        "farm": first_field(
+            meta,
+            [
+                "custom_farm",
+                "custom_farm_unit",
+                "farm",
+                "farm_unit",
+                "site",
+            ],
+            [
+                "Farm/Unit",
+                "Farm / Unit",
+                "Farm",
+                "Site",
+            ],
+        ),
+        "phone": first_field(
+            meta,
+            [
+                "customer_phone_number",
+                "phone_number",
+                "mobile_no",
+                "phone",
+            ],
+            [
+                "Phone Number",
+                "Mobile Number",
+            ],
+        ),
+        "email": first_field(
+            meta,
+            [
+                "customer_email",
+                "email",
+                "email_id",
+            ],
+            [
+                "Email",
+                "Email Address",
+            ],
+        ),
+    }
+
+
+def first_field(
+    meta,
+    fieldnames: list[str],
+    labels: list[str] | None = None,
+) -> str | None:
+    for fieldname in fieldnames:
+        if meta.has_field(fieldname):
+            return fieldname
+
+    normalised_labels = {
+        normalise_label(label)
+        for label in (labels or [])
+    }
+
+    for field in meta.fields:
+        if normalise_label(field.label) in normalised_labels:
+            return field.fieldname
+
+    return None
+
+
+def normalise_label(value: str | None) -> str:
+    return " ".join(
+        str(value or "").strip().lower().split()
+    )
+
+
+def get_visitor_summary(
+    base_filters: dict[str, Any],
+    status_field: str | None,
+) -> dict[str, int]:
+    summary = {
+        "total": 0,
+        "checked_in": 0,
+        "checked_out": 0,
+        "scheduled": 0,
+    }
+
+    if not status_field:
+        summary["total"] = permission_aware_count(
+            filters=base_filters
+        )
+        return summary
+
+    status_groups = frappe.get_list(
+        "Appointment",
+        filters=base_filters,
+        fields=[
+            status_field,
+            {"COUNT": "name", "as": "record_count"},
+        ],
+        group_by=status_field,
+        page_length=1000,
+    )
+
+    for row in status_groups:
+        state = str(row.get(status_field) or "")
+        count = int(row.get("record_count") or 0)
+        normalised = state.lower().strip()
+
+        summary["total"] += count
+
+        if "checked in" in normalised:
+            summary["checked_in"] += count
+
+        elif "checked out" in normalised:
+            summary["checked_out"] += count
+
+        elif any(
+            phrase in normalised
+            for phrase in [
+                "scheduled",
+                "approved",
+                "rescheduled",
+                "open",
+            ]
+        ):
+            summary["scheduled"] += count
+
+    return summary
+
+
+def permission_aware_count(
+    filters: dict[str, Any],
+    or_filters: list[list[Any]] | None = None,
+) -> int:
+    result = frappe.get_list(
+        "Appointment",
+        filters=filters,
+        or_filters=or_filters or None,
+        fields=[{"COUNT": "name", "as": "record_count"}],
+        page_length=1,
+    )
+
+    if not result:
+        return 0
+
+    return int(result[0].get("record_count") or 0)
+
+
+def get_distinct_options(
+    fieldname: str | None,
+    filters: dict[str, Any],
+) -> list[str]:
+    if not fieldname:
+        return []
+
+    records = frappe.get_list(
+        "Appointment",
+        filters={
+            **filters,
+            fieldname: ["is", "set"],
+        },
+        fields=[fieldname],
+        group_by=fieldname,
+        order_by=fieldname,
+        page_length=200,
+    )
+
+    return [
+        row.get(fieldname)
+        for row in records
+        if row.get(fieldname)
+    ]
+
+
+def normalise_appointment(
+    record,
+    fields: dict[str, str | None],
+) -> dict[str, Any]:
+    check_in = value_from(record, fields["check_in"])
+    check_out = value_from(record, fields["check_out"])
+    status = value_from(record, fields["status"])
+
+    return {
+        "name": record.name,
+        "visitor_name": (
+            value_from(record, fields["visitor_name"])
+            or record.name
+        ),
+        "meet_with": value_from(
+            record,
+            fields["meet_with"],
+        ),
+        "transport": value_from(
+            record,
+            fields["transport"],
+        ),
+        "plate": value_from(
+            record,
+            fields["plate"],
+        ),
+        "check_in": format_time(check_in),
+        "check_out": format_time(check_out),
+        "duration": calculate_duration(
+            check_in,
+            check_out,
+        ),
+        "status": clean_status(status),
+        "raw_status": status,
+        "scheduled_time": format_datetime(
+            value_from(
+                record,
+                fields["scheduled_time"],
+            )
+        ),
+    }
+
+
+def value_from(record, fieldname: str | None):
+    if not fieldname:
+        return None
+
+    return record.get(fieldname)
+
+
+def clean_status(value) -> str:
+    status = str(value or "")
+
+    if status.startswith("Visitor "):
+        status = status[len("Visitor "):]
+
+    return status or "Not Set"
+
+
+def format_time(value) -> str:
+    if not value:
+        return ""
+
+    try:
+        return get_datetime(value).strftime("%H:%M")
+    except Exception:
+        return str(value)
+
+
+def format_datetime(value) -> str:
+    if not value:
+        return ""
+
+    try:
+        return get_datetime(value).strftime(
+            "%d %b %Y %H:%M"
+        )
+    except Exception:
+        return str(value)
+
+
+def calculate_duration(check_in, check_out) -> str:
+    if not check_in or not check_out:
+        return ""
+
+    try:
+        start = get_datetime(check_in)
+        end = get_datetime(check_out)
+        seconds = max(int((end - start).total_seconds()), 0)
+    except Exception:
+        return ""
+
+    hours, remainder = divmod(seconds, 3600)
+    minutes = remainder // 60
+
+    if hours:
+        return f"{hours}h {minutes}m"
+
+    return f"{minutes}m"

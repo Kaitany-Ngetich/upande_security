@@ -1,0 +1,2139 @@
+frappe.pages["security-dashboard"].on_page_load = function (wrapper) {
+	const page = frappe.ui.make_app_page({
+		parent: wrapper,
+		title: __("Security Command Centre"),
+		single_column: true,
+	});
+
+	wrapper.security_dashboard_page = page;
+
+	setup_filters(page);
+	render_dashboard(page);
+	render_security_sidebar(page);
+	bind_security_view_navigation(page);
+	bind_dashboard_events(page);
+	update_dashboard_time(page);
+
+	page.set_primary_action(
+		__("Refresh"),
+		() => {
+			update_dashboard_time(page);
+
+			frappe.show_alert({
+				message: __("Security dashboard refreshed"),
+				indicator: "green",
+			});
+		},
+		"refresh"
+	);
+};
+
+frappe.pages["security-dashboard"].on_page_show = function (wrapper) {
+	if (wrapper.security_dashboard_page) {
+		update_dashboard_time(wrapper.security_dashboard_page);
+	}
+};
+
+function setup_filters(page) {
+	page.add_field({
+		label: __("Company"),
+		fieldname: "company",
+		fieldtype: "Link",
+		options: "Company",
+		default: frappe.defaults.get_default("company"),
+		change: () => update_dashboard_time(page),
+	});
+
+	page.add_field({
+		label: __("Site / Farm"),
+		fieldname: "site",
+		fieldtype: "Select",
+		options: [
+			__("All Sites"),
+			__("Karen Roses"),
+			__("Kisumu Farm"),
+		],
+		default: __("All Sites"),
+		change: () => update_dashboard_time(page),
+	});
+
+	page.add_field({
+		label: __("Gate"),
+		fieldname: "gate",
+		fieldtype: "Select",
+		options: [
+			__("All Gates"),
+			__("Main Gate"),
+			__("North Gate"),
+			__("Service Gate"),
+		],
+		default: __("All Gates"),
+	});
+
+	page.add_field({
+		label: __("Shift"),
+		fieldname: "shift",
+		fieldtype: "Select",
+		options: [
+			__("Day Shift"),
+			__("Night Shift"),
+			__("All Shifts"),
+		],
+		default: __("Day Shift"),
+	});
+
+	page.add_field({
+		label: __("Date"),
+		fieldname: "date",
+		fieldtype: "Date",
+		default: frappe.datetime.get_today(),
+	});
+}
+
+function render_dashboard(page) {
+	$(page.main).html(`
+		<div class="security-command-centre">
+
+			<section class="sd-intro">
+				<div>
+					<h2>${__("Security Command Centre")}</h2>
+					<p>
+						${__(
+							"Real-time overview of security operations and site activity"
+						)}
+					</p>
+				</div>
+
+				<div class="sd-live-status">
+					<span class="sd-live-dot"></span>
+					<span>${__("Auto-refresh")}: 30s</span>
+					<span class="sd-updated-time"></span>
+				</div>
+			</section>
+
+			<section class="sd-kpi-grid">
+				${make_kpi_card(
+					"🛡",
+					__("Guards On Duty"),
+					"48",
+					__("52 scheduled"),
+					"blue",
+					"Security Guard"
+				)}
+
+				${make_kpi_card(
+					"♟",
+					__("Visitors On Site"),
+					"23",
+					__("Currently checked in"),
+					"green",
+					"Appointment"
+				)}
+
+				${make_kpi_card(
+					"▣",
+					__("Contractors On Site"),
+					"17",
+					__("Approved entries"),
+					"purple",
+					"Contractor"
+				)}
+
+				${make_kpi_card(
+					"🚙",
+					__("Vehicles On Site"),
+					"31",
+					__("Inside the perimeter"),
+					"blue",
+					"Appointment"
+				)}
+
+				${make_kpi_card(
+					"!",
+					__("Open Incidents"),
+					"6",
+					__("Require attention"),
+					"red",
+					"Incident"
+				)}
+
+				${make_kpi_card(
+					"✓",
+					__("Patrol Compliance"),
+					"86%",
+					__("Today's completion"),
+					"green",
+					"Patrol GPS Log"
+				)}
+			</section>
+
+			<section class="sd-main-grid">
+
+				<div class="sd-panel sd-map-panel">
+					<div class="sd-panel-header">
+						<div>
+							<h3>${__("Live Site Map")}</h3>
+							<p>${__(
+								"Gates, checkpoints, guards and patrol routes"
+							)}</p>
+						</div>
+
+						<button
+							type="button"
+							class="btn btn-sm btn-default"
+							data-page-route="patrol-map"
+						>
+							${__("Open Full Map")}
+						</button>
+					</div>
+
+					<div class="sd-map">
+						<div class="sd-map-road sd-road-one"></div>
+						<div class="sd-map-road sd-road-two"></div>
+
+						<div class="sd-map-marker sd-gate-a">
+							<strong>Gate A</strong>
+							<span>Main Entrance</span>
+						</div>
+
+						<div class="sd-map-marker sd-gate-b">
+							<strong>Gate B</strong>
+							<span>North Gate</span>
+						</div>
+
+						<div class="sd-map-marker sd-checkpoint-one">
+							<strong>Checkpoint</strong>
+							<span>North Perimeter</span>
+						</div>
+
+						<div class="sd-map-marker sd-checkpoint-two">
+							<strong>Checkpoint</strong>
+							<span>Central Zone</span>
+						</div>
+
+						<div class="sd-restricted-zone">
+							<strong>${__("Restricted Area")}</strong>
+							<span>${__("Authorised access only")}</span>
+						</div>
+
+						<div class="sd-map-footer">
+							<span class="sd-live-dot"></span>
+							${__("Map awaiting live GPS integration")}
+						</div>
+					</div>
+				</div>
+
+				<div class="sd-panel">
+					<div class="sd-panel-header">
+						<div>
+							<h3>${__("Live Alerts")}</h3>
+							<p>${__("Items needing immediate attention")}</p>
+						</div>
+
+						<button
+							type="button"
+							class="btn btn-sm btn-default"
+							data-doctype="Incident"
+						>
+							${__("View All")}
+						</button>
+					</div>
+
+					<div class="sd-alert-list">
+						${make_alert(
+							__("Missed Patrol – North Perimeter"),
+							__("Checkpoint NP-04"),
+							"10:18",
+							__("High"),
+							"high"
+						)}
+
+						${make_alert(
+							__("Visitor Overstayed"),
+							"John Kamau",
+							"10:12",
+							__("Medium"),
+							"medium"
+						)}
+
+						${make_alert(
+							__("Contractor Approval Pending"),
+							"BuildCo – 3 persons",
+							"09:58",
+							__("Medium"),
+							"medium"
+						)}
+
+						${make_alert(
+							__("Vehicle Awaiting Verification"),
+							"KDL 123A",
+							"09:45",
+							__("Low"),
+							"low"
+						)}
+					</div>
+				</div>
+
+				<div class="sd-panel">
+					<div class="sd-panel-header">
+						<div>
+							<h3>${__("Patrol Performance")}</h3>
+							<p>${__("Completed, late and missed patrols")}</p>
+						</div>
+					</div>
+
+					<div class="sd-patrol-chart">
+						${make_bar(36, 8, 4, "00:00")}
+						${make_bar(45, 12, 6, "04:00")}
+						${make_bar(73, 15, 7, "08:00")}
+						${make_bar(62, 18, 9, "12:00")}
+						${make_bar(82, 11, 5, "16:00")}
+						${make_bar(67, 17, 8, "20:00")}
+					</div>
+
+					<div class="sd-chart-legend">
+						<span><i class="sd-legend-completed"></i>${__("Completed")}</span>
+						<span><i class="sd-legend-late"></i>${__("Late")}</span>
+						<span><i class="sd-legend-missed"></i>${__("Missed")}</span>
+					</div>
+
+					<div class="sd-patrol-summary">
+						<div><strong>86</strong><span>${__("Completed")}</span></div>
+						<div><strong>16</strong><span>${__("Late")}</span></div>
+						<div><strong>12</strong><span>${__("Missed")}</span></div>
+						<div class="sd-compliance-ring">86%</div>
+					</div>
+				</div>
+
+			</section>
+
+			<section class="sd-bottom-grid">
+
+				<div class="sd-panel">
+					<div class="sd-panel-header">
+						<div>
+							<h3>${__("Current Site Occupancy")}</h3>
+							<p>${__("People and vehicles currently inside")}</p>
+						</div>
+					</div>
+
+					<div class="sd-occupancy">
+						<div class="sd-donut">
+							<div>
+								<strong>119</strong>
+								<span>${__("Total On Site")}</span>
+							</div>
+						</div>
+
+						<div class="sd-occupancy-list">
+							<div><i class="sd-dot-blue"></i><span>${__("Employees")}</span><strong>64</strong></div>
+							<div><i class="sd-dot-green"></i><span>${__("Visitors")}</span><strong>23</strong></div>
+							<div><i class="sd-dot-purple"></i><span>${__("Contractors")}</span><strong>17</strong></div>
+							<div><i class="sd-dot-orange"></i><span>${__("Vehicles")}</span><strong>15</strong></div>
+						</div>
+					</div>
+				</div>
+
+				<div class="sd-panel sd-actions-panel">
+					<div class="sd-panel-header">
+						<div>
+							<h3>${__("Items Requiring Action")}</h3>
+							<p>${__("Pending security decisions")}</p>
+						</div>
+					</div>
+
+					<div class="sd-table-wrapper">
+						<table class="table table-hover sd-actions-table">
+							<thead>
+								<tr>
+									<th>${__("Priority")}</th>
+									<th>${__("Type")}</th>
+									<th>${__("Name / Vehicle")}</th>
+									<th>${__("Location")}</th>
+									<th>${__("Status")}</th>
+									<th>${__("Action")}</th>
+								</tr>
+							</thead>
+
+							<tbody>
+								${make_action_row(
+									__("High"),
+									__("Incident"),
+									__("Unauthorised Access"),
+									__("North Fence"),
+									__("Open"),
+									__("Resolve"),
+									"high",
+									"Incident"
+								)}
+
+								${make_action_row(
+									__("Medium"),
+									__("Visitor"),
+									"John Kamau",
+									__("Reception"),
+									__("Overstayed"),
+									__("Check Out"),
+									"medium",
+									"Appointment"
+								)}
+
+								${make_action_row(
+									__("Medium"),
+									__("Contractor"),
+									"BuildCo – 3 persons",
+									__("Gate B"),
+									__("Pending Approval"),
+									__("Approve"),
+									"medium",
+									"Contractor"
+								)}
+
+								${make_action_row(
+									__("Low"),
+									__("Vehicle"),
+									"KDL 123A",
+									__("Main Gate"),
+									__("Verification"),
+									__("Verify"),
+									"low",
+									"Appointment"
+								)}
+							</tbody>
+						</table>
+					</div>
+				</div>
+
+				<div class="sd-panel">
+					<div class="sd-panel-header">
+						<div>
+							<h3>${__("Recent Security Activity")}</h3>
+							<p>${__("Latest site events")}</p>
+						</div>
+					</div>
+
+					<div class="sd-activity-list">
+						${make_activity("10:24", __("Patrol completed"), __("South Perimeter"))}
+						${make_activity("10:18", __("Missed patrol detected"), __("North Perimeter"))}
+						${make_activity("10:12", __("Visitor checked in"), "John Kamau")}
+						${make_activity("09:58", __("Contractor approval requested"), "BuildCo")}
+						${make_activity("09:45", __("Vehicle entered site"), "KDL 123A")}
+					</div>
+				</div>
+
+			</section>
+		</div>
+	`);
+}
+
+function make_kpi_card(icon, label, value, subtitle, colour, doctype) {
+	return `
+		<button type="button" class="sd-kpi-card" data-doctype="${doctype}">
+			<span class="sd-kpi-icon sd-icon-${colour}">${icon}</span>
+
+			<span class="sd-kpi-body">
+				<span class="sd-kpi-label">${label}</span>
+				<strong>${value}</strong>
+				<small>${subtitle}</small>
+			</span>
+		</button>
+	`;
+}
+
+function make_alert(title, description, time, priority, level) {
+	return `
+		<div class="sd-alert sd-alert-${level}">
+			<div>
+				<strong>${title}</strong>
+				<span>${description}</span>
+			</div>
+
+			<div class="sd-alert-meta">
+				<time>${time}</time>
+				<span>${priority}</span>
+			</div>
+		</div>
+	`;
+}
+
+function make_bar(completed, late, missed, label) {
+	return `
+		<div class="sd-bar-column">
+			<div class="sd-bar-stack">
+				<div class="sd-bar-missed" style="height:${missed}%"></div>
+				<div class="sd-bar-late" style="height:${late}%"></div>
+				<div class="sd-bar-completed" style="height:${completed}%"></div>
+			</div>
+			<span>${label}</span>
+		</div>
+	`;
+}
+
+function make_action_row(
+	priority,
+	type,
+	name,
+	location,
+	status,
+	action,
+	level,
+	doctype
+) {
+	return `
+		<tr>
+			<td><span class="sd-badge sd-badge-${level}">${priority}</span></td>
+			<td>${type}</td>
+			<td><strong>${name}</strong></td>
+			<td>${location}</td>
+			<td><span class="sd-status">${status}</span></td>
+			<td>
+				<button
+					type="button"
+					class="btn btn-xs btn-default"
+					data-doctype="${doctype}"
+				>
+					${action}
+				</button>
+			</td>
+		</tr>
+	`;
+}
+
+function make_activity(time, title, description) {
+	return `
+		<div class="sd-activity">
+			<time>${time}</time>
+			<i></i>
+			<div>
+				<strong>${title}</strong>
+				<span>${description}</span>
+			</div>
+		</div>
+	`;
+}
+
+function bind_dashboard_events(page) {
+	const $main = $(page.main);
+
+	$main.off(".security-dashboard");
+
+	$main.on(
+		"click.security-dashboard",
+		"[data-doctype]",
+		function () {
+			const doctype = $(this).attr("data-doctype");
+
+			if (doctype) {
+				frappe.set_route("List", doctype);
+			}
+		}
+	);
+
+	$main.on(
+		"click.security-dashboard",
+		"[data-page-route]",
+		function () {
+			const route = $(this).attr("data-page-route");
+
+			if (route) {
+				frappe.set_route(route);
+			}
+		}
+	);
+}
+
+function update_dashboard_time(page) {
+	const currentTime = new Date().toLocaleTimeString([], {
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+	});
+
+	$(page.main)
+		.find(".sd-updated-time")
+		.text(`${__("Updated")} ${currentTime}`);
+}
+
+function render_security_sidebar(page) {
+	const $root = $(page.main);
+	const $dashboard = $root.find(".security-command-centre");
+
+	if (!$dashboard.length) {
+		console.warn("Security dashboard content was not found.");
+		return;
+	}
+
+	if ($root.find(".security-app-sidebar").length) {
+		return;
+	}
+
+	$dashboard.attr("id", "security-overview");
+
+	$dashboard.wrap(
+		'<main class="security-app-content"></main>'
+	);
+
+	$root
+		.find(".security-app-content")
+		.wrap('<div class="security-app-layout"></div>');
+
+	$root.find(".security-app-layout").prepend(`
+		<aside class="security-app-sidebar">
+
+			<div class="security-sidebar-brand">
+				<div class="security-sidebar-logo">
+					<svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						width="23"
+						height="23"
+					>
+						<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+					</svg>
+				</div>
+
+				<div>
+					<strong>${__("Upande Security")}</strong>
+					<span>${__("Command Centre")}</span>
+				</div>
+			</div>
+
+			<nav class="security-sidebar-nav">
+
+				<div class="security-sidebar-section">
+					<div class="security-sidebar-heading">
+						${__("Main")}
+					</div>
+
+					<a
+						href="#"
+						class="security-sidebar-link active"
+						data-security-view="overview"
+					>
+						<span class="security-sidebar-icon">◔</span>
+						<span>${__("Overview")}</span>
+					</a>
+
+					<a
+						href="#"
+						class="security-sidebar-link"
+						data-scroll-target="recent-security-activity"
+					>
+						<span class="security-sidebar-icon">⌁</span>
+						<span>${__("Live Activity")}</span>
+					</a>
+				</div>
+
+				<div class="security-sidebar-section">
+					<div class="security-sidebar-heading">
+						${__("Access Control")}
+					</div>
+
+					<a
+                        href="#"
+                        class="security-sidebar-link"
+                        data-security-view="visitors"
+                    >
+						<span class="security-sidebar-icon">♙</span>
+						<span>${__("Visitors")}</span>
+					</a>
+
+					<a
+						href="/app/contractor"
+						class="security-sidebar-link"
+					>
+						<span class="security-sidebar-icon">▣</span>
+						<span>${__("Contractors")}</span>
+					</a>
+
+					<a
+						href="/app/vehicle"
+						class="security-sidebar-link"
+					>
+						<span class="security-sidebar-icon">▰</span>
+						<span>${__("Vehicles")}</span>
+					</a>
+
+					<a
+						href="/app/movement-log"
+						class="security-sidebar-link"
+					>
+						<span class="security-sidebar-icon">⇄</span>
+						<span>${__("Movement Log")}</span>
+					</a>
+				</div>
+
+				<div class="security-sidebar-section">
+					<div class="security-sidebar-heading">
+						${__("Operations")}
+					</div>
+
+					<a
+						href="/app/security-guard-shift-assignment"
+						class="security-sidebar-link"
+					>
+						<span class="security-sidebar-icon">♜</span>
+						<span>${__("Guards & Shifts")}</span>
+					</a>
+
+					<a
+                        href="#"
+                        class="security-sidebar-link"
+                        data-security-view="patrols"
+                    >
+						<span class="security-sidebar-icon">⚑</span>
+						<span>${__("Patrols")}</span>
+					</a>
+
+					<a
+						href="/app/incident-report"
+						class="security-sidebar-link"
+					>
+						<span class="security-sidebar-icon">⚠</span>
+						<span>${__("Incidents")}</span>
+					</a>
+
+					<a
+						href="/security-patrol-map"
+						class="security-sidebar-link"
+					>
+						<span class="security-sidebar-icon">⌖</span>
+						<span>${__("Site Map")}</span>
+					</a>
+				</div>
+
+				<div class="security-sidebar-section">
+					<div class="security-sidebar-heading">
+						${__("Reports")}
+					</div>
+
+					<a
+						href="#"
+						class="security-sidebar-link"
+						data-coming-soon="Security Reports"
+					>
+						<span class="security-sidebar-icon">▥</span>
+						<span>${__("Security Reports")}</span>
+					</a>
+				</div>
+
+				<div class="security-sidebar-section">
+					<div class="security-sidebar-heading">
+						${__("System")}
+					</div>
+
+					<a
+						href="#"
+						class="security-sidebar-link"
+						data-coming-soon="Security Settings"
+					>
+						<span class="security-sidebar-icon">⚙</span>
+						<span>${__("Settings")}</span>
+					</a>
+				</div>
+
+			</nav>
+		</aside>
+	`);
+
+	$root
+		.find(".sd-activity-list")
+		.closest(".sd-panel")
+		.attr("id", "recent-security-activity");
+
+	$root.off("click.securitySidebar");
+
+	$root.on(
+		"click.securitySidebar",
+		".security-sidebar-link[data-scroll-target]",
+		function (event) {
+			event.preventDefault();
+
+			const targetId = $(this).attr("data-scroll-target");
+			const target = document.getElementById(targetId);
+
+			if (!target) {
+				return;
+			}
+
+			$root
+				.find(".security-sidebar-link")
+				.removeClass("active");
+
+			$(this).addClass("active");
+
+			target.scrollIntoView({
+				behavior: "smooth",
+				block: "start",
+			});
+		}
+	);
+
+	$root.on(
+		"click.securitySidebar",
+		".security-sidebar-link[data-coming-soon]",
+		function (event) {
+			event.preventDefault();
+
+			const itemName = $(this).attr("data-coming-soon");
+
+			frappe.show_alert({
+				message: __(`${itemName} will be connected next.`),
+				indicator: "blue",
+			});
+		}
+	);
+}
+
+
+
+/* =========================================================
+   SECURITY DASHBOARD VIEW NAVIGATION
+   ========================================================= */
+
+function bind_security_view_navigation(page) {
+	const $root = $(page.main);
+	const $content = $root.find(".security-app-content");
+
+	if (!$content.length) {
+		console.warn("Security application content area was not found.");
+		return;
+	}
+
+	if (!page.security_overview_html) {
+		page.security_overview_html = $content.html();
+	}
+
+	page.security_current_view = "overview";
+
+	$root.off("click.securityViews");
+
+	$root.on(
+		"click.securityViews",
+		"[data-security-view]",
+		function (event) {
+			event.preventDefault();
+
+			const view = $(this).attr("data-security-view");
+
+			show_security_view(page, view);
+		}
+	);
+}
+
+
+function show_security_view(page, view) {
+	const $root = $(page.main);
+	const $content = $root.find(".security-app-content");
+
+	$root
+		.find(".security-sidebar-link")
+		.removeClass("active");
+
+	$root
+		.find(
+			`.security-sidebar-link[data-security-view="${view}"]`
+		)
+		.addClass("active");
+
+	page.security_current_view = view;
+
+	$root.off(".securityVisitors");
+        $root.off(".securityPatrols");
+
+        if (page.security_patrol_refresh_timer) {
+                window.clearInterval(
+                        page.security_patrol_refresh_timer
+                );
+                page.security_patrol_refresh_timer = null;
+        }
+
+	if (view === "visitors") {
+		render_visitors_view(page);
+		return;
+	}
+
+        if (view === "patrols") {
+                render_patrols_view(page);
+                return;
+        }
+
+
+	$content.html(page.security_overview_html);
+
+	bind_dashboard_events(page);
+	update_dashboard_time(page);
+
+	window.scrollTo({
+		top: 0,
+		behavior: "smooth",
+	});
+}
+
+
+/* =========================================================
+   VISITORS VIEW
+   ========================================================= */
+
+function render_visitors_view(page) {
+	const $root = $(page.main);
+	const $content = $root.find(".security-app-content");
+
+	$content.html(`
+		<div class="security-visitors-view">
+
+			<div class="sv-page-heading">
+				<div>
+					<h2>${__("Visitors")}</h2>
+					<p>${__("Security")} › ${__("Visitor Log")}</p>
+				</div>
+
+				<div class="sv-heading-actions">
+					<button
+						type="button"
+						class="btn btn-default"
+						id="sv-refresh"
+					>
+						${__("Refresh")}
+					</button>
+
+					<button
+						type="button"
+						class="btn btn-primary"
+						id="sv-new-visitor"
+					>
+						${__("New Visitor")}
+					</button>
+				</div>
+			</div>
+
+			<div class="sv-kpi-grid">
+
+				<div class="sv-kpi-card">
+					<div class="sv-kpi-icon sv-blue">♟</div>
+					<div>
+						<strong id="sv-total">—</strong>
+						<span>${__("Total")}</span>
+					</div>
+				</div>
+
+				<div class="sv-kpi-card">
+					<div class="sv-kpi-icon sv-green">↪</div>
+					<div>
+						<strong id="sv-checked-in">—</strong>
+						<span>${__("Checked in")}</span>
+					</div>
+				</div>
+
+				<div class="sv-kpi-card">
+					<div class="sv-kpi-icon sv-slate">↩</div>
+					<div>
+						<strong id="sv-checked-out">—</strong>
+						<span>${__("Checked out")}</span>
+					</div>
+				</div>
+
+				<div class="sv-kpi-card">
+					<div class="sv-kpi-icon sv-light-blue">◷</div>
+					<div>
+						<strong id="sv-scheduled">—</strong>
+						<span>${__("Scheduled")}</span>
+					</div>
+				</div>
+
+			</div>
+
+			<div class="sv-list-panel">
+
+				<div class="sv-filter-bar">
+
+					<select
+						id="sv-status-filter"
+						class="form-control"
+					>
+						<option value="">
+							${__("All statuses")}
+						</option>
+					</select>
+
+					<select
+						id="sv-transport-filter"
+						class="form-control"
+					>
+						<option value="">
+							${__("All transport")}
+						</option>
+					</select>
+
+					<input
+						id="sv-search"
+						type="search"
+						class="form-control"
+						placeholder="${__(
+							"Search name, host, phone, email or plate..."
+						)}"
+					/>
+
+					<span id="sv-result-count" class="sv-result-count"></span>
+				</div>
+
+				<div class="sv-table-wrapper">
+					<table class="table table-hover sv-table">
+						<thead>
+							<tr>
+								<th>${__("Name")}</th>
+								<th>${__("Meet With")}</th>
+								<th>${__("Transport")}</th>
+								<th>${__("Plate")}</th>
+								<th>${__("Check In")}</th>
+								<th>${__("Check Out")}</th>
+								<th>${__("Duration")}</th>
+								<th>${__("Status")}</th>
+							</tr>
+						</thead>
+
+						<tbody id="sv-table-body">
+							<tr>
+								<td colspan="8" class="sv-loading">
+									${__("Loading visitors...")}
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+
+			</div>
+
+		</div>
+	`);
+
+	bind_visitors_events(page);
+	load_visitors_data(page);
+}
+
+
+function bind_visitors_events(page) {
+	const $root = $(page.main);
+
+	$root.off(".securityVisitors");
+
+	$root.on(
+		"click.securityVisitors",
+		"#sv-refresh",
+		() => load_visitors_data(page, true)
+	);
+
+	$root.on(
+		"click.securityVisitors",
+		"#sv-new-visitor",
+		() => frappe.new_doc("Appointment")
+	);
+
+	$root.on(
+		"change.securityVisitors",
+		"#sv-status-filter, #sv-transport-filter",
+		() => load_visitors_data(page)
+	);
+
+	$root.on(
+		"input.securityVisitors",
+		"#sv-search",
+		() => {
+			window.clearTimeout(page.security_visitor_search_timer);
+
+			page.security_visitor_search_timer =
+				window.setTimeout(
+					() => load_visitors_data(page),
+					350
+				);
+		}
+	);
+
+	$root.on(
+		"click.securityVisitors",
+		".sv-visitor-row",
+		function () {
+			const appointment = $(this).attr(
+				"data-appointment"
+			);
+
+			if (appointment) {
+				frappe.set_route(
+					"Form",
+					"Appointment",
+					appointment
+				);
+			}
+		}
+	);
+}
+
+
+async function load_visitors_data(page, showMessage = false) {
+	const $root = $(page.main);
+	const $body = $root.find("#sv-table-body");
+
+	$body.html(`
+		<tr>
+			<td colspan="8" class="sv-loading">
+				${__("Loading visitors...")}
+			</td>
+		</tr>
+	`);
+
+	try {
+		const response = await frappe.call({
+			method:
+				"upande_security.api.security_dashboard.get_visitors_dashboard",
+			args: {
+				company:
+					page.company_filter?.get_value?.() || "",
+				farm:
+					page.farm_filter?.get_value?.() ||
+					page.site_filter?.get_value?.() ||
+					"",
+				status:
+					$root.find("#sv-status-filter").val() ||
+					"",
+				transport:
+					$root
+						.find("#sv-transport-filter")
+						.val() || "",
+				search:
+					$root.find("#sv-search").val() || "",
+				start: 0,
+				page_length: 100,
+			},
+			freeze: false,
+		});
+
+		const data = response.message || {};
+
+		render_visitors_summary(
+			$root,
+			data.summary || {}
+		);
+
+		render_visitors_filter_options(
+			$root,
+			data
+		);
+
+		render_visitors_rows(
+			$root,
+			data.rows || []
+		);
+
+		$root
+			.find("#sv-result-count")
+			.text(
+				__(
+					"{0} record(s)",
+					[data.filtered_total || 0]
+				)
+			);
+
+		if (showMessage) {
+			frappe.show_alert({
+				message: __("Visitor data refreshed"),
+				indicator: "green",
+			});
+		}
+	} catch (error) {
+		console.error(
+			"Unable to load visitor dashboard",
+			error
+		);
+
+		$body.html(`
+			<tr>
+				<td colspan="8" class="sv-error">
+					${__(
+						"Unable to load Appointment records. Check the browser console and server logs."
+					)}
+				</td>
+			</tr>
+		`);
+
+		frappe.show_alert({
+			message: __("Unable to load visitors"),
+			indicator: "red",
+		});
+	}
+}
+
+
+function render_visitors_summary($root, summary) {
+	$root.find("#sv-total").text(
+		summary.total ?? 0
+	);
+
+	$root.find("#sv-checked-in").text(
+		summary.checked_in ?? 0
+	);
+
+	$root.find("#sv-checked-out").text(
+		summary.checked_out ?? 0
+	);
+
+	$root.find("#sv-scheduled").text(
+		summary.scheduled ?? 0
+	);
+}
+
+
+function render_visitors_filter_options($root, data) {
+	set_security_select_options(
+		$root.find("#sv-status-filter"),
+		data.status_options || [],
+		__("All statuses")
+	);
+
+	set_security_select_options(
+		$root.find("#sv-transport-filter"),
+		data.transport_options || [],
+		__("All transport")
+	);
+}
+
+
+function set_security_select_options(
+	$select,
+	options,
+	emptyLabel
+) {
+	const currentValue = $select.val() || "";
+
+	const optionHtml = [
+		`<option value="">${escape_security_html(
+			emptyLabel
+		)}</option>`,
+		...options.map((option) => `
+			<option value="${escape_security_html(option)}">
+				${escape_security_html(
+					clean_security_status(option)
+				)}
+			</option>
+		`),
+	].join("");
+
+	$select.html(optionHtml);
+
+	if (
+		currentValue &&
+		options.includes(currentValue)
+	) {
+		$select.val(currentValue);
+	}
+}
+
+
+function render_visitors_rows($root, rows) {
+	const $body = $root.find("#sv-table-body");
+
+	if (!rows.length) {
+		$body.html(`
+			<tr>
+				<td colspan="8" class="sv-empty">
+					${__("No visitor records match the filters.")}
+				</td>
+			</tr>
+		`);
+		return;
+	}
+
+	$body.html(
+		rows.map((row) => {
+			const visitorName =
+				row.visitor_name || row.name;
+
+			const initials = get_security_initials(
+				visitorName
+			);
+
+			return `
+				<tr
+					class="sv-visitor-row"
+					data-appointment="${escape_security_html(
+						row.name
+					)}"
+				>
+					<td>
+						<div class="sv-person">
+							<span class="sv-avatar">
+								${escape_security_html(initials)}
+							</span>
+
+							<strong>
+								${escape_security_html(
+									visitorName
+								)}
+							</strong>
+						</div>
+					</td>
+
+					<td>
+						${display_security_value(
+							row.meet_with
+						)}
+					</td>
+
+					<td>
+						${make_transport_badge(
+							row.transport
+						)}
+					</td>
+
+					<td>
+						${display_security_value(
+							row.plate
+						)}
+					</td>
+
+					<td>
+						${display_security_value(
+							row.check_in
+						)}
+					</td>
+
+					<td>
+						${display_security_value(
+							row.check_out
+						)}
+					</td>
+
+					<td>
+						${display_security_value(
+							row.duration
+						)}
+					</td>
+
+					<td>
+						<span class="sv-status-badge">
+							${escape_security_html(
+								row.status || "Not Set"
+							)}
+						</span>
+					</td>
+				</tr>
+			`;
+		}).join("")
+	);
+}
+
+
+function make_transport_badge(value) {
+	if (!value) {
+		return "—";
+	}
+
+	const normalised = String(value).toLowerCase();
+	let icon = "♟";
+
+	if (normalised.includes("vehicle")) {
+		icon = "🚙";
+	} else if (
+		normalised.includes("bike") ||
+		normalised.includes("motor")
+	) {
+		icon = "🏍";
+	} else if (normalised.includes("foot")) {
+		icon = "♟";
+	}
+
+	return `
+		<span class="sv-transport-badge">
+			${icon}
+			${escape_security_html(value)}
+		</span>
+	`;
+}
+
+
+function display_security_value(value) {
+	if (
+		value === null ||
+		value === undefined ||
+		value === ""
+	) {
+		return "—";
+	}
+
+	return escape_security_html(value);
+}
+
+
+function escape_security_html(value) {
+	return $("<div>")
+		.text(
+			value === null ||
+			value === undefined
+				? ""
+				: String(value)
+		)
+		.html();
+}
+
+
+function get_security_initials(value) {
+	const words = String(value || "")
+		.trim()
+		.split(/\s+/)
+		.filter(Boolean);
+
+	if (!words.length) {
+		return "?";
+	}
+
+	return words
+		.slice(0, 2)
+		.map((word) => word.charAt(0))
+		.join("")
+		.toUpperCase();
+}
+
+
+function clean_security_status(value) {
+	return String(value || "")
+		.replace(/^Visitor\s+/i, "");
+}
+
+
+/* =========================================================
+   PATROLS DASHBOARD VIEW
+   ========================================================= */
+
+function render_patrols_view(page) {
+        const $root = $(page.main);
+        const $content = $root.find(".security-app-content");
+
+        $content.html(`
+                <div class="security-patrols-view">
+
+                        <div class="pv-page-heading">
+                                <div>
+                                        <h2>${__("Patrols")}</h2>
+                                        <p>
+                                                ${__("Security")}
+                                                ›
+                                                ${__("GPS Patrol Tracking")}
+                                        </p>
+                                </div>
+
+                                <div class="pv-heading-actions">
+                                        <button
+                                                type="button"
+                                                class="btn btn-default"
+                                                id="pv-open-logs"
+                                        >
+                                                ${__("Open GPS Logs")}
+                                        </button>
+
+                                        <button
+                                                type="button"
+                                                class="btn btn-default"
+                                                id="pv-refresh"
+                                        >
+                                                ${__("Refresh")}
+                                        </button>
+
+                                        <button
+                                                type="button"
+                                                class="btn btn-primary"
+                                                id="pv-new-log"
+                                        >
+                                                ${__("New GPS Log")}
+                                        </button>
+                                </div>
+                        </div>
+
+                        <div class="pv-live-strip">
+                                <span class="pv-live-dot"></span>
+
+                                <span>
+                                        ${__(
+                                                "Active when the latest GPS point is within 15 minutes"
+                                        )}
+                                </span>
+
+                                <span
+                                        id="pv-last-updated"
+                                        class="pv-last-updated"
+                                ></span>
+                        </div>
+
+                        <div class="pv-kpi-grid">
+
+                                ${make_patrol_kpi(
+                                        "pv-total-patrols",
+                                        __("Total Patrols"),
+                                        "⚑",
+                                        "blue"
+                                )}
+
+                                ${make_patrol_kpi(
+                                        "pv-active-patrols",
+                                        __("Active Patrols"),
+                                        "●",
+                                        "green"
+                                )}
+
+                                ${make_patrol_kpi(
+                                        "pv-stale-patrols",
+                                        __("Stale Patrols"),
+                                        "◷",
+                                        "amber"
+                                )}
+
+                                ${make_patrol_kpi(
+                                        "pv-guards-tracked",
+                                        __("Guards Tracked"),
+                                        "♟",
+                                        "purple"
+                                )}
+
+                                ${make_patrol_kpi(
+                                        "pv-gps-points",
+                                        __("GPS Points"),
+                                        "⌖",
+                                        "blue"
+                                )}
+
+                                ${make_patrol_kpi(
+                                        "pv-tracking-alerts",
+                                        __("Tracking Alerts"),
+                                        "!",
+                                        "red"
+                                )}
+
+                        </div>
+
+                        <div class="pv-main-grid">
+
+                                <section class="pv-panel pv-position-panel">
+
+                                        <div class="pv-panel-header">
+                                                <div>
+                                                        <h3>
+                                                                ${__(
+                                                                        "Latest Patrol Positions"
+                                                                )}
+                                                        </h3>
+
+                                                        <p>
+                                                                ${__(
+                                                                        "Most recent GPS point for each patrol"
+                                                                )}
+                                                        </p>
+                                                </div>
+                                        </div>
+
+                                        <div
+                                                id="pv-position-list"
+                                                class="pv-position-list"
+                                        >
+                                                <div class="pv-loading">
+                                                        ${__(
+                                                                "Loading patrol positions..."
+                                                        )}
+                                                </div>
+                                        </div>
+
+                                </section>
+
+                                <section class="pv-panel pv-log-panel">
+
+                                        <div class="pv-filter-bar">
+
+                                                <input
+                                                        id="pv-date-filter"
+                                                        type="date"
+                                                        class="form-control"
+                                                        value="${frappe.datetime.get_today()}"
+                                                />
+
+                                                <select
+                                                        id="pv-personnel-filter"
+                                                        class="form-control"
+                                                >
+                                                        <option value="">
+                                                                ${__(
+                                                                        "All Personnel"
+                                                                )}
+                                                        </option>
+
+                                                        <option value="Internal Guard">
+                                                                ${__(
+                                                                        "Internal Guard"
+                                                                )}
+                                                        </option>
+
+                                                        <option value="External Guard">
+                                                                ${__(
+                                                                        "External Guard"
+                                                                )}
+                                                        </option>
+                                                </select>
+
+                                                <input
+                                                        id="pv-search"
+                                                        type="search"
+                                                        class="form-control"
+                                                        placeholder="${__(
+                                                                "Search patrol or guard..."
+                                                        )}"
+                                                />
+
+                                                <span
+                                                        id="pv-result-count"
+                                                        class="pv-result-count"
+                                                ></span>
+
+                                        </div>
+
+                                        <div class="pv-table-wrapper">
+                                                <table
+                                                        class="table table-hover pv-table"
+                                                >
+                                                        <thead>
+                                                                <tr>
+                                                                        <th>${__("Patrol")}</th>
+                                                                        <th>${__("Guard")}</th>
+                                                                        <th>${__("Personnel")}</th>
+                                                                        <th>${__("Last Capture")}</th>
+                                                                        <th>${__("Last Seen")}</th>
+                                                                        <th>${__("Points")}</th>
+                                                                        <th>${__("Latitude")}</th>
+                                                                        <th>${__("Longitude")}</th>
+                                                                        <th>${__("Accuracy")}</th>
+                                                                        <th>${__("Status")}</th>
+                                                                </tr>
+                                                        </thead>
+
+                                                        <tbody id="pv-table-body">
+                                                                <tr>
+                                                                        <td
+                                                                                colspan="10"
+                                                                                class="pv-loading"
+                                                                        >
+                                                                                ${__(
+                                                                                        "Loading patrol data..."
+                                                                                )}
+                                                                        </td>
+                                                                </tr>
+                                                        </tbody>
+                                                </table>
+                                        </div>
+
+                                </section>
+
+                        </div>
+
+                </div>
+        `);
+
+        bind_patrol_events(page);
+        load_patrols_data(page);
+
+        if (page.security_patrol_refresh_timer) {
+                window.clearInterval(
+                        page.security_patrol_refresh_timer
+                );
+        }
+
+        page.security_patrol_refresh_timer =
+                window.setInterval(() => {
+                        if (
+                                page.security_current_view ===
+                                "patrols"
+                        ) {
+                                load_patrols_data(
+                                        page,
+                                        false,
+                                        true
+                                );
+                        }
+                }, 30000);
+}
+
+
+function make_patrol_kpi(
+        elementId,
+        label,
+        icon,
+        colour
+) {
+        return `
+                <div class="pv-kpi-card">
+                        <span
+                                class="pv-kpi-icon pv-${colour}"
+                        >
+                                ${icon}
+                        </span>
+
+                        <div>
+                                <strong id="${elementId}">—</strong>
+                                <span>${label}</span>
+                        </div>
+                </div>
+        `;
+}
+
+
+function bind_patrol_events(page) {
+        const $root = $(page.main);
+
+        $root.off(".securityPatrols");
+
+        $root.on(
+                "click.securityPatrols",
+                "#pv-refresh",
+                () => load_patrols_data(page, true)
+        );
+
+        $root.on(
+                "click.securityPatrols",
+                "#pv-open-logs",
+                () => {
+                        frappe.set_route(
+                                "List",
+                                "Patrol GPS Log"
+                        );
+                }
+        );
+
+        $root.on(
+                "click.securityPatrols",
+                "#pv-new-log",
+                () => frappe.new_doc("Patrol GPS Log")
+        );
+
+        $root.on(
+                "change.securityPatrols",
+                "#pv-date-filter, #pv-personnel-filter",
+                () => load_patrols_data(page)
+        );
+
+        $root.on(
+                "input.securityPatrols",
+                "#pv-search",
+                () => {
+                        window.clearTimeout(
+                                page.security_patrol_search_timer
+                        );
+
+                        page.security_patrol_search_timer =
+                                window.setTimeout(
+                                        () => load_patrols_data(page),
+                                        350
+                                );
+                }
+        );
+
+        $root.on(
+                "click.securityPatrols",
+                ".pv-patrol-row, .pv-position-card",
+                function () {
+                        const logName = $(this).attr(
+                                "data-log-name"
+                        );
+
+                        if (logName) {
+                                frappe.set_route(
+                                        "Form",
+                                        "Patrol GPS Log",
+                                        logName
+                                );
+                        }
+                }
+        );
+}
+
+
+async function load_patrols_data(
+        page,
+        showMessage = false,
+        silent = false
+) {
+        const $root = $(page.main);
+        const $body = $root.find("#pv-table-body");
+
+        if (!silent) {
+                $body.html(`
+                        <tr>
+                                <td
+                                        colspan="10"
+                                        class="pv-loading"
+                                >
+                                        ${__(
+                                                "Loading patrol data..."
+                                        )}
+                                </td>
+                        </tr>
+                `);
+        }
+
+        try {
+                const response = await frappe.call({
+                        method:
+                                "upande_security.api.security_dashboard.get_patrols_dashboard",
+                        args: {
+                                date:
+                                        $root
+                                                .find("#pv-date-filter")
+                                                .val() ||
+                                        frappe.datetime.get_today(),
+
+                                personnel:
+                                        $root
+                                                .find("#pv-personnel-filter")
+                                                .val() || "",
+
+                                search:
+                                        $root
+                                                .find("#pv-search")
+                                                .val() || "",
+
+                                active_window_minutes: 15,
+                        },
+                        freeze: false,
+                });
+
+                const data = response.message || {};
+
+                render_patrol_summary(
+                        $root,
+                        data.summary || {}
+                );
+
+                render_patrol_rows(
+                        $root,
+                        data.rows || []
+                );
+
+                render_patrol_positions(
+                        $root,
+                        data.rows || []
+                );
+
+                $root
+                        .find("#pv-result-count")
+                        .text(
+                                __(
+                                        "{0} patrol(s)",
+                                        [
+                                                (
+                                                        data.rows ||
+                                                        []
+                                                ).length,
+                                        ]
+                                )
+                        );
+
+                $root
+                        .find("#pv-last-updated")
+                        .text(
+                                `${__("Updated")}: ${
+                                        new Date().toLocaleTimeString()
+                                }`
+                        );
+
+                if (showMessage) {
+                        frappe.show_alert({
+                                message:
+                                        __(
+                                                "Patrol data refreshed"
+                                        ),
+                                indicator: "green",
+                        });
+                }
+        } catch (error) {
+                console.error(
+                        "Unable to load patrol dashboard",
+                        error
+                );
+
+                $body.html(`
+                        <tr>
+                                <td
+                                        colspan="10"
+                                        class="pv-error"
+                                >
+                                        ${__(
+                                                "Unable to load Patrol GPS Log records. Check the browser console and server logs."
+                                        )}
+                                </td>
+                        </tr>
+                `);
+
+                if (!silent) {
+                        frappe.show_alert({
+                                message:
+                                        __(
+                                                "Unable to load patrol data"
+                                        ),
+                                indicator: "red",
+                        });
+                }
+        }
+}
+
+
+function render_patrol_summary($root, summary) {
+        const values = {
+                "pv-total-patrols":
+                        summary.total_patrols ?? 0,
+
+                "pv-active-patrols":
+                        summary.active_patrols ?? 0,
+
+                "pv-stale-patrols":
+                        summary.stale_patrols ?? 0,
+
+                "pv-guards-tracked":
+                        summary.guards_tracked ?? 0,
+
+                "pv-gps-points":
+                        summary.gps_points ?? 0,
+
+                "pv-tracking-alerts":
+                        summary.tracking_alerts ?? 0,
+        };
+
+        Object.entries(values).forEach(
+                ([elementId, value]) => {
+                        $root
+                                .find(`#${elementId}`)
+                                .text(value);
+                }
+        );
+}
+
+
+function render_patrol_rows($root, rows) {
+        const $body = $root.find("#pv-table-body");
+
+        if (!rows.length) {
+                $body.html(`
+                        <tr>
+                                <td
+                                        colspan="10"
+                                        class="pv-empty"
+                                >
+                                        ${__(
+                                                "No patrol GPS records match the selected filters."
+                                        )}
+                                </td>
+                        </tr>
+                `);
+
+                return;
+        }
+
+        $body.html(
+                rows.map((row) => {
+                        return `
+                                <tr
+                                        class="pv-patrol-row"
+                                        data-log-name="${escape_security_html(
+                                                row.latest_log
+                                        )}"
+                                >
+                                        <td>
+                                                <strong>
+                                                        ${display_security_value(
+                                                                row.patrol
+                                                        )}
+                                                </strong>
+                                        </td>
+
+                                        <td>
+                                                ${display_security_value(
+                                                        row.guard
+                                                )}
+                                        </td>
+
+                                        <td>
+                                                ${display_security_value(
+                                                        row.personnel_type
+                                                )}
+                                        </td>
+
+                                        <td>
+                                                ${display_security_value(
+                                                        row.latest_captured_at
+                                                )}
+                                        </td>
+
+                                        <td>
+                                                ${display_security_value(
+                                                        row.last_seen
+                                                )}
+                                        </td>
+
+                                        <td>
+                                                ${display_security_value(
+                                                        row.point_count
+                                                )}
+                                        </td>
+
+                                        <td>
+                                                ${format_patrol_coordinate(
+                                                        row.latitude
+                                                )}
+                                        </td>
+
+                                        <td>
+                                                ${format_patrol_coordinate(
+                                                        row.longitude
+                                                )}
+                                        </td>
+
+                                        <td>
+                                                ${format_patrol_accuracy(
+                                                        row.gps_accuracy
+                                                )}
+                                        </td>
+
+                                        <td>
+                                                ${make_patrol_status_badge(
+                                                        row.tracking_status
+                                                )}
+                                        </td>
+                                </tr>
+                        `;
+                }).join("")
+        );
+}
+
+
+function render_patrol_positions($root, rows) {
+        const $container = $root.find(
+                "#pv-position-list"
+        );
+
+        const validRows = rows.filter(
+                (row) => row.coordinate_valid
+        );
+
+        if (!validRows.length) {
+                $container.html(`
+                        <div class="pv-empty">
+                                ${__(
+                                        "No valid GPS positions are available."
+                                )}
+                        </div>
+                `);
+
+                return;
+        }
+
+        $container.html(
+                validRows.slice(0, 12).map((row) => `
+                        <button
+                                type="button"
+                                class="pv-position-card"
+                                data-log-name="${escape_security_html(
+                                        row.latest_log
+                                )}"
+                        >
+                                <div>
+                                        <strong>
+                                                ${escape_security_html(
+                                                        row.patrol
+                                                )}
+                                        </strong>
+
+                                        <span>
+                                                ${display_security_value(
+                                                        row.guard
+                                                )}
+                                        </span>
+                                </div>
+
+                                <div class="pv-position-coordinates">
+                                        <span>
+                                                ${format_patrol_coordinate(
+                                                        row.latitude
+                                                )}
+                                        </span>
+
+                                        <span>
+                                                ${format_patrol_coordinate(
+                                                        row.longitude
+                                                )}
+                                        </span>
+                                </div>
+
+                                ${make_patrol_status_badge(
+                                        row.tracking_status
+                                )}
+                        </button>
+                `).join("")
+        );
+}
+
+
+function format_patrol_coordinate(value) {
+        if (
+                value === null ||
+                value === undefined ||
+                value === ""
+        ) {
+                return "—";
+        }
+
+        const number = Number(value);
+
+        if (!Number.isFinite(number)) {
+                return escape_security_html(value);
+        }
+
+        return number.toFixed(6);
+}
+
+
+function format_patrol_accuracy(value) {
+        if (
+                value === null ||
+                value === undefined ||
+                value === ""
+        ) {
+                return "—";
+        }
+
+        const number = Number(value);
+
+        if (!Number.isFinite(number)) {
+                return escape_security_html(value);
+        }
+
+        return `${number.toFixed(1)} m`;
+}
+
+
+function make_patrol_status_badge(status) {
+        const normalised = String(
+                status || "Historical"
+        ).toLowerCase();
+
+        let className = "historical";
+
+        if (normalised === "active") {
+                className = "active";
+        } else if (normalised === "stale") {
+                className = "stale";
+        }
+
+        return `
+                <span
+                        class="pv-status-badge pv-status-${className}"
+                >
+                        ${escape_security_html(
+                                status || "Historical"
+                        )}
+                </span>
+        `;
+}
