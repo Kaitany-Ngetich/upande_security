@@ -256,3 +256,21 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+fixtures = [
+    {
+        "dt": "Web Page",
+        "filters": [
+            ["route", "=", "security-dashboard"],
+        ],
+    },
+]
+
+web_include_css = [
+    "/assets/upande_security/css/security_dashboard_web.css",
+]
+
+web_include_js = [
+    "/assets/upande_security/js/security_dashboard_web_adapter.js",
+    "/assets/upande_security/js/security_dashboard_web.js",
+    "/assets/upande_security/js/security_dashboard_web_bootstrap.js",
+]
