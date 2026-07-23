@@ -11,6 +11,8 @@
   "naming_series",
   "title",
   "security_guard",
+  "internal_guard",
+  "external_guard",
   "shift_type",
   "start_date",
   "end_date",
@@ -38,18 +40,18 @@
   },
   {
    "fieldname": "security_guard",
-   "fieldtype": "Link",
+   "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Security Guard",
-   "options": "Security Guard",
+   "options": "Internal Guard\nExternal Guard",
    "reqd": 1
   },
   {
    "fieldname": "shift_type",
-   "fieldtype": "Link",
+   "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Shift Type",
-   "options": "Shift Type",
+   "options": "Day\nNight",
    "reqd": 1
   },
   {
@@ -62,7 +64,8 @@
   {
    "fieldname": "end_date",
    "fieldtype": "Date",
-   "label": "End Date"
+   "label": "End Date",
+   "reqd": 1
   },
   {
    "fieldname": "farm",
@@ -90,12 +93,28 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks"
+  },
+  {
+   "depends_on": "eval:doc.security_guard==\"Internal Guard\"",
+   "fieldname": "internal_guard",
+   "fieldtype": "Link",
+   "label": "Internal Guard",
+   "mandatory_depends_on": "eval:doc.security_guard==\"Internal Guard\"",
+   "options": "Employee"
+  },
+  {
+   "depends_on": "eval:doc.security_guard==\"External Guard\"",
+   "fieldname": "external_guard",
+   "fieldtype": "Link",
+   "label": "External Guard",
+   "mandatory_depends_on": "eval:doc.security_guard==\"External Guard\"",
+   "options": "Security Guard"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-17 13:16:49.211526",
+ "modified": "2026-07-23 17:40:20.661884",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Guard Shift Assignment",
