@@ -2059,7 +2059,7 @@ def _fetch_patrols_tab(range_from, range_to):
             groups[key] = {"guard": guard, "patrol": patrol_id, "points": [], "timestamps": []}
         lat = _patrol_float(p.get("latitude"))
         lng = _patrol_float(p.get("longitude"))
-        if lat is not None and lng is not None:
+        if lat is not None and lng is not None and -90 <= lat <= 90 and -180 <= lng <= 180:
             groups[key]["points"].append([lat, lng])
         groups[key]["timestamps"].append(p.get("captured_at"))
 

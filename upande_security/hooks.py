@@ -263,14 +263,17 @@ fixtures = [
             ["route", "=", "security-dashboard"],
         ],
     },
+    {
+        "dt": "Server Script",
+        "filters": [
+            ["module", "=", "Upande Security"],
+        ],
+    },
+    {
+        "dt": "Client Script",
+        "filters": [
+            ["module", "=", "Upande Security"],
+        ],
+    },
 ]
 
-web_include_css = [
-    "/assets/upande_security/css/security_dashboard_web.css",
-]
-
-web_include_js = [
-    "/assets/upande_security/js/security_dashboard_web_adapter.js",
-    "/assets/upande_security/js/security_dashboard_web.js",
-    "/assets/upande_security/js/security_dashboard_web_bootstrap.js",
-]
