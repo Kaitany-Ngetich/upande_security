@@ -1,6 +1,3 @@
-import json
-from pathlib import Path
-
 import frappe
 
 
@@ -10,34 +7,7 @@ SECURITY_HTML = r'''
   <div class="secn-title">Security Operations</div>
 
   <div class="secn-grid">
-
-    <a
-      class="secn-tile"
-      data-roles=""
-      data-ref-type="Page"
-      data-ref-name="security-dashboard"
-      href="/app/security-dashboard"
-    >
-      <span
-        class="secn-ic"
-        style="background:rgba(59,130,246,.13);color:#3b82f6"
-      >
-        <svg viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="7" height="9"/>
-          <rect x="14" y="3" width="7" height="5"/>
-          <rect x="14" y="12" width="7" height="9"/>
-          <rect x="3" y="16" width="7" height="5"/>
-        </svg>
-      </span>
-
-      <span class="secn-tx">
-        <span class="secn-lb">Overview</span>
-        <span class="secn-sub">Security dashboard and KPIs</span>
-      </span>
-    </a>
-
-    <a
+<a
       class="secn-tile"
       data-roles=""
       data-ref-type="DocType"
@@ -446,67 +416,56 @@ SECURITY_SCRIPT = r'''
 
 
 def execute():
+    """Ensure the 'Security Navigation' Custom HTML Block exists on this
+    site with the current Security workspace navigation content.
+
+    This mirrors state that used to be applied by hand via `bench execute`
+    (see redesign_security_navigation.py / update_security_workspace.py
+    git history) and never replayed on other sites. Registering it here
+    under [post_model_sync] makes every `bench migrate` self-healing.
+    """
     block_name = "Security Navigation"
 
-    if not frappe.db.exists("Custom HTML Block", block_name):
-        frappe.throw(
-            "Custom HTML Block 'Security Navigation' does not exist."
-        )
+    if frappe.db.exists("Custom HTML Block", block_name):
+        block = frappe.get_doc("Custom HTML Block", block_name)
+    else:
+        block = frappe.new_doc("Custom HTML Block")
+        block.name = block_name
 
-    block = frappe.get_doc("Custom HTML Block", block_name)
+    html = SECURITY_HTML.strip()
+    style = SECURITY_STYLE.strip()
+    script = SECURITY_SCRIPT.strip()
 
-    backup = {
-        "name": block.name,
-        "html": block.get("html") or "",
-        "style": block.get("style") or "",
-        "script": block.get("script") or "",
-    }
+    if (
+        block.get("html") == html
+        and block.get("style") == style
+        and block.get("script") == script
+    ):
+        return
 
-    backup_path = Path(
-        "/tmp/security_navigation_before_redesign.json"
-    )
-
-    backup_path.write_text(
-        json.dumps(backup, indent=2),
-        encoding="utf-8",
-    )
-
-    block.html = SECURITY_HTML.strip()
-    block.style = SECURITY_STYLE.strip()
-    block.script = SECURITY_SCRIPT.strip()
+    block.html = html
+    block.style = style
+    block.script = script
+    block.private = 0
 
     block.save(ignore_permissions=True)
     frappe.db.commit()
 
-    print("\n=== SECURITY NAVIGATION REDESIGNED ===")
-    print("Block:", block.name)
-    print("HTML characters:", len(block.html or ""))
-    print("Style characters:", len(block.style or ""))
-    print("Script characters:", len(block.script or ""))
-    print("Previous version:", backup_path)
+    print("Security Navigation Custom HTML Block synced:", block.name)
 
 
 def verify():
-    block = frappe.get_doc(
-        "Custom HTML Block",
-        "Security Navigation",
-    )
-
+    block = frappe.get_doc("Custom HTML Block", "Security Navigation")
     workspace = frappe.get_doc("Workspace", "Security")
 
     return {
         "workspace": workspace.name,
-        "workspace_module": workspace.get("module"),
-        "workspace_app": workspace.get("app"),
         "custom_block": block.name,
         "html_characters": len(block.get("html") or ""),
-        "style_characters": len(block.get("style") or ""),
-        "script_characters": len(block.get("script") or ""),
         "uses_security_namespace": (
             'class="secn"' in (block.get("html") or "")
         ),
         "workspace_uses_block": (
-            "Security Navigation" in
-            (workspace.get("content") or "")
+            "Security Navigation" in (workspace.get("content") or "")
         ),
     }
