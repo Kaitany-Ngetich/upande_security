@@ -47,13 +47,13 @@
   "doctype_event": "Before Save",
   "enable_rate_limit": 0,
   "event_frequency": "All",
-  "modified": "2026-07-23 06:17:26.246433",
+  "modified": "2026-07-27 13:37:46.838174",
   "module": "Upande Security",
   "name": "Appointment Host WA Number",
   "rate_limit_count": 5,
   "rate_limit_seconds": 86400,
   "reference_doctype": "Appointment",
-  "script": "\nd = \"\".join(c for c in (doc.custom_meet_with_phone or \"\") if c.isdigit())\nif d.startswith(\"254\"):\n    pass\nelif d.startswith(\"0\"):\n    d = \"254\" + d[1:]\nelif len(d) == 9 and d[0] in (\"7\", \"1\"):\n    d = \"254\" + d\ndoc.custom_meet_with_wa = d\ndoc.custom_visit_purpose = (doc.customer_details or \"\").strip() or \"a visit\"\ndoc.custom_wa_link_suffix = (doc.name or \"\").replace(\" \", \"%20\")\n",
+  "script": "d = \"\".join(c for c in (doc.custom_host_whatsapp_no or \"\") if c.isdigit())\nif d.startswith(\"254\"):\n    pass\nelif d.startswith(\"0\"):\n    d = \"254\" + d[1:]\nelif len(d) == 9 and d[0] in (\"7\", \"1\"):\n    d = \"254\" + d\ndoc.custom_meet_with_wa = d\ndoc.custom_visit_purpose = (doc.customer_details or \"\").strip() or \"a visit\"\ndoc.custom_wa_link_suffix = doc.name or \"\"\n",
   "script_type": "DocType Event"
  },
  {

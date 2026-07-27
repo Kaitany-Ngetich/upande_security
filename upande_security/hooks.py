@@ -282,5 +282,11 @@ fixtures = [
             ["module", "=", "Upande Security"],
         ],
     },
+    {
+        "dt": "Custom Field",
+        "filters": [
+            ["dt", "=", "Appointment"],
+        ],
+    },
 ]
 
