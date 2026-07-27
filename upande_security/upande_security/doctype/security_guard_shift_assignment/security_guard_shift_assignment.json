@@ -18,6 +18,7 @@
   "end_date",
   "farm",
   "status",
+  "checked_in",
   "assigned_by",
   "remarks"
  ],
@@ -81,6 +82,14 @@
    "label": "Status",
    "options": "Active\nCancelled",
    "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "checked_in",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Checked In",
+   "read_only": 1
   },
   {
    "fieldname": "assigned_by",

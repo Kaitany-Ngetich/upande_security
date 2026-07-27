@@ -146,6 +146,13 @@ app_license = "mit"
 # 	}
 # }
 
+doc_events = {
+	"Attendance": {
+		"after_insert": "upande_security.api.guard_checkin.sync_shift_checkin",
+		"on_update": "upande_security.api.guard_checkin.sync_shift_checkin",
+	}
+}
+
 # Scheduled Tasks
 # ---------------
 
