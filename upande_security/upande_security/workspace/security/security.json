@@ -1,7 +1,7 @@
 {
  "app": "upande_security",
  "charts": [],
- "content": "[{\"id\":\"910a054bf2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Security Dashboard\",\"col\":3}},{\"id\":\"securityNav0001\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Security Navigation\",\"col\":12}}]",
+ "content": "[{\"id\": \"securityNav0001\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"Security Navigation\", \"col\": 12}}]",
  "creation": "2026-07-20 11:33:28.701532",
  "custom_blocks": [
   {
@@ -20,7 +20,7 @@
  "label": "Security",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-07-23 13:21:13.422777",
+ "modified": "2026-07-31 13:13:05.881532",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security",
@@ -31,14 +31,7 @@
  "quick_lists": [],
  "roles": [],
  "sequence_id": 55.0,
- "shortcuts": [
-  {
-   "doc_view": "",
-   "label": "Security Dashboard",
-   "type": "URL",
-   "url": "/security-dashboard"
-  }
- ],
+ "shortcuts": [],
  "title": "Security",
  "type": "Workspace"
 }

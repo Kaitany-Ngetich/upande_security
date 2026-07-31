@@ -1907,7 +1907,16 @@ def _path_distance_km(points):
 
 
 @frappe.whitelist()
-def fetchSecurityDasboardData(tab=None, period=None, from_date=None, to_date=None):
+def fetchSecurityDasboardData(
+    tab=None,
+    period=None,
+    from_date=None,
+    to_date=None,
+    farm=None,
+    shift_type=None,
+    status=None,
+    company=None,
+):
     tab = (tab or "").strip().lower()
     range_from, range_to = _resolve_range(period, from_date, to_date)
 
@@ -1915,6 +1924,10 @@ def fetchSecurityDasboardData(tab=None, period=None, from_date=None, to_date=Non
         return _fetch_incidents_tab(range_from, range_to)
     if tab == "patrols":
         return _fetch_patrols_tab(range_from, range_to)
+    if tab == "shifts":
+        return _fetch_shifts_tab(
+            range_from, range_to, farm=farm, shift_type=shift_type, status=status, company=company
+        )
 
     frappe.throw(_("Unknown dashboard tab: {0}").format(tab))
 
@@ -2261,3 +2274,266 @@ def fetchPatrolData(date=None):
             "average_duration_min": round(avg_duration, 1),
         },
     }
+
+
+# ─────────────────────────────────────────────────────────────────
+# BEGIN SHIFT PLANNING DASHBOARD API
+# ─────────────────────────────────────────────────────────────────
+
+_SHIFT_FARM_PALETTE = [
+    {"bg": "#E6F1FB", "text": "#0C447C"},  # blue
+    {"bg": "#EAF3DE", "text": "#27500A"},  # green
+    {"bg": "#FAEEDA", "text": "#633806"},  # amber
+    {"bg": "#EEEDFE", "text": "#3C3489"},  # purple
+    {"bg": "#FCEBEB", "text": "#791F1F"},  # rose
+    {"bg": "#CCFBF1", "text": "#115E59"},  # teal
+    {"bg": "#FFE4E6", "text": "#9F1239"},  # pink
+    {"bg": "#E0E7FF", "text": "#3730A3"},  # indigo
+]
+
+
+def _shift_farm_colors(farm_names: list[str]) -> dict[str, dict[str, str]]:
+    ordered = sorted({name for name in farm_names if name})
+    return {
+        name: _SHIFT_FARM_PALETTE[i % len(_SHIFT_FARM_PALETTE)]
+        for i, name in enumerate(ordered)
+    }
+
+
+def _shift_guard_key(row) -> str | None:
+    if row.get("internal_guard"):
+        return f"employee::{row['internal_guard']}"
+    if row.get("external_guard"):
+        return f"security_guard::{row['external_guard']}"
+    return None
+
+
+def _shift_guard_name(row, employee_names, security_guard_names) -> str:
+    if row.get("internal_guard"):
+        return employee_names.get(row["internal_guard"], row["internal_guard"])
+    if row.get("external_guard"):
+        return security_guard_names.get(row["external_guard"], row["external_guard"])
+    return _("Unassigned")
+
+
+def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=None, company=None):
+    doctype = "Security Guard Shift Assignment"
+
+    if not frappe.has_permission(doctype, ptype="read"):
+        frappe.throw(
+            _("You do not have permission to view Shift Assignments."),
+            frappe.PermissionError,
+        )
+
+    today = frappe.utils.getdate()
+
+    # Farms scoped to the selected Company (or every farm, if no company chosen) —
+    # drives both the Farm dropdown options and, below, which farms the coverage
+    # board / rotation metrics are computed over.
+    company_farms = frappe.get_list(
+        "Farm",
+        filters={"company": company} if company else {},
+        fields=["name", "farm"],
+        order_by="farm asc",
+        page_length=500,
+    )
+
+    # An explicit farm always wins; otherwise fall back to the company's farms
+    # (or no restriction at all if neither farm nor company was picked).
+    if farm:
+        farm_scope = [farm]
+    elif company:
+        farm_scope = [f["name"] for f in company_farms] or ["__no_farm_matches__"]
+    else:
+        farm_scope = None
+
+    range_filters = [
+        ["start_date", "<=", f"{range_to} 23:59:59"],
+        ["end_date", ">=", f"{range_from} 00:00:00"],
+    ]
+
+    if farm_scope is not None:
+        range_filters.append(["farm", "in", farm_scope])
+    if shift_type:
+        range_filters.append(["shift_type", "=", shift_type])
+    if status:
+        range_filters.append(["status", "=", status])
+
+    range_rows = frappe.get_list(
+        doctype,
+        filters=range_filters,
+        fields=[
+            "name", "security_guard", "internal_guard", "external_guard",
+            "farm", "shift_type", "start_date", "end_date", "status",
+            "assigned_by", "remarks", "modified",
+        ],
+        order_by="start_date desc",
+        page_length=1000,
+    )
+
+    # All-time rows (unfiltered by date, but still scoped to farm/company) drive
+    # the rotation metric and today's coverage board, since a shift can span
+    # outside the picked date range.
+    all_rows_filters = {"status": "Active"}
+    if farm_scope is not None:
+        all_rows_filters["farm"] = ["in", farm_scope]
+
+    all_rows = frappe.get_list(
+        doctype,
+        filters=all_rows_filters,
+        fields=[
+            "name", "security_guard", "internal_guard", "external_guard",
+            "farm", "shift_type", "start_date", "end_date",
+        ],
+        page_length=5000,
+    )
+
+    employee_ids = {r["internal_guard"] for r in range_rows + all_rows if r.get("internal_guard")}
+    security_guard_ids = {r["external_guard"] for r in range_rows + all_rows if r.get("external_guard")}
+
+    employee_names = {
+        e.name: e.employee_name
+        for e in frappe.get_all(
+            "Employee",
+            filters={"name": ["in", list(employee_ids)]} if employee_ids else {"name": ["in", []]},
+            fields=["name", "employee_name"],
+        )
+    }
+    security_guard_names = {
+        g.name: (g.full_name or g.name)
+        for g in frappe.get_all(
+            "Security Guard",
+            filters={"name": ["in", list(security_guard_ids)]} if security_guard_ids else {"name": ["in", []]},
+            fields=["name", "full_name"],
+        )
+    }
+
+    # Coverage board is built over the same farm scope as the data above: just
+    # the selected farm, or every farm in the selected company, or all farms.
+    if farm:
+        board_farms = [f for f in company_farms if f["name"] == farm] or frappe.get_list(
+            "Farm", filters={"name": farm}, fields=["name", "farm"]
+        )
+    else:
+        board_farms = company_farms
+
+    farm_colors = _shift_farm_colors([a.get("farm") for a in range_rows])
+
+    rows = []
+    for r in range_rows:
+        farm_name = r.get("farm") or ""
+        color = farm_colors.get(farm_name, {"bg": "#F1EFE8", "text": "#444441"})
+        rows.append({
+            "name": r["name"],
+            "guard_key": _shift_guard_key(r),
+            "guard_name": _shift_guard_name(r, employee_names, security_guard_names),
+            "guard_type": r.get("security_guard"),
+            "farm": farm_name,
+            "farm_color": color,
+            "shift_type": r.get("shift_type"),
+            "start_date": str(r["start_date"]) if r.get("start_date") else None,
+            "end_date": str(r["end_date"]) if r.get("end_date") else None,
+            "status": r.get("status"),
+            "remarks": r.get("remarks") or "",
+        })
+
+    # Today's coverage board: farm -> {Day: guard_name, Night: guard_name}
+    coverage = {f["farm"]: {"Day": None, "Night": None} for f in board_farms}
+    for r in all_rows:
+        start = frappe.utils.getdate(r["start_date"]) if r.get("start_date") else None
+        end = frappe.utils.getdate(r["end_date"]) if r.get("end_date") else None
+        if not (start and start <= today and (not end or end >= today)):
+            continue
+        slot = coverage.setdefault(r.get("farm"), {"Day": None, "Night": None})
+        slot[r.get("shift_type")] = _shift_guard_name(r, employee_names, security_guard_names)
+
+    coverage_board = [
+        {"farm": farm_name, "day_guard": slots.get("Day"), "night_guard": slots.get("Night")}
+        for farm_name, slots in coverage.items()
+    ]
+    coverage_board.sort(key=lambda x: x["farm"] or "")
+
+    filled_slots = sum(
+        1 for c in coverage_board for key in ("day_guard", "night_guard") if c[key]
+    )
+    total_slots = len(coverage_board) * 2
+
+    # Rotation metric: guards who have covered more than one distinct farm.
+    guard_farms = {}
+    for r in all_rows:
+        key = _shift_guard_key(r)
+        if not key or not r.get("farm"):
+            continue
+        guard_farms.setdefault(key, set()).add(r["farm"])
+    guards_on_rotation = sum(1 for farms_set in guard_farms.values() if len(farms_set) > 1)
+
+    day_count = sum(1 for r in rows if r["shift_type"] == "Day" and r["status"] == "Active")
+    night_count = sum(1 for r in rows if r["shift_type"] == "Night" and r["status"] == "Active")
+
+    return {
+        "success": True,
+        "range_from": str(range_from),
+        "range_to": str(range_to),
+        "summary": {
+            "total_assignments": len(rows),
+            "day_shift_count": day_count,
+            "night_shift_count": night_count,
+            "farms_covered": sum(
+                1 for c in coverage_board if c["day_guard"] or c["night_guard"]
+            ),
+            "farms_total": len(coverage_board),
+            "unfilled_slots": total_slots - filled_slots,
+            "guards_on_rotation": guards_on_rotation,
+        },
+        "coverage_board": coverage_board,
+        "rows": rows,
+        "farm_colors": farm_colors,
+        "filter_options": {
+            "farms": [f["farm"] for f in company_farms],
+            "shift_types": ["Day", "Night"],
+            "statuses": ["Active", "Cancelled"],
+            "companies": [
+                c.name
+                for c in frappe.get_list("Company", fields=["name"], order_by="name asc", page_length=200)
+            ],
+        },
+    }
+
+
+@frappe.whitelist()
+def get_farm_boundaries() -> dict[str, Any]:
+    """
+    Return, for every Farm that has a boundary GeoJSON file attached,
+    the farm name and a URL the client can fetch the GeoJSON from.
+    Farms without a boundary uploaded yet are simply omitted.
+    """
+
+    if not frappe.has_permission("Farm", ptype="read"):
+        frappe.throw(
+            _("You do not have permission to view Farms."),
+            frappe.PermissionError,
+        )
+
+    farms = frappe.get_list(
+        "Farm",
+        filters={"boundary_geojson": ["is", "set"]},
+        fields=["name", "farm", "boundary_geojson"],
+        order_by="farm asc",
+        page_length=500,
+    )
+
+    return {
+        "success": True,
+        "boundaries": [
+            {
+                "farm": f.get("farm") or f.get("name"),
+                "url": f.get("boundary_geojson"),
+            }
+            for f in farms
+        ],
+    }
+
+
+# ─────────────────────────────────────────────────────────────────
+# END SHIFT PLANNING DASHBOARD API
+# ─────────────────────────────────────────────────────────────────

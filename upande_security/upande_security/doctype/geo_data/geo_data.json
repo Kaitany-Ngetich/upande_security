@@ -1,0 +1,97 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "format:FB-{#####}",
+ "creation": "2026-07-31 09:30:27.690531",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "farm",
+  "company",
+  "column_break_fb1",
+  "title",
+  "source_name",
+  "section_break_fb1",
+  "boundary"
+ ],
+ "fields": [
+  {
+   "description": "The farm this boundary belongs to.",
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Farm",
+   "options": "Farm",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "farm.company",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_fb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Optional human label for this boundary (e.g. a block/zone name) \u2014 useful if a farm has more than one boundary shape.",
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title"
+  },
+  {
+   "description": "Raw name/label from the original GeoJSON source file, kept for traceability since it does not always match the linked record's name exactly.",
+   "fieldname": "source_name",
+   "fieldtype": "Data",
+   "label": "Source Name"
+  },
+  {
+   "fieldname": "section_break_fb1",
+   "fieldtype": "Section Break",
+   "label": "Boundary"
+  },
+  {
+   "fieldname": "boundary",
+   "fieldtype": "Geolocation",
+   "label": "Boundary"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-31 09:30:56.731386",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Geo Data",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

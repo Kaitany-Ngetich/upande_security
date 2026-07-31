@@ -57,14 +57,14 @@
   },
   {
    "fieldname": "start_date",
-   "fieldtype": "Date",
+   "fieldtype": "Datetime",
    "in_list_view": 1,
    "label": "Start Date",
    "reqd": 1
   },
   {
    "fieldname": "end_date",
-   "fieldtype": "Date",
+   "fieldtype": "Datetime",
    "label": "End Date",
    "reqd": 1
   },
@@ -73,7 +73,7 @@
    "fieldtype": "Link",
    "label": "Farm",
    "options": "Farm",
-   "read_only": 1
+   "reqd": 1
   },
   {
    "default": "Active",

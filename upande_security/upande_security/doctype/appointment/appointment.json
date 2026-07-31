@@ -9,38 +9,18 @@
   "details_tab",
   "scheduled_time",
   "status",
-  "meet_with",
-  "number_passengers",
   "details_section",
   "customer_name",
   "customer_phone_number",
   "skype_id",
   "customer_email",
-  "mode_of_transport",
-  "vehicles_number_plate",
-  "vehicles_color",
-  "motorcycles_plate",
   "col_br_2",
   "customer_details",
-  "visitor_type",
   "linked_docs_section",
   "appointment_with",
   "party",
   "col_br_3",
-  "calendar_event",
-  "check_in_out",
-  "check_in_time",
-  "check_out_time",
-  "reporting_status",
-  "customercontractor_tab",
-  "whatsapp_no",
-  "compan",
-  "farm_unit",
-  "visitor_details",
-  "column_break_ipuz",
-  "column_break_ctjo",
-  "customer",
-  "contractor_ref"
+  "calendar_event"
  ],
  "fields": [
   {
@@ -123,131 +103,9 @@
    "options": "Event"
   },
   {
-   "fetch_from": "meet_with.cell_number",
-   "fieldname": "whatsapp_no",
-   "fieldtype": "Data",
-   "label": "Host WhatsApp No.",
-   "options": "e"
-  },
-  {
-   "fieldname": "compan",
-   "fieldtype": "Data",
-   "label": "Company"
-  },
-  {
-   "fetch_from": "meet_with.unitdivision",
-   "fieldname": "farm_unit",
-   "fieldtype": "Data",
-   "label": "Farm/Unit"
-  },
-  {
-   "default": "1",
-   "fieldname": "number_passengers",
-   "fieldtype": "Data",
-   "label": "Number Of Passengers"
-  },
-  {
-   "fieldname": "visitor_details",
-   "fieldtype": "Section Break",
-   "label": "Details"
-  },
-  {
-   "fieldname": "mode_of_transport",
-   "fieldtype": "Select",
-   "label": "Mode Of Transport",
-   "options": "On Foot\nVehicle\nMotorcycle"
-  },
-  {
-   "depends_on": "eval:doc.mode_of_transport==\"Vehicle\"",
-   "fieldname": "vehicles_number_plate",
-   "fieldtype": "Data",
-   "label": "Vehicle's Number Plate",
-   "mandatory_depends_on": "eval:doc.mode_of_transport==\"Vehicle\""
-  },
-  {
-   "depends_on": "eval:doc.mode_of_transport==\"Vehicle\"",
-   "fieldname": "vehicles_color",
-   "fieldtype": "Data",
-   "label": "Vehicle's Color",
-   "mandatory_depends_on": "eval:doc.mode_of_transport==\"Vehicle\""
-  },
-  {
-   "depends_on": "eval:doc.mode_of_transport==\"Motorcycle\"",
-   "fieldname": "motorcycles_plate",
-   "fieldtype": "Data",
-   "label": "Motorcycles Plate",
-   "mandatory_depends_on": "eval:doc.mode_of_transport==\"Motorcycle\""
-  },
-  {
-   "fieldname": "column_break_ctjo",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "visitor_type",
-   "fieldtype": "Select",
-   "label": "Visitor Type",
-   "options": "Visitor\nCustomer\nContractor"
-  },
-  {
-   "depends_on": "eval:doc.visitor_type==\"Customer\"",
-   "fieldname": "customer",
-   "fieldtype": "Link",
-   "label": "Customer",
-   "mandatory_depends_on": "eval:doc.visitor_type==\"Customer\"",
-   "options": "Customer"
-  },
-  {
-   "depends_on": "eval:doc.visitor_type==\"Contractor\"",
-   "fieldname": "contractor_ref",
-   "fieldtype": "Link",
-   "label": "Contractor Ref",
-   "mandatory_depends_on": "eval:doc.visitor_type==\"Contractor\"",
-   "options": "Supplier"
-  },
-  {
-   "fieldname": "check_in_out",
-   "fieldtype": "Section Break",
-   "label": "Check In and Check Out"
-  },
-  {
-   "fieldname": "check_in_time",
-   "fieldtype": "Datetime",
-   "label": "Check In Time"
-  },
-  {
-   "fieldname": "check_out_time",
-   "fieldtype": "Datetime",
-   "label": "Check Out Time"
-  },
-  {
-   "fieldname": "reporting_status",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Reporting Status",
-   "options": "Scheduled\nChecked In\nChecked Out\nExpired\nPending Host Review"
-  },
-  {
    "fieldname": "details_tab",
    "fieldtype": "Tab Break",
    "label": "Details"
-  },
-  {
-   "fieldname": "meet_with",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Meet With?",
-   "options": "Employee",
-   "reqd": 1
-  },
-  {
-   "fieldname": "column_break_ipuz",
-   "fieldtype": "Column Break"
-  },
-  {
-   "depends_on": "eval:doc.visitor_type==\"Contractor\" || doc.visitor_type==\"Customer\"",
-   "fieldname": "customercontractor_tab",
-   "fieldtype": "Tab Break",
-   "label": "Customer/Contractor"
   }
  ],
  "links": [],

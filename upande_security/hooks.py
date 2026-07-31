@@ -267,7 +267,7 @@ fixtures = [
     {
         "dt": "Web Page",
         "filters": [
-            ["route", "=", "security-dashboard"],
+            ["route", "in", ["security-dashboard", "patrol-map"]],
         ],
     },
     {
@@ -285,7 +285,31 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "=", "Appointment"],
+            [
+                "dt",
+                "in",
+                [
+                    "Appointment",
+                    "Incident Category",
+                    "Incident Person",
+                    "Incident Report",
+                    "Patrol GPS Log",
+                    "Security Guard",
+                    "Security Guard Shift Assignment",
+                    # Foreign doctypes this module reads from. The custom
+                    # fields live here so they ship with the app rather than
+                    # existing only on whichever site they were added to.
+                    "Employee",
+                    "Supplier",
+                    "Timesheet",
+                ],
+            ],
+        ],
+    },
+    {
+        "dt": "Custom HTML Block",
+        "filters": [
+            ["name", "=", "Security Navigation"],
         ],
     },
 ]
