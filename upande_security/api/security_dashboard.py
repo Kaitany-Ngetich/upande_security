@@ -2040,6 +2040,47 @@ def _fetch_incidents_tab(range_from, range_to):
     }
 
 
+def _patrol_reports_by_tag(tags):
+    """Map patrol tag -> its Patrol Report, fetched in one query.
+
+    Returns {} when the doctype is absent or unreadable, so a caller without
+    Patrol Report permission still gets the GPS half of the tab.
+    """
+    if not tags or not frappe.db.exists("DocType", "Patrol Report"):
+        return {}
+    if not frappe.has_permission("Patrol Report", ptype="read"):
+        return {}
+
+    rows = frappe.get_all(
+        "Patrol Report",
+        filters={"patrol": ["in", list(tags)]},
+        fields=[
+            "name", "patrol", "status", "observations", "supervisor_remarks",
+            "reviewed_by", "reviewed_on", "farm", "personel",
+            "attachment_1", "attachment_2", "attachment_3", "attachment_4",
+        ],
+        limit_page_length=0,
+    )
+
+    by_tag = {}
+    for r in rows:
+        photos = [r.get(f"attachment_{i}") for i in range(1, 5)]
+        photos = [p for p in photos if p]
+        by_tag[r["patrol"]] = {
+            "report": r["name"],
+            "report_status": r.get("status"),
+            "observations": r.get("observations") or "",
+            "supervisor_remarks": r.get("supervisor_remarks") or "",
+            "reviewed_by": r.get("reviewed_by"),
+            "reviewed_on": str(r["reviewed_on"]) if r.get("reviewed_on") else None,
+            "report_farm": r.get("farm"),
+            "report_personel": r.get("personel"),
+            "photos": photos,
+            "photo_count": len(photos),
+        }
+    return by_tag
+
+
 def _fetch_patrols_tab(range_from, range_to):
     doctype = "Patrol GPS Log"
 
@@ -2137,6 +2178,25 @@ def _fetch_patrols_tab(range_from, range_to):
         {**v, "distance_km": round(v["distance_km"], 2)} for v in guard_agg.values()
     ]
 
+    # Attach each patrol's end-of-shift report so a supervisor sees the track and
+    # the guard's account of it side by side.
+    reports = _patrol_reports_by_tag({p["patrol"] for p in patrol_list})
+    submitted = reviewed = flagged = 0
+    for entry in patrol_list:
+        rep = reports.get(entry["patrol"])
+        entry["has_report"] = bool(rep)
+        if not rep:
+            continue
+        entry.update(rep)
+        if rep["report_status"] == "Submitted":
+            submitted += 1
+        elif rep["report_status"] == "Reviewed":
+            reviewed += 1
+        elif rep["report_status"] == "Flagged":
+            flagged += 1
+
+    reported = sum(1 for p in patrol_list if p["has_report"])
+
     return {
         "success": True,
         "range_from": str(range_from),
@@ -2148,6 +2208,12 @@ def _fetch_patrols_tab(range_from, range_to):
         "total_patrol_points": len(points),
         "patrol_list": patrol_list,
         "guard_stats": guard_stats,
+        # Patrol Report roll-up
+        "reports_submitted": submitted,
+        "reports_reviewed": reviewed,
+        "reports_flagged": flagged,
+        "patrols_reported": reported,
+        "patrols_without_report": len(patrol_list) - reported,
     }
 
 

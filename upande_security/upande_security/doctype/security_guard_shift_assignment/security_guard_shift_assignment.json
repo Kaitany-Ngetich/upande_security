@@ -76,11 +76,14 @@
    "reqd": 1
   },
   {
-   "default": "Active",
+   "default": "Scheduled",
+   "description": "Set automatically from the shift's start and end date: Scheduled before it starts, Active while it runs, Ended afterwards. Choose Cancelled to take a shift out of the rotation \u2014 that is the one value the automation leaves alone.",
    "fieldname": "status",
    "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Status",
-   "options": "Active\nCancelled",
+   "options": "Scheduled\nActive\nEnded\nCancelled",
    "reqd": 1
   },
   {

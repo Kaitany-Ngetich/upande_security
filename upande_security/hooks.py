@@ -156,23 +156,13 @@ doc_events = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"upande_security.tasks.all"
-# 	],
-# 	"daily": [
-# 		"upande_security.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"upande_security.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"upande_security.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"upande_security.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+    "hourly": [
+        # A shift that merely elapses is never saved again, so its status has to
+        # be advanced on a timer: Scheduled -> Active -> Ended.
+        "upande_security.tasks.refresh_shift_statuses",
+    ],
+}
 
 # Testing
 # -------
