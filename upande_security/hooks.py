@@ -8,7 +8,13 @@ app_license = "mit"
 # Apps
 # ------------------
 
-# required_apps = []
+# erpnext supplies Employee, Supplier, Timesheet, Asset, Location and Driver;
+# hrms supplies Attendance and Shift Type. Both are read or written by this
+# module's server scripts, so an install without them is broken on arrival.
+# upande_kaitet is deliberately NOT listed: it provides Farm and Tractor Daily
+# Task here, but krv16 sources Farm from upande_core and has no Tractor Daily
+# Task at all, so requiring it would block a valid deployment.
+required_apps = ["erpnext", "hrms"]
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
@@ -273,25 +279,52 @@ fixtures = [
         ],
     },
     {
+        # Custom Fields are enumerated by name, not swept up by `dt`.
+        #
+        # Two reasons. Filtering Employee/Supplier/Timesheet by `dt` scoops up
+        # every other team's customizations — Employee alone carries 200+
+        # payroll and HR fields that this app must never ship. And a second
+        # fixture entry cannot be used to separate the two sets, because every
+        # entry for a doctype writes the same custom_field.json and the last
+        # one silently wins.
+        #
+        # Cost: adding a custom field means adding it here too.
         "dt": "Custom Field",
         "filters": [
             [
-                "dt",
+                "name",
                 "in",
                 [
-                    "Appointment",
-                    "Incident Category",
-                    "Incident Person",
-                    "Incident Report",
-                    "Patrol GPS Log",
-                    "Security Guard",
-                    "Security Guard Shift Assignment",
-                    # Foreign doctypes this module reads from. The custom
-                    # fields live here so they ship with the app rather than
-                    # existing only on whichever site they were added to.
-                    "Employee",
-                    "Supplier",
-                    "Timesheet",
+                    "Appointment-custom_meet_with",
+                    "Appointment-workflow_state",
+                    "Appointment-custom_host_whatsapp_no",
+                    "Appointment-custom_company",
+                    "Appointment-custom_farmunit",
+                    "Appointment-custom_visit_purpose",
+                    "Appointment-custom_number_of_passengers",
+                    "Appointment-custom_mode_of_transport",
+                    "Appointment-custom_vehicles_number_plate",
+                    "Appointment-custom_vehicles_colour",
+                    "Appointment-custom_motorcycles_plate",
+                    "Appointment-custom_visitor_type",
+                    "Appointment-custom_check_in_and_check_out",
+                    "Appointment-custom_check_in_time",
+                    "Appointment-custom_check_out_time",
+                    "Appointment-custom_temp_exit_time",
+                    "Appointment-custom_reporting_status",
+                    "Appointment-custom_temp_exit_log",
+                    "Appointment-custom_visitorcontractor_tab",
+                    "Appointment-custom_contractor_ref",
+                    "Appointment-custom_contractor_person",
+                    "Appointment-custom_customer",
+                    "Employee-custom_farm",
+                    "Employee-default_shift",
+                    "Supplier-custom_is_contractor",
+                    "Supplier-custom_access_start_date",
+                    "Supplier-custom_access_end_date",
+                    "Supplier-custom_approval_date",
+                    "Supplier-custom_approved_by",
+                    "Timesheet-custom_asset",
                 ],
             ],
         ],
