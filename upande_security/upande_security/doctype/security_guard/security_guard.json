@@ -18,6 +18,7 @@
   "first_name",
   "middle_name",
   "full_name",
+  "user",
   "cb_personal_2",
   "date_of_birth",
   "gender",
@@ -92,6 +93,14 @@
    "fieldtype": "Data",
    "label": "Full Name",
    "read_only": 1
+  },
+  {
+   "description": "The login this guard uses in the mobile app. Without it an external guard can only be identified by name-matching, which breaks on duplicates and renames.",
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User Account",
+   "options": "User",
+   "unique": 1
   },
   {
    "fieldname": "cb_personal_2",

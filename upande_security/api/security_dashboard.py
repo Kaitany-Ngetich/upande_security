@@ -1099,24 +1099,26 @@ def get_incidents_dashboard(
                 person_counts[parent][parentfield] += 1
                 person_counts[parent]["total_persons"] += 1
 
-    categories = []
+    # Nature of Incident is a Select on Incident Report, so the filter options
+    # are the field's own choices. Reading them from meta keeps the dropdown in
+    # step with the field automatically; the old Incident Category master is no
+    # longer what incidents are classified against.
+    nature_options = (
+        frappe.get_meta("Incident Report").get_field("nature_of_incident").options
+        or ""
+    )
 
-    if frappe.has_permission(
-        "Incident Category",
-        ptype="read",
-    ):
-        categories = frappe.get_list(
-            "Incident Category",
-            filters={"is_active": 1},
-            fields=[
-                "name",
-                "category_name",
-                "default_severity",
-                "color",
-            ],
-            order_by="category_name asc",
-            limit_page_length=500,
-        )
+    categories = [
+        {
+            "name": option,
+            "category_name": option,
+            # Only the master carried these; a Select has no per-option metadata.
+            "default_severity": None,
+            "color": None,
+        }
+        for option in (line.strip() for line in nature_options.split("\n"))
+        if option
+    ]
 
     category_details = {}
 
@@ -2043,6 +2045,8 @@ def _fetch_incidents_tab(range_from, range_to):
 def _patrol_reports_by_tag(tags):
     """Map patrol tag -> its Patrol Report, fetched in one query.
 
+    One report per patrol, filed whenever the guard chooses.
+
     Returns {} when the doctype is absent or unreadable, so a caller without
     Patrol Report permission still gets the GPS half of the tab.
     """
@@ -2055,10 +2059,12 @@ def _patrol_reports_by_tag(tags):
         "Patrol Report",
         filters={"patrol": ["in", list(tags)]},
         fields=[
-            "name", "patrol", "status", "observations", "supervisor_remarks",
+            "name", "patrol", "status", "report_type", "severity",
+            "incident_report", "filed_at", "observations", "supervisor_remarks",
             "reviewed_by", "reviewed_on", "farm", "personel",
             "attachment_1", "attachment_2", "attachment_3", "attachment_4",
         ],
+        order_by="filed_at asc, creation asc",
         limit_page_length=0,
     )
 
@@ -2069,6 +2075,10 @@ def _patrol_reports_by_tag(tags):
         by_tag[r["patrol"]] = {
             "report": r["name"],
             "report_status": r.get("status"),
+            "report_type": r.get("report_type") or "Routine",
+            "severity": r.get("severity"),
+            "incident_report": r.get("incident_report"),
+            "filed_at": str(r["filed_at"]) if r.get("filed_at") else None,
             "observations": r.get("observations") or "",
             "supervisor_remarks": r.get("supervisor_remarks") or "",
             "reviewed_by": r.get("reviewed_by"),
@@ -2181,13 +2191,16 @@ def _fetch_patrols_tab(range_from, range_to):
     # Attach each patrol's end-of-shift report so a supervisor sees the track and
     # the guard's account of it side by side.
     reports = _patrol_reports_by_tag({p["patrol"] for p in patrol_list})
-    submitted = reviewed = flagged = 0
+    submitted = reviewed = flagged = incidents = 0
+
     for entry in patrol_list:
         rep = reports.get(entry["patrol"])
         entry["has_report"] = bool(rep)
         if not rep:
             continue
         entry.update(rep)
+        if rep["report_type"] == "Incident":
+            incidents += 1
         if rep["report_status"] == "Submitted":
             submitted += 1
         elif rep["report_status"] == "Reviewed":
@@ -2212,6 +2225,7 @@ def _fetch_patrols_tab(range_from, range_to):
         "reports_submitted": submitted,
         "reports_reviewed": reviewed,
         "reports_flagged": flagged,
+        "reports_incidents": incidents,
         "patrols_reported": reported,
         "patrols_without_report": len(patrol_list) - reported,
     }

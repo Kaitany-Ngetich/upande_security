@@ -9,6 +9,7 @@
  "field_order": [
   "naming_series",
   "patrol",
+  "report_type",
   "shift_assignment",
   "farm",
   "col_br_1",
@@ -20,8 +21,14 @@
   "ended_at",
   "col_br_2",
   "points_logged",
+  "filed_at",
   "observations_section",
   "observations",
+  "incident_section",
+  "severity",
+  "nature_of_incident",
+  "col_br_inc",
+  "incident_report",
   "photos_section",
   "attachment_1",
   "attachment_2",
@@ -36,6 +43,7 @@
  ],
  "fields": [
   {
+   "default": "PTRL-RPT-.#####",
    "fieldname": "naming_series",
    "fieldtype": "Select",
    "hidden": 1,
@@ -45,7 +53,7 @@
    "reqd": 1
   },
   {
-   "description": "The patrol this report covers. Matches the `patrol` tag on the Patrol GPS Log rows the guard's device uploaded.",
+   "description": "The patrol this report covers. Matches the `patrol` tag on the Patrol GPS Log rows the guard's device uploaded. One report per patrol \u2014 file it at any point during or after the patrol.",
    "fieldname": "patrol",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -53,6 +61,17 @@
    "label": "Patrol",
    "reqd": 1,
    "unique": 1
+  },
+  {
+   "default": "Routine",
+   "description": "Routine is a normal patrol observation. Incident flags something needing follow-up and unlocks the incident details below.",
+   "fieldname": "report_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Report Type",
+   "options": "Routine\nIncident",
+   "reqd": 1
   },
   {
    "description": "The Shift Planning entry covering this patrol. Resolved automatically from the guard and the patrol window; farm and personel are read from it.",
@@ -139,6 +158,13 @@
    "read_only": 1
   },
   {
+   "description": "When the guard submitted this report. Set automatically.",
+   "fieldname": "filed_at",
+   "fieldtype": "Datetime",
+   "label": "Filed At",
+   "read_only": 1
+  },
+  {
    "fieldname": "observations_section",
    "fieldtype": "Section Break",
    "label": "Guard Observations"
@@ -149,6 +175,45 @@
    "fieldtype": "Long Text",
    "label": "Observations",
    "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.report_type==\"Incident\"",
+   "fieldname": "incident_section",
+   "fieldtype": "Section Break",
+   "label": "Incident Details"
+  },
+  {
+   "depends_on": "eval:doc.report_type==\"Incident\"",
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Severity",
+   "mandatory_depends_on": "eval:doc.report_type==\"Incident\"",
+   "options": "Low\nMedium\nHigh\nCritical"
+  },
+  {
+   "depends_on": "eval:doc.report_type==\"Incident\"",
+   "description": "Carried into the Incident Report, which requires it.",
+   "fieldname": "nature_of_incident",
+   "fieldtype": "Select",
+   "label": "Nature of Incident",
+   "mandatory_depends_on": "eval:doc.report_type==\"Incident\"",
+   "options": "Accident\nFire\nIntrusion\nMedical Emergency\nNear Miss\nOther\nProperty Damage\nRobbery With Violence\nSOS\nTheft"
+  },
+  {
+   "depends_on": "eval:doc.report_type==\"Incident\"",
+   "fieldname": "col_br_inc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.report_type==\"Incident\"",
+   "description": "The Incident Report raised automatically when this was flagged. Editing observations here does not rewrite it.",
+   "fieldname": "incident_report",
+   "fieldtype": "Link",
+   "label": "Incident Report",
+   "options": "Incident Report",
+   "read_only": 1
   },
   {
    "fieldname": "photos_section",
@@ -176,18 +241,21 @@
    "label": "Photo 4"
   },
   {
+   "description": "Editable by Security Head only.",
    "fieldname": "review_section",
    "fieldtype": "Section Break",
    "label": "Supervisor Review"
   },
   {
    "default": "Submitted",
+   "description": "Set to Submitted when the guard files. Only Security Head can move it to Reviewed or Flagged.",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
    "options": "Submitted\nReviewed\nFlagged",
+   "permlevel": 1,
    "reqd": 1
   },
   {
@@ -196,6 +264,7 @@
    "fieldtype": "Link",
    "label": "Reviewed By",
    "options": "User",
+   "permlevel": 1,
    "read_only": 1
   },
   {
@@ -206,12 +275,14 @@
    "fieldname": "reviewed_on",
    "fieldtype": "Datetime",
    "label": "Reviewed On",
+   "permlevel": 1,
    "read_only": 1
   },
   {
    "fieldname": "supervisor_remarks",
    "fieldtype": "Long Text",
-   "label": "Supervisor Remarks"
+   "label": "Supervisor Remarks",
+   "permlevel": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -237,6 +308,30 @@
    "write": 1
   },
   {
+   "permlevel": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Security Head",
+   "write": 1
+  },
+  {
    "create": 1,
    "email": 1,
    "export": 1,
@@ -245,6 +340,18 @@
    "read": 1,
    "report": 1,
    "role": "Employee",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "if_owner": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Guard",
    "share": 1,
    "write": 1
   }
