@@ -7,9 +7,9 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
+ "is_calendar_and_gantt": 1,
  "field_order": [
   "naming_series",
-  "title",
   "security_guard",
   "internal_guard",
   "external_guard",
@@ -17,27 +17,22 @@
   "start_date",
   "end_date",
   "farm",
+  "block",
   "status",
   "checked_in",
   "assigned_by",
-  "remarks"
+  "remarks",
+  "synced_from_hr_shift"
  ],
  "fields": [
   {
    "default": "SGSA-.#####",
    "fieldname": "naming_series",
    "fieldtype": "Select",
-   "in_list_view": 1,
+   "hidden": 1,
    "label": "Series",
    "options": "SGSA-.#####",
    "reqd": 1
-  },
-  {
-   "fieldname": "title",
-   "fieldtype": "Data",
-   "hidden": 1,
-   "label": "Title",
-   "read_only": 1
   },
   {
    "fieldname": "security_guard",
@@ -73,7 +68,24 @@
    "fieldtype": "Link",
    "label": "Farm",
    "options": "Farm",
-   "reqd": 1
+   "description": "Not required — a shift synced in from HR's roster may not have one yet if this guard has no prior posting on record. Set it once you know where they're covering."
+  },
+  {
+   "fieldname": "block",
+   "fieldtype": "Link",
+   "label": "Section / Block",
+   "options": "Blocks",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "The specific section/block within the farm this guard is assigned to patrol. Choices are filtered to blocks belonging to the farm selected above."
+  },
+  {
+   "fieldname": "synced_from_hr_shift",
+   "fieldtype": "Link",
+   "label": "Synced From (HR Shift Assignment)",
+   "options": "Shift Assignment",
+   "read_only": 1,
+   "description": "Set automatically when this record was created by the daily HR roster sync. Blank means a Security Head created it directly."
   },
   {
    "default": "Scheduled",
@@ -174,6 +186,5 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "title_field": "title",
  "track_changes": 1
 }

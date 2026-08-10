@@ -96,3 +96,90 @@ class SecurityGuardShiftAssignment(Document):
 				),
 				title=_("Overlapping Shift Assignment"),
 			)
+
+
+# Status -> colour for the Calendar/Gantt view. Cancelled reads as struck-out
+# grey rather than a false "everything's fine" green.
+STATUS_COLOR = {
+	"Scheduled": "#8D99AE",
+	"Active": "#2ECC71",
+	"Ended": "#B0B0B0",
+	"Cancelled": "#E74C3C",
+}
+
+
+@frappe.whitelist()
+def get_shift_events(start, end, filters=None):
+	"""Feeds the Calendar and Gantt views — see
+	security_guard_shift_assignment_calendar.js for the field_map this
+	return shape has to match (start/end/id/title/color).
+
+	The doctype itself has no stored title (removed — it just duplicated
+	the guard/farm info already reachable via the record's own linked
+	fields). The label bar in Calendar/Gantt still needs *something*
+	readable though — a plain list of "SGSA-00001", "SGSA-00002" would
+	defeat the point of a visual planning view — so it's composed here,
+	on the fly, for display only, never persisted back onto the record.
+	"""
+	from frappe.desk.reportview import get_filters_cond
+
+	conditions = get_filters_cond("Security Guard Shift Assignment", filters, [])
+
+	rows = frappe.db.sql(
+		"""
+		SELECT name, security_guard, internal_guard, external_guard,
+		       farm, block, shift_type, status, start_date, end_date
+		FROM `tabSecurity Guard Shift Assignment`
+		WHERE start_date <= %(end)s AND end_date >= %(start)s {conditions}
+		""".format(conditions=conditions),
+		{"start": start, "end": end},
+		as_dict=True,
+	)
+
+	# Batch-resolve guard display names instead of one query per row.
+	employee_ids = [r.internal_guard for r in rows if r.security_guard == "Internal Guard" and r.internal_guard]
+	guard_ids = [r.external_guard for r in rows if r.security_guard == "External Guard" and r.external_guard]
+	employee_names = {}
+	if employee_ids:
+		employee_names = dict(
+			frappe.db.sql(
+				"SELECT name, employee_name FROM `tabEmployee` WHERE name IN %(ids)s",
+				{"ids": tuple(employee_ids)},
+			)
+		)
+	guard_names = {}
+	if guard_ids:
+		guard_names = dict(
+			frappe.db.sql(
+				"SELECT name, full_name FROM `tabSecurity Guard` WHERE name IN %(ids)s",
+				{"ids": tuple(guard_ids)},
+			)
+		)
+
+	events = []
+	for r in rows:
+		if r.security_guard == "Internal Guard" and r.internal_guard:
+			guard_name = employee_names.get(r.internal_guard) or r.internal_guard
+		elif r.security_guard == "External Guard" and r.external_guard:
+			guard_name = guard_names.get(r.external_guard) or r.external_guard
+		else:
+			guard_name = _("Unassigned Guard")
+
+		where = r.farm or _("Unknown Farm")
+		if r.block:
+			where = where + " · " + r.block
+
+		label = "{0} — {1} ({2})".format(guard_name, where, r.shift_type) if r.shift_type else "{0} — {1}".format(guard_name, where)
+
+		events.append(
+			{
+				"name": r.name,
+				"id": r.name,
+				"title": label,
+				"start": r.start_date,
+				"end": r.end_date,
+				"status": r.status,
+				"color": STATUS_COLOR.get(r.status, "#8D99AE"),
+			}
+		)
+	return events
