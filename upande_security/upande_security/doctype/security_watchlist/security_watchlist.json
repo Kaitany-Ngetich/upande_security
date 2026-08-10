@@ -1,0 +1,131 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-08-08 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "full_name",
+  "id_number",
+  "phone_number",
+  "column_break_1",
+  "status",
+  "company",
+  "section_break_1",
+  "reason",
+  "added_by",
+  "added_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "label": "Full Name",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Matched with a loose LIKE search at check-in — spelling variants may not catch. Prefer ID number or phone for a reliable match."
+  },
+  {
+   "fieldname": "id_number",
+   "fieldtype": "Data",
+   "label": "ID / Passport Number",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Exact match. Most reliable field — fill this in whenever it's known."
+  },
+  {
+   "fieldname": "phone_number",
+   "fieldtype": "Data",
+   "label": "Phone Number",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Exact match against the visitor's phone as entered at the gate."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nInactive",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Only Active entries are checked at the gate. Set to Inactive to lift a block without losing the record."
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Select",
+   "label": "Restrict To Company",
+   "options": "\nKaren Roses\nKaitet Group\nKaitet Ltd.",
+   "description": "Leave blank to block this person at every company's gate. Set a company to restrict the block to that company only."
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason",
+   "reqd": 1,
+   "description": "Shown only to gate/security staff when a match is blocked — never shown to the visitor or printed on any badge."
+  },
+  {
+   "fieldname": "added_by",
+   "fieldtype": "Link",
+   "label": "Added By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "added_on",
+   "fieldtype": "Datetime",
+   "label": "Added On",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Security Watchlist",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

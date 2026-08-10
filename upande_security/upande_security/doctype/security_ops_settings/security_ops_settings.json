@@ -1,0 +1,72 @@
+{
+ "actions": [],
+ "creation": "2026-08-08 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "fallback_section",
+  "fallback_contact_name",
+  "fallback_contact_phone",
+  "fallback_description"
+ ],
+ "fields": [
+  {
+   "fieldname": "fallback_section",
+   "fieldtype": "Section Break",
+   "label": "SOS Fallback Contact"
+  },
+  {
+   "fieldname": "fallback_contact_name",
+   "fieldtype": "Data",
+   "label": "Fallback Contact Name",
+   "description": "Used only when a guard's SOS call cannot be routed to their own company/farm's Security Head — e.g. no Security Head is configured for their company, or their login has no linked Employee/Security Guard record. Leaving this blank means an unroutable guard gets a hard error instead of a phone number — do not leave blank in production."
+  },
+  {
+   "fieldname": "fallback_contact_phone",
+   "fieldtype": "Data",
+   "label": "Fallback Contact Phone",
+   "description": "E.164 or local format, whatever the calling app dials as-is."
+  },
+  {
+   "fieldname": "fallback_description",
+   "fieldtype": "Small Text",
+   "label": "Notes",
+   "description": "e.g. \"Security Operations Center, staffed 24/7\" — shown to whoever reviews SOS routing config, not to the guard."
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-08-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Security Ops Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

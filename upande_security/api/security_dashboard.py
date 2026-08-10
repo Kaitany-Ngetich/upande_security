@@ -2444,7 +2444,7 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
         filters=range_filters,
         fields=[
             "name", "security_guard", "internal_guard", "external_guard",
-            "farm", "shift_type", "start_date", "end_date", "status",
+            "farm", "block", "shift_type", "start_date", "end_date", "status",
             "assigned_by", "remarks", "modified",
         ],
         order_by="start_date desc",
@@ -2510,6 +2510,7 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
             "guard_type": r.get("security_guard"),
             "farm": farm_name,
             "farm_color": color,
+            "block": r.get("block") or "",
             "shift_type": r.get("shift_type"),
             "start_date": str(r["start_date"]) if r.get("start_date") else None,
             "end_date": str(r["end_date"]) if r.get("end_date") else None,

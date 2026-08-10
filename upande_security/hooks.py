@@ -163,10 +163,33 @@ doc_events = {
 # ---------------
 
 scheduler_events = {
+    "cron": {
+        "*/15 * * * *": [
+            # Live check on every Active shift: flag a guard who's gone
+            # quiet (no GPS ping in 30 min) and, separately, one whose last
+            # ping falls outside their assigned farm's boundary.
+            "upande_security.tasks.check_patrol_geofence_and_gaps",
+        ],
+    },
     "hourly": [
         # A shift that merely elapses is never saved again, so its status has to
         # be advanced on a timer: Scheduled -> Active -> Ended.
         "upande_security.tasks.refresh_shift_statuses",
+    ],
+    "daily": [
+        # Pulls today's on-duty guards from HR's own roster (Shift Type +
+        # Shift Assignment) into Security Guard Shift Assignment, so
+        # Security never re-plans what HR already scheduled and never
+        # rosters a guard HR has them down as off.
+        "upande_security.tasks.sync_shifts_from_hr_roster",
+        # Warns Security Heads/System Managers about contractor compliance
+        # documents (insurance, safety certs, permits) expiring within 14
+        # days or already expired.
+        "upande_security.tasks.check_contractor_document_expiry",
+        # Nags the assignee + Security Heads/System Managers about any
+        # Incident Report corrective action (CAPA) past its due date and
+        # still not Completed.
+        "upande_security.tasks.check_overdue_capa_actions",
     ],
 }
 
@@ -324,6 +347,7 @@ fixtures = [
                     "Supplier-custom_access_end_date",
                     "Supplier-custom_approval_date",
                     "Supplier-custom_approved_by",
+                    "Supplier-custom_compliance_documents",
                     "Timesheet-custom_asset",
                 ],
             ],

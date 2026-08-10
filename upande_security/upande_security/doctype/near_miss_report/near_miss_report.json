@@ -1,0 +1,139 @@
+{
+ "actions": [],
+ "autoname": "format:NM-{YYYY}-{#####}",
+ "creation": "2026-08-08 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "near_miss_datetime",
+  "location",
+  "farm",
+  "column_break_1",
+  "reported_by",
+  "reporter_name",
+  "reported_datetime",
+  "section_break_1",
+  "description",
+  "could_have_resulted_in",
+  "converted_to_incident"
+ ],
+ "fields": [
+  {
+   "fieldname": "near_miss_datetime",
+   "fieldtype": "Datetime",
+   "label": "When",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Data",
+   "label": "Location",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "label": "Farm",
+   "options": "Farm"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reported_by",
+   "fieldtype": "Link",
+   "label": "Reported By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reporter_name",
+   "fieldtype": "Data",
+   "label": "Reporter Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reported_datetime",
+   "fieldtype": "Datetime",
+   "label": "Reported At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "What happened",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Keep this short — the point of a near miss report is that it's quick enough to actually file. Full detail belongs in an Incident Report if this gets escalated."
+  },
+  {
+   "fieldname": "could_have_resulted_in",
+   "fieldtype": "Select",
+   "label": "Could Have Resulted In",
+   "options": "Minor Injury\nSerious Injury\nProperty Damage\nSecurity Breach\nOther",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "converted_to_incident",
+   "fieldtype": "Link",
+   "label": "Escalated To Incident Report",
+   "options": "Incident Report",
+   "read_only": 1,
+   "description": "Set if this near miss turned out to be serious enough to also file as a full Incident Report."
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Near Miss Report",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Gate Guard",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

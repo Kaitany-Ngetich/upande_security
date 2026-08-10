@@ -34,6 +34,7 @@
   "section_resolution",
   "resolution",
   "corrective_actions",
+  "capa_actions",
   "resolution_datetime",
   "column_break_res_1",
   "remarks",
@@ -86,7 +87,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Nature of Incident",
-   "options": "Accident\nFire\nIntrusion\nMedical Emergency\nNear Miss\nOther\nProperty Damage\nRobbery With Violence\nSOS\nTheft",
+   "options": "Accident\nFire\nIntrusion\nMedical Emergency\nNear Miss\nOther\nProperty Damage\nRobbery With Violence\nSOS\nTheft\nViolation of Company Policy\nWorkplace Injury",
    "reqd": 1
   },
   {
@@ -206,7 +207,15 @@
   {
    "fieldname": "corrective_actions",
    "fieldtype": "Long Text",
-   "label": "Corrective Actions"
+   "label": "Corrective Actions",
+   "description": "Free-text summary. For anything that needs an owner, a due date, and follow-up tracking, use the Corrective Actions (CAPA) table below instead."
+  },
+  {
+   "fieldname": "capa_actions",
+   "fieldtype": "Table",
+   "label": "Corrective Actions (CAPA)",
+   "options": "CAPA Action",
+   "description": "Tracked corrective actions with an owner and due date. An incident isn't fully closed just because status=Resolved if there are open/overdue actions here."
   },
   {
    "fieldname": "resolution_datetime",
@@ -257,7 +266,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-21 09:47:01.834618",
+ "modified": "2026-08-04 16:21:14.906540",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Incident Report",
