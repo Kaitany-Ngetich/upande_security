@@ -93,7 +93,8 @@
    "fieldtype": "Link",
    "label": "Farm",
    "options": "Farm",
-   "description": "Not required — a shift synced in from HR's roster may not have one yet if this guard has no prior posting on record. Set it once you know where they're covering."
+   "read_only_depends_on": "eval:doc.security_guard=='Internal Guard' && !doc.__islocal",
+   "description": "Not required — a shift synced in from HR's roster may not have one yet if this guard has no prior posting on record. Set it once you know where they're covering. For an Internal Guard, station/rotation isn't planned here at all and can't be edited once the record exists — HR's own roster is the source of truth for where they're posted."
   },
   {
    "fieldname": "block",
@@ -102,7 +103,8 @@
    "options": "Blocks",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "The specific section/block within the farm this guard is assigned to patrol. Choices are filtered to blocks belonging to the farm selected above."
+   "read_only_depends_on": "eval:doc.security_guard=='Internal Guard' && !doc.__islocal",
+   "description": "The specific section/block within the farm this guard is assigned to patrol. Choices are filtered to blocks belonging to the farm selected above. Locked for an Internal Guard, same as Farm above."
   },
   {
    "fieldname": "synced_from_hr_shift",

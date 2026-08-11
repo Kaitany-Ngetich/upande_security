@@ -14,14 +14,17 @@ DERIVED_STATUSES = ("Scheduled", "Active", "Ended")
 # Cancelled shifts release them.
 BLOCKING_STATUSES = ("Scheduled", "Active")
 
-# For an Internal Guard, these fields describe HR's own Shift Type / Shift
-# Assignment record, not something Security plans — editing them here would
-# silently drift from what HR actually has on file. Locked on every save
-# after creation (see validate_internal_guard_shift_is_hr_owned) — including
+# For an Internal Guard, this whole record is a read-only render of what HR
+# is already planning (per the user: "the internal HR are planning their own
+# rosters so we just render from them") — Security doesn't edit any of it,
+# including which station/farm they're rotated to. Locked on every save after
+# creation (see validate_internal_guard_shift_is_hr_owned), including
 # "security_guard" itself, so a record can't be switched to External Guard as
-# a way around the lock. Deliberately excludes farm/block/status/remarks —
-# those stay editable, per sync_shifts_from_hr_roster()'s own docstring, as
-# the Security Head's operational call.
+# a way around the lock. Status is deliberately left out: a Security Head
+# still needs to be able to mark a synced shift Cancelled (guard called in
+# sick) without waiting on HR to update their own roster — the one exception,
+# per sync_shifts_from_hr_roster()'s own docstring. remarks/checked_in stay
+# editable too, for the same reason.
 LOCKED_FIELDS_FOR_INTERNAL_GUARD = (
 	"security_guard",
 	"internal_guard",
@@ -30,6 +33,8 @@ LOCKED_FIELDS_FOR_INTERNAL_GUARD = (
 	"start_time",
 	"end_date",
 	"end_time",
+	"farm",
+	"block",
 )
 
 
