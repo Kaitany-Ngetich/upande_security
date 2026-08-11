@@ -2433,6 +2433,61 @@ def _shift_guard_name(row, employee_names, security_guard_names) -> str:
     return _("Unassigned")
 
 
+@frappe.whitelist()
+def search_guards_for_shift(guard_type, query):
+    """Guard type-ahead for the Shift Assignments tab's New/Rotate modal.
+
+    Deliberately raw SQL rather than frappe.get_list — neither Employee nor
+    Security Guard grants "read" to the Security Head role (Employee is
+    HR-only; Security Guard is HR Manager/System Manager only), so the ORM
+    path silently returns zero rows for the very role this dashboard is
+    built for. Same shape as the "Search Employees" Server Script the mobile
+    app already uses for host search, gated here on read access to the
+    Shift Assignment doctype itself instead.
+    """
+    if not frappe.has_permission("Security Guard Shift Assignment", ptype="read"):
+        frappe.throw(
+            _("You do not have permission to search guards for Shift Assignments."),
+            frappe.PermissionError,
+        )
+
+    query = (query or "").strip()
+    if len(query) < 2:
+        return []
+    like = "%" + query + "%"
+
+    if guard_type == "Internal Guard":
+        rows = frappe.db.sql(
+            """
+            SELECT name, employee_name AS label
+            FROM `tabEmployee`
+            WHERE status = 'Active'
+              AND designation = 'Security Guard'
+              AND (name LIKE %s OR employee_name LIKE %s)
+            ORDER BY employee_name ASC
+            LIMIT 20
+            """,
+            (like, like),
+            as_dict=True,
+        )
+    elif guard_type == "External Guard":
+        rows = frappe.db.sql(
+            """
+            SELECT name, COALESCE(full_name, first_name) AS label
+            FROM `tabSecurity Guard`
+            WHERE name LIKE %s OR full_name LIKE %s OR first_name LIKE %s
+            ORDER BY label ASC
+            LIMIT 20
+            """,
+            (like, like, like),
+            as_dict=True,
+        )
+    else:
+        frappe.throw(_("Unknown guard type: {0}").format(guard_type))
+
+    return rows
+
+
 def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=None, company=None):
     doctype = "Security Guard Shift Assignment"
 
