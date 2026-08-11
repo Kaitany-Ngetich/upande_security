@@ -1,0 +1,130 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-08-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "guard_type",
+  "internal_guard",
+  "external_guard",
+  "column_break_1",
+  "expo_push_token",
+  "platform",
+  "last_seen_lat",
+  "last_seen_lng",
+  "updated_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "guard_type",
+   "fieldtype": "Select",
+   "label": "Guard Type",
+   "options": "Internal Guard\nExternal Guard",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Same Internal/External split used everywhere else in this app (Patrol GPS Log, Security Guard Shift Assignment) — Internal Guard means the linked record is an Employee, External Guard means it's a Security Guard record."
+  },
+  {
+   "depends_on": "eval:doc.guard_type=='Internal Guard'",
+   "fieldname": "internal_guard",
+   "fieldtype": "Link",
+   "label": "Internal Guard",
+   "options": "Employee",
+   "mandatory_depends_on": "eval:doc.guard_type=='Internal Guard'",
+   "in_list_view": 1
+  },
+  {
+   "depends_on": "eval:doc.guard_type=='External Guard'",
+   "fieldname": "external_guard",
+   "fieldtype": "Link",
+   "label": "External Guard",
+   "options": "Security Guard",
+   "mandatory_depends_on": "eval:doc.guard_type=='External Guard'"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "expo_push_token",
+   "fieldtype": "Data",
+   "label": "Expo Push Token",
+   "reqd": 1,
+   "description": "Registered from the mobile app on login/app start via register_push_token. One guard can re-register (new phone, reinstall) — the old token for that guard is replaced, not accumulated."
+  },
+  {
+   "fieldname": "platform",
+   "fieldtype": "Select",
+   "label": "Platform",
+   "options": "ios\nandroid"
+  },
+  {
+   "fieldname": "last_seen_lat",
+   "fieldtype": "Data",
+   "label": "Last Seen Latitude",
+   "read_only": 1,
+   "description": "Convenience cache of this guard's most recent Patrol GPS Log position — avoids a second query when resolving nearby guards. Not authoritative; Patrol GPS Log is the source of truth."
+  },
+  {
+   "fieldname": "last_seen_lng",
+   "fieldtype": "Data",
+   "label": "Last Seen Longitude",
+   "read_only": 1
+  },
+  {
+   "fieldname": "updated_at",
+   "fieldtype": "Datetime",
+   "label": "Updated At",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Guard Device Token",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Gate Guard",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

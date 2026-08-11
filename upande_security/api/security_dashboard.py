@@ -2232,7 +2232,35 @@ def _fetch_patrols_tab(range_from, range_to):
 
 
 @frappe.whitelist()
-def fetchPatrolData(date=None):
+def _guard_farm_lookup(selected_date):
+    """Which farm was each guard assigned to on this date, per their own
+    Security Guard Shift Assignment — Patrol GPS Log itself carries no farm
+    field, so this is the only way to attribute a patrol point to a farm.
+    Keyed the same way patrol groups are: internal_guard/external_guard id.
+    Ambiguous on purpose in one direction only: a guard covering two farms
+    in one day (a rotation) will just get whichever shift row is seen last —
+    rare enough not to be worth a more elaborate merge here."""
+    rows = frappe.db.sql(
+        """
+        SELECT internal_guard, external_guard, farm
+        FROM `tabSecurity Guard Shift Assignment`
+        WHERE farm IS NOT NULL AND farm != ''
+          AND DATE(start_date) <= %(d)s
+          AND (end_date IS NULL OR DATE(end_date) >= %(d)s)
+        """,
+        {"d": selected_date},
+        as_dict=True,
+    )
+    lookup = {}
+    for r in rows:
+        if r.internal_guard:
+            lookup[r.internal_guard] = r.farm
+        if r.external_guard:
+            lookup[r.external_guard] = r.farm
+    return lookup
+
+
+def fetchPatrolData(date=None, farm=None):
     doctype = "Patrol GPS Log"
 
     if not frappe.has_permission(doctype, ptype="read"):
@@ -2256,6 +2284,9 @@ def fetchPatrolData(date=None):
         page_length=5000,
     )
 
+    guard_farms = _guard_farm_lookup(selected_date)
+    farm = (farm or "").strip()
+
     groups = {}
     for p in points:
         lat = _patrol_float(p.get("latitude"))
@@ -2265,6 +2296,11 @@ def fetchPatrolData(date=None):
 
         patrol_id = str(p.get("patrol") or "Unassigned").strip() or "Unassigned"
         guard = p.get("internal_guard") or p.get("external_guard") or "Unassigned"
+        guard_farm = guard_farms.get(guard) or ""
+
+        if farm and guard_farm != farm:
+            continue
+
         key = f"{guard}::{patrol_id}"
 
         if key not in groups:
@@ -2278,7 +2314,7 @@ def fetchPatrolData(date=None):
                     "Security Guard", p["external_guard"], "guard_name"
                 ) or guard
             groups[key] = {
-                "guard_id": guard, "guard_name": guard_name,
+                "guard_id": guard, "guard_name": guard_name, "farm": guard_farm,
                 "patrol_tag": patrol_id, "points": [], "timestamps": [],
             }
 
@@ -2317,6 +2353,7 @@ def fetchPatrolData(date=None):
         patrol_paths.append({
             "guard_id": g["guard_id"],
             "guard_name": g["guard_name"],
+            "farm": g.get("farm") or "",
             "patrol_tag": g["patrol_tag"],
             "points": pts,
             "point_count": len(pts),
@@ -2333,7 +2370,7 @@ def fetchPatrolData(date=None):
 
         gt = guard_totals.setdefault(g["guard_id"], {
             "guard_id": g["guard_id"], "guard_name": g["guard_name"],
-            "distance_km": 0.0, "is_active": False,
+            "farm": g.get("farm") or "", "distance_km": 0.0, "is_active": False,
         })
         gt["distance_km"] += distance_km
         gt["is_active"] = gt["is_active"] or is_active

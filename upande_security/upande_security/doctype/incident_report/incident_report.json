@@ -87,7 +87,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Nature of Incident",
-   "options": "Accident\nFire\nIntrusion\nMedical Emergency\nNear Miss\nOther\nProperty Damage\nRobbery With Violence\nSOS\nTheft\nViolation of Company Policy\nWorkplace Injury",
+   "options": "Accident\nFire\nIntrusion\nMedical Emergency\nNear Miss\nOther\nProperty Damage\nRobbery With Violence\nSOS\nTheft\nViolation of Company Policy\nWorkplace Injury\nSuspicious Activity\nRobbery with Violence\nWorkplace injuries",
    "reqd": 1
   },
   {
