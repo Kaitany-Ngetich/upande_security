@@ -109,17 +109,28 @@ class PatrolReport(Document):
 		else:
 			return
 
-		matches = frappe.get_all(
-			"Security Guard Shift Assignment",
-			filters={
-				guard_field: guard_value,
-				"status": ["in", MATCHABLE_SHIFT_STATUSES],
-				"start_date": ["<=", self.ended_at],
-				"end_date": [">=", self.started_at],
+		# Security Guard Shift Assignment splits date and time into separate
+		# columns (mirroring HR's own Shift Assignment / Shift Type split), so
+		# the overlap window is compared as combined datetimes rather than via
+		# frappe.get_all's plain per-column filters.
+		matches = frappe.db.sql(
+			"""
+			SELECT name
+			FROM `tabSecurity Guard Shift Assignment`
+			WHERE {guard_field} = %(guard_value)s
+			  AND status IN %(statuses)s
+			  AND TIMESTAMP(start_date, start_time) <= %(ended_at)s
+			  AND TIMESTAMP(end_date, end_time) >= %(started_at)s
+			ORDER BY start_date DESC, start_time DESC
+			LIMIT 1
+			""".format(guard_field=guard_field),
+			{
+				"guard_value": guard_value,
+				"statuses": MATCHABLE_SHIFT_STATUSES,
+				"ended_at": self.ended_at,
+				"started_at": self.started_at,
 			},
-			fields=["name"],
-			order_by="start_date desc",
-			limit_page_length=1,
+			as_dict=True,
 		)
 		if matches:
 			self.shift_assignment = matches[0].name

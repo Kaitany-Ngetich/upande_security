@@ -27,13 +27,13 @@ def refresh_shift_statuses():
 	rows = frappe.get_all(
 		"Security Guard Shift Assignment",
 		filters={"status": ["!=", "Cancelled"]},
-		fields=["name", "start_date", "end_date", "status"],
+		fields=["name", "start_date", "start_time", "end_date", "end_time", "status"],
 		limit_page_length=0,
 	)
 
 	changed = 0
 	for row in rows:
-		derived = derive_status(row.start_date, row.end_date, row.status)
+		derived = derive_status(row.start_date, row.start_time, row.end_date, row.end_time, row.status)
 		if not derived or derived == row.status:
 			continue
 		frappe.db.set_value(
@@ -108,14 +108,21 @@ def sync_shifts_from_hr_roster():
 		# one occurrence — a later day's independently-computed window is
 		# untouched, so the guard is still picked up normally next time
 		# HR's roster covers them.
-		exists = frappe.db.exists(
-			"Security Guard Shift Assignment",
-			{
-				"internal_guard": row.employee,
-				"status": ["in", ("Scheduled", "Active", "Ended", "Cancelled")],
-				"start_date": ["<=", end_dt],
-				"end_date": [">=", start_dt],
-			},
+		#
+		# Date + Time are two separate columns, so the overlap window is
+		# compared as combined datetimes (TIMESTAMP(date, time)) rather than
+		# via frappe.db.exists' plain per-column filters.
+		exists = frappe.db.sql(
+			"""
+			SELECT name
+			FROM `tabSecurity Guard Shift Assignment`
+			WHERE internal_guard = %(employee)s
+			  AND status IN ('Scheduled', 'Active', 'Ended', 'Cancelled')
+			  AND TIMESTAMP(start_date, start_time) <= %(end_dt)s
+			  AND TIMESTAMP(end_date, end_time) >= %(start_dt)s
+			LIMIT 1
+			""",
+			{"employee": row.employee, "end_dt": end_dt, "start_dt": start_dt},
 		)
 		if exists:
 			already_existed += 1
@@ -134,12 +141,18 @@ def sync_shifts_from_hr_roster():
 		shift.security_guard = "Internal Guard"
 		shift.internal_guard = row.employee
 		shift.shift_type = shift_label
-		shift.start_date = start_dt
-		shift.end_date = end_dt
+		shift.start_date = start_dt.date()
+		shift.start_time = row.start_time
+		shift.end_date = end_dt.date()
+		shift.end_time = row.end_time
 		shift.farm = last_farm
 		shift.synced_from_hr_shift = row.hr_shift_assignment
 		shift.remarks = "Auto-synced from HR roster (" + row.hr_shift_assignment + ")"
 		try:
+			# Only this code path may create an Internal Guard shift record —
+			# see validate_internal_guard_shift_is_hr_owned(), which throws on
+			# any other attempt to create one by hand.
+			shift.flags.from_hr_sync = True
 			shift.insert(ignore_permissions=True)
 			created += 1
 		except Exception as e:

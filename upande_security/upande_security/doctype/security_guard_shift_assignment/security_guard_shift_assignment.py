@@ -4,7 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import format_datetime, get_datetime, get_link_to_form, now_datetime
+from frappe.utils import format_datetime, get_datetime, get_link_to_form, get_timedelta, now_datetime
 
 # Statuses derived from the clock. "Cancelled" is deliberately excluded — it is
 # a human decision and the automation must never overwrite it.
@@ -15,33 +15,48 @@ DERIVED_STATUSES = ("Scheduled", "Active", "Ended")
 BLOCKING_STATUSES = ("Scheduled", "Active")
 
 # For an Internal Guard, these fields describe HR's own Shift Type / Shift
-# Assignment record, not something Security owns — editing them here would
+# Assignment record, not something Security plans — editing them here would
 # silently drift from what HR actually has on file. Locked on every save
-# except the very first (see validate_no_shift_edit_for_internal_guard).
-# Deliberately excludes farm/block/status/remarks — those stay editable, per
-# sync_shifts_from_hr_roster()'s own docstring, as the Security Head's call.
-LOCKED_FIELDS_FOR_INTERNAL_GUARD = ("internal_guard", "shift_type", "start_date", "end_date")
+# after creation (see validate_internal_guard_shift_is_hr_owned) — including
+# "security_guard" itself, so a record can't be switched to External Guard as
+# a way around the lock. Deliberately excludes farm/block/status/remarks —
+# those stay editable, per sync_shifts_from_hr_roster()'s own docstring, as
+# the Security Head's operational call.
+LOCKED_FIELDS_FOR_INTERNAL_GUARD = (
+	"security_guard",
+	"internal_guard",
+	"shift_type",
+	"start_date",
+	"start_time",
+	"end_date",
+	"end_time",
+)
 
 
-def derive_status(start_date, end_date, current_status=None):
+def combine_date_time(date_val, time_val):
+	"""Date + Time fields, combined into a single datetime — mirrors HR's own
+	split (Shift Assignment holds the date, Shift Type holds the time). Returns
+	None if either half is missing, since a shift can't be placed on a timeline
+	without both.
+	"""
+	if not date_val or time_val is None:
+		return None
+	return get_datetime(date_val) + get_timedelta(time_val)
+
+
+def derive_status(start_date, start_time, end_date, end_time, current_status=None):
 	"""Return the status a shift should have right now, or None to leave it be.
 
-	Cancelled is preserved, and a shift missing either bound can't be placed on
-	a timeline, so both cases return None.
+	Cancelled is preserved, and a shift missing any bound can't be placed on a
+	timeline, so both cases return None.
 	"""
 	if current_status == "Cancelled":
 		return None
-	if not start_date or not end_date:
+
+	start = combine_date_time(start_date, start_time)
+	end = combine_date_time(end_date, end_time)
+	if not start or not end:
 		return None
-
-	start = get_datetime(start_date)
-	end = get_datetime(end_date)
-
-	# Shifts are routinely entered as plain dates, which Frappe stores as
-	# midnight. Read a midnight end as "through the end of that day", otherwise
-	# a single-day shift would expire the instant it began and never show Active.
-	if end.hour == 0 and end.minute == 0 and end.second == 0:
-		end = end.replace(hour=23, minute=59, second=59)
 
 	now = now_datetime()
 	if now < start:
@@ -54,28 +69,53 @@ def derive_status(start_date, end_date, current_status=None):
 class SecurityGuardShiftAssignment(Document):
 	def validate(self):
 		self.set_derived_status()
+		# Runs before the overlap check on purpose: if this create/edit isn't
+		# even allowed, that's the error a Security Head should see — not an
+		# overlap-conflict message for a record that shouldn't exist anyway.
+		self.validate_internal_guard_shift_is_hr_owned()
 		self.validate_no_overlapping_assignment()
-		self.validate_no_shift_edit_for_internal_guard()
 
 	def set_derived_status(self):
 		"""Keep status truthful on every save; the scheduler handles the rest."""
-		derived = derive_status(self.start_date, self.end_date, self.status)
+		derived = derive_status(self.start_date, self.start_time, self.end_date, self.end_time, self.status)
 		if derived:
 			self.status = derived
 
-	def validate_no_shift_edit_for_internal_guard(self):
-		"""Internal guards' shift schedule belongs to HR (Shift Type / Shift
-		Assignment) and is only ever mirrored in here by
-		sync_shifts_from_hr_roster() — a manual edit here would silently
-		drift from what HR actually has on record. Only blocks changes to an
-		*already-saved* record: creation (by the sync job, or a Security
-		Head entering a same-day ad-hoc shift before HR's own sync has run)
-		is untouched, and this whole check is skipped for External Guards,
-		who have no HR roster to mirror.
+	def validate_internal_guard_shift_is_hr_owned(self):
+		"""Internal guards' shifts are entirely HR's — this doctype only ever
+		*renders* what sync_shifts_from_hr_roster() mirrors in from HR's own
+		Shift Type / Shift Assignment. A Security Head does not plan shifts
+		for Internal Guards here at all, so:
+
+		- creating a NEW Internal Guard record is blocked unless it's the
+		  sync job itself (flagged via self.flags.from_hr_sync — see
+		  tasks.py's sync_shifts_from_hr_roster()).
+		- editing the HR-owned fields on an already-saved record is blocked
+		  (LOCKED_FIELDS_FOR_INTERNAL_GUARD above), including switching
+		  "security_guard" itself, so a record can't dodge the lock by first
+		  being flipped to External Guard.
+
+		External Guards are entirely unaffected — they have no HR roster to
+		mirror, so Security plans their shifts directly, same as always.
 		"""
 		if self.is_new():
+			if self.security_guard != "Internal Guard":
+				return
+			if not self.flags.from_hr_sync:
+				frappe.throw(
+					_(
+						"Internal Guard shifts aren't planned here — they're mirrored in "
+						"automatically from HR's Shift Type / Shift Assignment. Set up the "
+						"guard's shift in HR instead."
+					),
+					title=_("Shift Comes From HR"),
+				)
 			return
 
+		# Existing record: gate on what it WAS, not what this save is trying
+		# to change it to — otherwise switching security_guard to "External
+		# Guard" in the same save would dodge every check below by making
+		# self.security_guard no longer read "Internal Guard".
 		before = self.get_doc_before_save()
 		if not before or before.security_guard != "Internal Guard":
 			return
@@ -102,20 +142,33 @@ class SecurityGuardShiftAssignment(Document):
 		else:
 			guard_field, guard_value = "external_guard", self.external_guard
 
-		if not guard_value or not self.start_date or not self.end_date:
+		self_start = combine_date_time(self.start_date, self.start_time)
+		self_end = combine_date_time(self.end_date, self.end_time)
+		if not guard_value or not self_start or not self_end:
 			return
 
-		clash = frappe.get_all(
-			"Security Guard Shift Assignment",
-			filters={
-				guard_field: guard_value,
-				"status": ["in", BLOCKING_STATUSES],
-				"name": ["!=", self.name or ""],
-				"start_date": ["<=", self.end_date],
-				"end_date": [">=", self.start_date],
+		# Date + Time are two separate columns now, so the overlap window has
+		# to be compared as combined datetimes (MySQL's TIMESTAMP(date, time))
+		# rather than via frappe.get_all's plain per-column filters.
+		clash = frappe.db.sql(
+			"""
+			SELECT name, farm, start_date, start_time, end_date, end_time
+			FROM `tabSecurity Guard Shift Assignment`
+			WHERE {guard_field} = %(guard_value)s
+			  AND status IN %(statuses)s
+			  AND name != %(name)s
+			  AND TIMESTAMP(start_date, start_time) <= %(self_end)s
+			  AND TIMESTAMP(end_date, end_time) >= %(self_start)s
+			LIMIT 1
+			""".format(guard_field=guard_field),
+			{
+				"guard_value": guard_value,
+				"statuses": BLOCKING_STATUSES,
+				"name": self.name or "",
+				"self_end": self_end,
+				"self_start": self_start,
 			},
-			fields=["name", "farm", "start_date", "end_date"],
-			limit_page_length=1,
+			as_dict=True,
 		)
 
 		if clash:
@@ -126,8 +179,8 @@ class SecurityGuardShiftAssignment(Document):
 					"this shift. A guard cannot be scheduled at two farms at the same time."
 				).format(
 					frappe.bold(row.farm or _("another farm")),
-					format_datetime(row.start_date),
-					format_datetime(row.end_date),
+					format_datetime(combine_date_time(row.start_date, row.start_time)),
+					format_datetime(combine_date_time(row.end_date, row.end_time)),
 					get_link_to_form("Security Guard Shift Assignment", row.name),
 				),
 				title=_("Overlapping Shift Assignment"),
@@ -164,9 +217,10 @@ def get_shift_events(start, end, filters=None):
 	rows = frappe.db.sql(
 		"""
 		SELECT name, security_guard, internal_guard, external_guard,
-		       farm, block, shift_type, status, start_date, end_date
+		       farm, block, shift_type, status, start_date, start_time, end_date, end_time
 		FROM `tabSecurity Guard Shift Assignment`
-		WHERE start_date <= %(end)s AND end_date >= %(start)s {conditions}
+		WHERE TIMESTAMP(start_date, start_time) <= %(end)s
+		  AND TIMESTAMP(end_date, end_time) >= %(start)s {conditions}
 		""".format(conditions=conditions),
 		{"start": start, "end": end},
 		as_dict=True,
@@ -212,8 +266,8 @@ def get_shift_events(start, end, filters=None):
 				"name": r.name,
 				"id": r.name,
 				"title": label,
-				"start": r.start_date,
-				"end": r.end_date,
+				"start": combine_date_time(r.start_date, r.start_time),
+				"end": combine_date_time(r.end_date, r.end_time),
 				"status": r.status,
 				"color": STATUS_COLOR.get(r.status, "#8D99AE"),
 			}

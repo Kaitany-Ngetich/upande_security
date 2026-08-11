@@ -15,7 +15,9 @@
   "external_guard",
   "shift_type",
   "start_date",
+  "start_time",
   "end_date",
+  "end_time",
   "farm",
   "block",
   "status",
@@ -54,20 +56,37 @@
   },
   {
    "fieldname": "start_date",
-   "fieldtype": "Datetime",
+   "fieldtype": "Date",
    "in_list_view": 1,
    "label": "Start Date",
+   "reqd": 1,
+   "read_only_depends_on": "eval:doc.security_guard=='Internal Guard' && !doc.__islocal",
+   "description": "For an Internal Guard, this is synced from HR's roster and cannot be edited here once the record exists. Date + Time are separate fields, matching HR's own Shift Assignment / Shift Type split."
+  },
+  {
+   "fieldname": "start_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Start Time",
+   "reqd": 1,
+   "read_only_depends_on": "eval:doc.security_guard=='Internal Guard' && !doc.__islocal",
+   "description": "For an Internal Guard, this mirrors HR's Shift Type start time."
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date",
    "reqd": 1,
    "read_only_depends_on": "eval:doc.security_guard=='Internal Guard' && !doc.__islocal",
    "description": "For an Internal Guard, this is synced from HR's roster and cannot be edited here once the record exists."
   },
   {
-   "fieldname": "end_date",
-   "fieldtype": "Datetime",
-   "label": "End Date",
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "label": "End Time",
    "reqd": 1,
    "read_only_depends_on": "eval:doc.security_guard=='Internal Guard' && !doc.__islocal",
-   "description": "For an Internal Guard, this is synced from HR's roster and cannot be edited here once the record exists."
+   "description": "For an Internal Guard, this mirrors HR's Shift Type end time."
   },
   {
    "fieldname": "farm",
