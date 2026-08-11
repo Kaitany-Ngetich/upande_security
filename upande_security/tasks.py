@@ -377,9 +377,11 @@ def _point_in_polygon(lat, lng, ring):
 
 
 def _farm_boundary_ring(farm):
-	"""Pull the outer ring (list of (lng, lat) pairs) out of a Farm's Geo
-	Data boundary, or None if this farm has no boundary on record yet."""
-	boundary_json = frappe.db.get_value("Geo Data", {"farm": farm}, "boundary")
+	"""Pull the outer ring (list of (lng, lat) pairs) out of a Farm's own
+	boundary_geojson, or None if this farm has no boundary on record yet.
+	Farm.boundary_geojson is the single source of truth for farm boundaries
+	now — the old Geo Data doctype is retired."""
+	boundary_json = frappe.db.get_value("Farm", farm, "boundary_geojson")
 	if not boundary_json:
 		return None
 	try:
@@ -549,11 +551,10 @@ def check_patrol_geofence_and_gaps():
 	recent ping falls outside their assigned farm's boundary — a live
 	real-time check, not just the after-the-fact Patrol Map visualization.
 
-	A shift with no farm assigned, or a farm with no Geo Data boundary on
+	A shift with no farm assigned, or a farm with no boundary_geojson on
 	record yet, only gets the missed-check-in test — there's nothing to
-	geofence against. This is a real, known local-bench gap (no Geo Data
-	boundaries exist here yet, only on production) — the missed-check-in
-	half of this task works regardless and is fully testable without one.
+	geofence against. The missed-check-in half of this task works
+	regardless and is fully testable without one.
 
 	A guard silent for 60+ minutes (double the missed-check-in threshold)
 	gets escalated beyond a Desk notification — see _escalate_lone_worker.
