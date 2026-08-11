@@ -50,8 +50,7 @@
    "label": "Status",
    "options": "Open\nIn Progress\nCompleted",
    "reqd": 1,
-   "in_list_view": 1,
-   "description": "Overdue isn't a status you set — it's derived automatically (due_date passed and status still not Completed) wherever this is displayed/reported."
+   "in_list_view": 1
   },
   {
    "fieldname": "completed_on",
@@ -68,8 +67,7 @@
    "default": "0",
    "fieldname": "effectiveness_verified",
    "fieldtype": "Check",
-   "label": "Effectiveness Verified",
-   "description": "Confirms someone checked that this action actually fixed the underlying cause, not just that a task was marked done."
+   "label": "Effectiveness Verified"
   },
   {
    "fieldname": "verified_by",

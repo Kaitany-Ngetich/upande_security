@@ -53,7 +53,6 @@
    "reqd": 1
   },
   {
-   "description": "The patrol this report covers. Matches the `patrol` tag on the Patrol GPS Log rows the guard's device uploaded. One report per patrol \u2014 file it at any point during or after the patrol.",
    "fieldname": "patrol",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -64,7 +63,6 @@
   },
   {
    "default": "Routine",
-   "description": "Routine is a normal patrol observation. Incident flags something needing follow-up and unlocks the incident details below.",
    "fieldname": "report_type",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -74,7 +72,6 @@
    "reqd": 1
   },
   {
-   "description": "The Shift Planning entry covering this patrol. Resolved automatically from the guard and the patrol window; farm and personel are read from it.",
    "fieldname": "shift_assignment",
    "fieldtype": "Link",
    "in_standard_filter": 1,
@@ -82,7 +79,6 @@
    "options": "Security Guard Shift Assignment"
   },
   {
-   "description": "From the linked Shift Assignment.",
    "fetch_from": "shift_assignment.farm",
    "fetch_if_empty": 0,
    "fieldname": "farm",
@@ -98,7 +94,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "From the linked Shift Assignment.",
    "fetch_from": "shift_assignment.security_guard",
    "fetch_if_empty": 0,
    "fieldname": "personel",
@@ -109,7 +104,6 @@
   },
   {
    "depends_on": "eval:doc.personel==\"Internal Guard\"",
-   "description": "From the patrol's GPS trail.",
    "fieldname": "internal_guard",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -119,7 +113,6 @@
   },
   {
    "depends_on": "eval:doc.personel==\"External Guard\"",
-   "description": "From the patrol's GPS trail.",
    "fieldname": "external_guard",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -133,14 +126,12 @@
    "label": "Patrol Window"
   },
   {
-   "description": "First/last GPS fix recorded for this patrol.",
    "fieldname": "started_at",
    "fieldtype": "Datetime",
    "label": "Started At",
    "read_only": 1
   },
   {
-   "description": "First/last GPS fix recorded for this patrol.",
    "fieldname": "ended_at",
    "fieldtype": "Datetime",
    "label": "Ended At",
@@ -151,14 +142,12 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "GPS points uploaded for this patrol. Filled in automatically.",
    "fieldname": "points_logged",
    "fieldtype": "Int",
    "label": "GPS Points Logged",
    "read_only": 1
   },
   {
-   "description": "When the guard submitted this report. Set automatically.",
    "fieldname": "filed_at",
    "fieldtype": "Datetime",
    "label": "Filed At",
@@ -170,7 +159,6 @@
    "label": "Guard Observations"
   },
   {
-   "description": "What the guard saw on this patrol \u2014 incidents, hazards, gates left open, anything the supervisor should know.",
    "fieldname": "observations",
    "fieldtype": "Long Text",
    "label": "Observations",
@@ -194,7 +182,6 @@
   },
   {
    "depends_on": "eval:doc.report_type==\"Incident\"",
-   "description": "Carried into the Incident Report, which requires it.",
    "fieldname": "nature_of_incident",
    "fieldtype": "Select",
    "label": "Nature of Incident",
@@ -208,7 +195,6 @@
   },
   {
    "depends_on": "eval:doc.report_type==\"Incident\"",
-   "description": "The Incident Report raised automatically when this was flagged. Editing observations here does not rewrite it.",
    "fieldname": "incident_report",
    "fieldtype": "Link",
    "label": "Incident Report",
@@ -241,14 +227,12 @@
    "label": "Photo 4"
   },
   {
-   "description": "Editable by Security Head only.",
    "fieldname": "review_section",
    "fieldtype": "Section Break",
    "label": "Supervisor Review"
   },
   {
    "default": "Submitted",
-   "description": "Set to Submitted when the guard files. Only Security Head can move it to Reviewed or Flagged.",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -259,7 +243,6 @@
    "reqd": 1
   },
   {
-   "description": "Stamped automatically when the status moves off Submitted.",
    "fieldname": "reviewed_by",
    "fieldtype": "Link",
    "label": "Reviewed By",

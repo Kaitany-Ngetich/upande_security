@@ -21,20 +21,17 @@
   {
    "fieldname": "fallback_contact_name",
    "fieldtype": "Data",
-   "label": "Fallback Contact Name",
-   "description": "Used only when a guard's SOS call cannot be routed to their own company/farm's Security Head — e.g. no Security Head is configured for their company, or their login has no linked Employee/Security Guard record. Leaving this blank means an unroutable guard gets a hard error instead of a phone number — do not leave blank in production."
+   "label": "Fallback Contact Name"
   },
   {
    "fieldname": "fallback_contact_phone",
    "fieldtype": "Data",
-   "label": "Fallback Contact Phone",
-   "description": "E.164 or local format, whatever the calling app dials as-is."
+   "label": "Fallback Contact Phone"
   },
   {
    "fieldname": "fallback_description",
    "fieldtype": "Small Text",
-   "label": "Notes",
-   "description": "e.g. \"Security Operations Center, staffed 24/7\" — shown to whoever reviews SOS routing config, not to the guard."
+   "label": "Notes"
   },
   {
    "fieldname": "nearby_alert_section",
@@ -45,15 +42,13 @@
    "default": "1500",
    "fieldname": "nearby_guard_alert_radius_m",
    "fieldtype": "Int",
-   "label": "Alert Radius (meters)",
-   "description": "When a guard triggers SOS, every other guard whose most recent GPS ping is within this radius gets a full-screen push alert with the distressed guard's location. Farm-scale distance, not gate-to-gate — 1500m is a starting default, tune per how spread out your farms are."
+   "label": "Alert Radius (meters)"
   },
   {
    "default": "30",
    "fieldname": "nearby_alert_stale_minutes",
    "fieldtype": "Int",
-   "label": "Ignore Pings Older Than (minutes)",
-   "description": "A guard's last GPS ping older than this is treated as \"not currently trackable\" and excluded from the nearby-guard alert — an old ping could place them somewhere they've long since left."
+   "label": "Ignore Pings Older Than (minutes)"
   }
  ],
  "index_web_pages_for_search": 1,

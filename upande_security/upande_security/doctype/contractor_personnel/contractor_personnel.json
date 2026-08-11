@@ -21,8 +21,7 @@
    "fieldname": "id_number",
    "fieldtype": "Data",
    "label": "ID Number",
-   "in_list_view": 1,
-   "description": "National ID, same convention as a visitor's custom_id_number — optional, but recorded when the guard has it."
+   "in_list_view": 1
   },
   {
    "default": "0",

@@ -47,8 +47,7 @@
    "fieldtype": "Date",
    "label": "Expiry Date",
    "reqd": 1,
-   "in_list_view": 1,
-   "description": "Contractor gate check-in is blocked once this date has passed."
+   "in_list_view": 1
   },
   {
    "fieldname": "notes",

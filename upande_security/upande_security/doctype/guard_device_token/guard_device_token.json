@@ -22,8 +22,7 @@
    "label": "Guard Type",
    "options": "Internal Guard\nExternal Guard",
    "reqd": 1,
-   "in_list_view": 1,
-   "description": "Same Internal/External split used everywhere else in this app (Patrol GPS Log, Security Guard Shift Assignment) — Internal Guard means the linked record is an Employee, External Guard means it's a Security Guard record."
+   "in_list_view": 1
   },
   {
    "depends_on": "eval:doc.guard_type=='Internal Guard'",
@@ -50,8 +49,7 @@
    "fieldname": "expo_push_token",
    "fieldtype": "Data",
    "label": "Expo Push Token",
-   "reqd": 1,
-   "description": "Registered from the mobile app on login/app start via register_push_token. One guard can re-register (new phone, reinstall) — the old token for that guard is replaced, not accumulated."
+   "reqd": 1
   },
   {
    "fieldname": "platform",
@@ -63,8 +61,7 @@
    "fieldname": "last_seen_lat",
    "fieldtype": "Data",
    "label": "Last Seen Latitude",
-   "read_only": 1,
-   "description": "Convenience cache of this guard's most recent Patrol GPS Log position — avoids a second query when resolving nearby guards. Not authoritative; Patrol GPS Log is the source of truth."
+   "read_only": 1
   },
   {
    "fieldname": "last_seen_lng",

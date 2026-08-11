@@ -23,24 +23,21 @@
    "label": "Full Name",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1,
-   "description": "Matched with a loose LIKE search at check-in — spelling variants may not catch. Prefer ID number or phone for a reliable match."
+   "in_standard_filter": 1
   },
   {
    "fieldname": "id_number",
    "fieldtype": "Data",
    "label": "ID / Passport Number",
    "in_list_view": 1,
-   "in_standard_filter": 1,
-   "description": "Exact match. Most reliable field — fill this in whenever it's known."
+   "in_standard_filter": 1
   },
   {
    "fieldname": "phone_number",
    "fieldtype": "Data",
    "label": "Phone Number",
    "in_list_view": 1,
-   "in_standard_filter": 1,
-   "description": "Exact match against the visitor's phone as entered at the gate."
+   "in_standard_filter": 1
   },
   {
    "fieldname": "column_break_1",
@@ -54,15 +51,13 @@
    "options": "Active\nInactive",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1,
-   "description": "Only Active entries are checked at the gate. Set to Inactive to lift a block without losing the record."
+   "in_standard_filter": 1
   },
   {
    "fieldname": "company",
    "fieldtype": "Select",
    "label": "Restrict To Company",
-   "options": "\nKaren Roses\nKaitet Group\nKaitet Ltd.",
-   "description": "Leave blank to block this person at every company's gate. Set a company to restrict the block to that company only."
+   "options": "\nKaren Roses\nKaitet Group\nKaitet Ltd."
   },
   {
    "fieldname": "section_break_1",
@@ -73,8 +68,7 @@
    "fieldname": "reason",
    "fieldtype": "Small Text",
    "label": "Reason",
-   "reqd": 1,
-   "description": "Shown only to gate/security staff when a match is blocked — never shown to the visitor or printed on any badge."
+   "reqd": 1
   },
   {
    "fieldname": "added_by",

@@ -207,15 +207,13 @@
   {
    "fieldname": "corrective_actions",
    "fieldtype": "Long Text",
-   "label": "Corrective Actions",
-   "description": "Free-text summary. For anything that needs an owner, a due date, and follow-up tracking, use the Corrective Actions (CAPA) table below instead."
+   "label": "Corrective Actions"
   },
   {
    "fieldname": "capa_actions",
    "fieldtype": "Table",
    "label": "Corrective Actions (CAPA)",
-   "options": "CAPA Action",
-   "description": "Tracked corrective actions with an owner and due date. An incident isn't fully closed just because status=Resolved if there are open/overdue actions here."
+   "options": "CAPA Action"
   },
   {
    "fieldname": "resolution_datetime",

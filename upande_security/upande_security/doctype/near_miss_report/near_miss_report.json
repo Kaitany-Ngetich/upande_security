@@ -69,8 +69,7 @@
    "fieldtype": "Small Text",
    "label": "What happened",
    "reqd": 1,
-   "in_list_view": 1,
-   "description": "Keep this short — the point of a near miss report is that it's quick enough to actually file. Full detail belongs in an Incident Report if this gets escalated."
+   "in_list_view": 1
   },
   {
    "fieldname": "could_have_resulted_in",
@@ -84,8 +83,7 @@
    "fieldtype": "Link",
    "label": "Escalated To Incident Report",
    "options": "Incident Report",
-   "read_only": 1,
-   "description": "Set if this near miss turned out to be serious enough to also file as a full Incident Report."
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
