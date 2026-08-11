@@ -48,20 +48,26 @@
    "in_list_view": 1,
    "label": "Shift Type",
    "options": "Day\nNight",
-   "reqd": 1
+   "reqd": 1,
+   "read_only_depends_on": "eval:doc.security_guard=='Internal Guard' && !doc.__islocal",
+   "description": "For an Internal Guard, this mirrors HR's Shift Type and cannot be edited here once the record exists — change the guard's shift in HR (Shift Assignment) instead."
   },
   {
    "fieldname": "start_date",
    "fieldtype": "Datetime",
    "in_list_view": 1,
    "label": "Start Date",
-   "reqd": 1
+   "reqd": 1,
+   "read_only_depends_on": "eval:doc.security_guard=='Internal Guard' && !doc.__islocal",
+   "description": "For an Internal Guard, this is synced from HR's roster and cannot be edited here once the record exists."
   },
   {
    "fieldname": "end_date",
    "fieldtype": "Datetime",
    "label": "End Date",
-   "reqd": 1
+   "reqd": 1,
+   "read_only_depends_on": "eval:doc.security_guard=='Internal Guard' && !doc.__islocal",
+   "description": "For an Internal Guard, this is synced from HR's roster and cannot be edited here once the record exists."
   },
   {
    "fieldname": "farm",
@@ -124,7 +130,9 @@
    "fieldtype": "Link",
    "label": "Internal Guard",
    "mandatory_depends_on": "eval:doc.security_guard==\"Internal Guard\"",
-   "options": "Employee"
+   "read_only_depends_on": "eval:doc.security_guard=='Internal Guard' && !doc.__islocal",
+   "options": "Employee",
+   "description": "Cannot be reassigned once the record exists — this shift mirrors this employee's HR roster entry."
   },
   {
    "depends_on": "eval:doc.security_guard==\"External Guard\"",

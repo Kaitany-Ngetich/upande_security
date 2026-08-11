@@ -14,6 +14,14 @@ DERIVED_STATUSES = ("Scheduled", "Active", "Ended")
 # Cancelled shifts release them.
 BLOCKING_STATUSES = ("Scheduled", "Active")
 
+# For an Internal Guard, these fields describe HR's own Shift Type / Shift
+# Assignment record, not something Security owns — editing them here would
+# silently drift from what HR actually has on file. Locked on every save
+# except the very first (see validate_no_shift_edit_for_internal_guard).
+# Deliberately excludes farm/block/status/remarks — those stay editable, per
+# sync_shifts_from_hr_roster()'s own docstring, as the Security Head's call.
+LOCKED_FIELDS_FOR_INTERNAL_GUARD = ("internal_guard", "shift_type", "start_date", "end_date")
+
 
 def derive_status(start_date, end_date, current_status=None):
 	"""Return the status a shift should have right now, or None to leave it be.
@@ -47,12 +55,40 @@ class SecurityGuardShiftAssignment(Document):
 	def validate(self):
 		self.set_derived_status()
 		self.validate_no_overlapping_assignment()
+		self.validate_no_shift_edit_for_internal_guard()
 
 	def set_derived_status(self):
 		"""Keep status truthful on every save; the scheduler handles the rest."""
 		derived = derive_status(self.start_date, self.end_date, self.status)
 		if derived:
 			self.status = derived
+
+	def validate_no_shift_edit_for_internal_guard(self):
+		"""Internal guards' shift schedule belongs to HR (Shift Type / Shift
+		Assignment) and is only ever mirrored in here by
+		sync_shifts_from_hr_roster() — a manual edit here would silently
+		drift from what HR actually has on record. Only blocks changes to an
+		*already-saved* record: creation (by the sync job, or a Security
+		Head entering a same-day ad-hoc shift before HR's own sync has run)
+		is untouched, and this whole check is skipped for External Guards,
+		who have no HR roster to mirror.
+		"""
+		if self.is_new():
+			return
+
+		before = self.get_doc_before_save()
+		if not before or before.security_guard != "Internal Guard":
+			return
+
+		for field in LOCKED_FIELDS_FOR_INTERNAL_GUARD:
+			if self.get(field) != before.get(field):
+				frappe.throw(
+					_(
+						"{0} cannot be changed for an Internal Guard's shift — it mirrors HR's "
+						"Shift Type / Shift Assignment. Update the guard's shift in HR instead."
+					).format(frappe.bold(_(self.meta.get_field(field).label))),
+					title=_("Shift Comes From HR"),
+				)
 
 	def validate_no_overlapping_assignment(self):
 		# A guard can't physically be at two farms at once — block any other
