@@ -115,9 +115,16 @@ def _nearby_guard_tokens(latitude, longitude, exclude_guard_type, exclude_guard_
 	stale_minutes = (settings.nearby_alert_stale_minutes if settings else None) or 30
 	stale_cutoff = frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-stale_minutes)
 
+	# ignore_permissions: this has to see every guard's token to find who's
+	# nearby, not just the caller's own row. Gate Guard's if_owner=1 on this
+	# doctype (added for the hierarchical access-scoping fix) is correct for
+	# Desk/API access in general, but would otherwise silently reduce this
+	# to "only my own row" and, combined with the self-exclusion below,
+	# make every alert come back empty.
 	tokens = frappe.get_all(
 		"Guard Device Token",
 		fields=["name", "guard_type", "internal_guard", "external_guard", "expo_push_token"],
+		ignore_permissions=True,
 	)
 
 	alertable = []
@@ -137,12 +144,18 @@ def _nearby_guard_tokens(latitude, longitude, exclude_guard_type, exclude_guard_
 			guard_id = t.external_guard
 			guard_name = frappe.db.get_value("Security Guard", t.external_guard, "full_name") or t.external_guard
 
+		# ignore_permissions: same reasoning as the Guard Device Token fetch
+		# above — this is reading a DIFFERENT guard's GPS ping, not the
+		# caller's own, and Patrol GPS Log's DocPerm (if_owner=1 for
+		# Employee/Security Guard, no Gate Guard row at all) would silently
+		# filter this down to nothing for any real caller.
 		latest = frappe.get_all(
 			"Patrol GPS Log",
 			filters=guard_filter,
 			fields=["latitude", "longitude", "captured_at"],
 			order_by="captured_at desc",
 			limit_page_length=1,
+			ignore_permissions=True,
 		)
 		if not latest:
 			continue

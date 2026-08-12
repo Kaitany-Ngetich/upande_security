@@ -10,7 +10,9 @@
   "fallback_description",
   "nearby_alert_section",
   "nearby_guard_alert_radius_m",
-  "nearby_alert_stale_minutes"
+  "nearby_alert_stale_minutes",
+  "dispatch_section",
+  "dispatch_sources"
  ],
  "fields": [
   {
@@ -49,6 +51,18 @@
    "fieldname": "nearby_alert_stale_minutes",
    "fieldtype": "Int",
    "label": "Ignore Pings Older Than (minutes)"
+  },
+  {
+   "fieldname": "dispatch_section",
+   "fieldtype": "Section Break",
+   "label": "Gate Dispatch Verification Sources"
+  },
+  {
+   "fieldname": "dispatch_sources",
+   "fieldtype": "Table",
+   "options": "Dispatch Source",
+   "label": "Dispatch Sources",
+   "description": "Which doctype(s) count as a dispatch document the gate can look up and verify against. Add a row here to support another dispatch doctype without any code change."
   }
  ],
  "index_web_pages_for_search": 1,

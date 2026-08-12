@@ -156,7 +156,27 @@ doc_events = {
 	"Attendance": {
 		"after_insert": "upande_security.api.guard_checkin.sync_shift_checkin",
 		"on_update": "upande_security.api.guard_checkin.sync_shift_checkin",
-	}
+	},
+	# Auto-provision the Company/Farm User Permission rows the hierarchical
+	# access scoping (Patrol Report, Near Miss Report, Patrol GPS Log,
+	# Incident Report, Security Asset, Visitor Badge, Attendance, ...)
+	# depends on to actually restrict a Security Head/guard to their own
+	# company/farm instead of being silently unrestricted.
+	"Employee": {
+		"validate": "upande_security.api.user_permission_sync.sync_from_employee",
+	},
+	"Security Guard": {
+		"validate": "upande_security.api.user_permission_sync.sync_from_security_guard",
+	},
+	# Stamp Farm onto doctypes that otherwise carry no link back to a
+	# company/farm, so a Security Head's DocPerm row on them can actually
+	# be scoped by the standard Frappe Link + User Permission engine.
+	"Patrol GPS Log": {
+		"before_insert": "upande_security.api.scoping.stamp_patrol_gps_log_farm",
+	},
+	"Incident Report": {
+		"before_insert": "upande_security.api.scoping.stamp_incident_report_farm",
+	},
 }
 
 # Scheduled Tasks
@@ -343,6 +363,9 @@ fixtures = [
                     "Appointment-custom_scope_of_work",
                     "Appointment-custom_expected_exit",
                     "Appointment-custom_contractor_personnel",
+                    "Attendance-custom_gate_app_entry",
+                    "Attendance-custom_temp_exit_time",
+                    "Attendance-custom_temp_exit_log",
                     "Employee-custom_farm",
                     "Employee-default_shift",
                     "Supplier-custom_is_contractor",
@@ -370,6 +393,27 @@ fixtures = [
         "dt": "Workspace",
         "filters": [
             ["name", "=", "Security"],
+        ],
+    },
+    {
+        # Single doctype — its child-table rows (dispatch_sources config,
+        # among others) are real data, not field defaults, so they need an
+        # actual fixture record or a fresh deploy ships with none configured.
+        "dt": "Security Ops Settings",
+        "filters": [
+            ["name", "=", "Security Ops Settings"],
+        ],
+    },
+    {
+        # Security Asset and Visitor Badge were built via the Desk UI
+        # (DocType.custom = 1) rather than as an app-owned doctype .json,
+        # so unlike Patrol Report/Incident Report/etc. their schema (fields,
+        # permissions) lives only in the DB. Without this they — and any
+        # DocPerm fix made to them — would silently vanish on a fresh
+        # deploy, the same class of bug the Security workspace hit before.
+        "dt": "DocType",
+        "filters": [
+            ["name", "in", ["Security Asset", "Visitor Badge"]],
         ],
     },
 ]

@@ -1,0 +1,187 @@
+{
+ "actions": [],
+ "creation": "2026-08-12 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "reference_doctype",
+  "reference_name",
+  "farm",
+  "column_break_1",
+  "vehicle_no",
+  "driver_name",
+  "dispatch_datetime",
+  "section_break_1",
+  "items_summary",
+  "source_status",
+  "section_break_2",
+  "gate_verification_status",
+  "gate_verified_by",
+  "column_break_2",
+  "gate_exit_time",
+  "gate_return_time",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Data",
+   "label": "Dispatch Source",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1,
+   "description": "Which doctype this verification is against (e.g. 'Dispatch Form') — resolved automatically from the matched Dispatch Source config, not picked by hand."
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "options": "reference_doctype",
+   "label": "Dispatch Reference",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "options": "Farm",
+   "label": "Farm",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "vehicle_no",
+   "fieldtype": "Data",
+   "label": "Vehicle No",
+   "read_only": 1,
+   "in_list_view": 1,
+   "description": "Snapshot from the dispatch document at the moment of gate verification — not live-linked, so later edits to the source don't silently rewrite this record."
+  },
+  {
+   "fieldname": "driver_name",
+   "fieldtype": "Data",
+   "label": "Driver Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "dispatch_datetime",
+   "fieldtype": "Datetime",
+   "label": "Dispatch Date/Time",
+   "read_only": 1,
+   "description": "Combined from the source's date + time fields, per its Dispatch Source config."
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "items_summary",
+   "fieldtype": "Small Text",
+   "label": "Items Summary",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_status",
+   "fieldtype": "Data",
+   "label": "Source Status At Verification",
+   "read_only": 1,
+   "description": "The dispatch document's own status field value at the moment it was checked — e.g. 'Sealed'. Snapshot, not live."
+  },
+  {
+   "fieldname": "section_break_2",
+   "fieldtype": "Section Break",
+   "label": "Gate Check"
+  },
+  {
+   "default": "Verified",
+   "fieldname": "gate_verification_status",
+   "fieldtype": "Select",
+   "label": "Gate Verification Status",
+   "options": "Verified\nRejected",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "gate_verified_by",
+   "fieldtype": "Link",
+   "options": "User",
+   "label": "Verified By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "gate_exit_time",
+   "fieldtype": "Datetime",
+   "label": "Gate Exit Time",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "gate_return_time",
+   "fieldtype": "Datetime",
+   "label": "Gate Return Time",
+   "description": "Not every dispatch returns to the farm the same way (an export truck headed to port typically doesn't) — leave blank when there's nothing to confirm on return."
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks",
+   "description": "Required context when Gate Verification Status is Rejected — why the truck/driver didn't match."
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-12 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Gate Dispatch Verification",
+ "naming_rule": "By fieldname",
+ "autoname": "hash",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "if_owner": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Gate Guard",
+   "share": 1,
+   "write": 0
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

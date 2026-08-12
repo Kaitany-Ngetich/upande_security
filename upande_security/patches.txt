@@ -5,3 +5,4 @@
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
 upande_security.patches.redesign_security_navigation
+upande_security.patches.backfill_guard_user_permissions
