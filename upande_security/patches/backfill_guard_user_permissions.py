@@ -25,6 +25,10 @@ Idempotent and safe on any environment:
   - This patch only ever reads Employee / Security Guard documents; it
     never modifies or saves them, only the User Permission rows they
     imply.
+  - A single record that fails to even load (this app has hit dangling-
+    Custom-Field ImportErrors on Employee before) is logged and skipped,
+    not left to abort the whole patch - and everything queued after it
+    in patches.txt on the same migrate.
 """
 
 import frappe
@@ -51,7 +55,20 @@ def execute():
 	employees_errored = 0
 
 	for employee_name in employee_names:
-		emp = frappe.get_doc("Employee", employee_name)
+		try:
+			emp = frappe.get_doc("Employee", employee_name)
+		except Exception:
+			# A single record failing to load (this app has hit dangling-
+			# Custom-Field ImportErrors on Employee before) must not abort
+			# the whole patch - and with it, everything after it in
+			# patches.txt on the same migrate.
+			employees_errored += 1
+			frappe.log_error(
+				title="upande_security backfill_guard_user_permissions (Employee load)",
+				message=frappe.get_traceback(),
+			)
+			continue
+
 		if not emp.user_id or not emp.company:
 			continue
 		employees_qualified += 1
@@ -60,7 +77,7 @@ def execute():
 		except Exception:
 			employees_errored += 1
 			frappe.log_error(
-				title="upande_security backfill_guard_user_permissions (Employee)",
+				title="upande_security backfill_guard_user_permissions (Employee sync)",
 				message=frappe.get_traceback(),
 			)
 
@@ -75,7 +92,16 @@ def execute():
 	guards_errored = 0
 
 	for guard_name in guard_names:
-		guard = frappe.get_doc("Security Guard", guard_name)
+		try:
+			guard = frappe.get_doc("Security Guard", guard_name)
+		except Exception:
+			guards_errored += 1
+			frappe.log_error(
+				title="upande_security backfill_guard_user_permissions (Security Guard load)",
+				message=frappe.get_traceback(),
+			)
+			continue
+
 		if not guard.user or not (guard.company or guard.farm):
 			continue
 		guards_qualified += 1
@@ -84,7 +110,7 @@ def execute():
 		except Exception:
 			guards_errored += 1
 			frappe.log_error(
-				title="upande_security backfill_guard_user_permissions (Security Guard)",
+				title="upande_security backfill_guard_user_permissions (Security Guard sync)",
 				message=frappe.get_traceback(),
 			)
 
