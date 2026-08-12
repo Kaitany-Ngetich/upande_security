@@ -4,6 +4,17 @@
   "doctype": "Client Script",
   "dt": "Appointment",
   "enabled": 1,
+  "modified": "2026-08-05 16:17:41.238773",
+  "module": "Upande Security",
+  "name": "Appointment Confirm Receipt",
+  "script": "// Adds a \"Confirm Receipt\" action button to the Appointment form for hosts\n// once their visitor has been checked in and a badge issued — the only\n// other way to confirm receipt is scanning the visitor badge's QR code,\n// which isn't practical if the host is just looking at the record itself\n// (e.g. checking their appointment list at their desk).\nfrappe.ui.form.on('Appointment', {\n\trefresh: function (frm) {\n\t\tif (\n\t\t\tfrm.doc.workflow_state === 'Visitor Checked In' &&\n\t\t\tfrm.doc.custom_visitor_badge &&\n\t\t\t!frm.doc.custom_host_received_time\n\t\t) {\n\t\t\tfrm.add_custom_button('Confirm Receipt', function () {\n\t\t\t\tfrappe.call({\n\t\t\t\t\tmethod: 'confirm_host_received_by_appointment',\n\t\t\t\t\targs: { name: frm.doc.name },\n\t\t\t\t\tfreeze: true,\n\t\t\t\t\tfreeze_message: __('Confirming...'),\n\t\t\t\t\tcallback: function (r) {\n\t\t\t\t\t\tif (r.message && r.message.error) {\n\t\t\t\t\t\t\tfrappe.msgprint(r.message.error);\n\t\t\t\t\t\t\treturn;\n\t\t\t\t\t\t}\n\t\t\t\t\t\tfrappe.show_alert({ message: __('Visitor receipt confirmed'), indicator: 'green' });\n\t\t\t\t\t\tfrm.reload_doc();\n\t\t\t\t\t},\n\t\t\t\t});\n\t\t\t}).addClass('btn-primary');\n\t\t}\n\n\t\tif (frm.doc.custom_host_received_time) {\n\t\t\tfrm.dashboard.set_headline_alert(\n\t\t\t\t'<span class=\"indicator-pill green\">Visitor receipt confirmed at ' +\n\t\t\t\t\tfrappe.datetime.str_to_user(frm.doc.custom_host_received_time) +\n\t\t\t\t\t'</span>',\n\t\t\t);\n\t\t}\n\t},\n});\n",
+  "view": "Form"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Client Script",
+  "dt": "Appointment",
+  "enabled": 1,
   "modified": "2026-07-27 15:50:56.860735",
   "module": "Upande Security",
   "name": "Appointment Gate Workflow Actions",

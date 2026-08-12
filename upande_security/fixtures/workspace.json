@@ -1,0 +1,38 @@
+[
+ {
+  "app": "upande_security",
+  "charts": [],
+  "content": "[{\"id\": \"securityNav0001\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"Security Navigation\", \"col\": 12}}]",
+  "custom_blocks": [
+   {
+    "custom_block_name": "Security Navigation",
+    "label": "Security Navigation"
+   }
+  ],
+  "docstatus": 0,
+  "doctype": "Workspace",
+  "external_link": null,
+  "for_user": "",
+  "hide_custom": 0,
+  "icon": "quality-3",
+  "indicator_color": "purple",
+  "is_hidden": 0,
+  "label": "Security",
+  "link_to": null,
+  "link_type": "DocType",
+  "links": [],
+  "modified": "2026-07-31 13:13:05.881532",
+  "module": "Upande Security",
+  "name": "Security",
+  "number_cards": [],
+  "parent_page": "",
+  "public": 1,
+  "quick_lists": [],
+  "restrict_to_domain": null,
+  "roles": [],
+  "sequence_id": 55.0,
+  "shortcuts": [],
+  "title": "Security",
+  "type": "Workspace"
+ }
+]

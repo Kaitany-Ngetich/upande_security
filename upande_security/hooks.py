@@ -340,6 +340,9 @@ fixtures = [
                     "Appointment-custom_contractor_ref",
                     "Appointment-custom_contractor_person",
                     "Appointment-custom_customer",
+                    "Appointment-custom_scope_of_work",
+                    "Appointment-custom_expected_exit",
+                    "Appointment-custom_contractor_personnel",
                     "Employee-custom_farm",
                     "Employee-default_shift",
                     "Supplier-custom_is_contractor",
@@ -357,6 +360,16 @@ fixtures = [
         "dt": "Custom HTML Block",
         "filters": [
             ["name", "=", "Security Navigation"],
+        ],
+    },
+    {
+        # The workspace shell itself (the left-sidebar entry in Desk) — without
+        # this, "Security Navigation" (the Custom HTML Block above) has nothing
+        # to render inside on a fresh site. Missing this fixture is exactly why
+        # the workspace didn't show up in Desk after a fresh deploy.
+        "dt": "Workspace",
+        "filters": [
+            ["name", "=", "Security"],
         ],
     },
 ]
