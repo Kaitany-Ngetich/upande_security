@@ -1,0 +1,113 @@
+{
+ "actions": [],
+ "creation": "2026-08-12 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "source_doctype",
+  "enabled",
+  "column_break_1",
+  "reference_field",
+  "vehicle_field",
+  "driver_field",
+  "column_break_2",
+  "date_field",
+  "time_field",
+  "farm_field",
+  "items_summary_field",
+  "column_break_3",
+  "status_field",
+  "authorized_status_values"
+ ],
+ "fields": [
+  {
+   "fieldname": "source_doctype",
+   "fieldtype": "Data",
+   "label": "Source DocType",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "name",
+   "fieldname": "reference_field",
+   "fieldtype": "Data",
+   "label": "Reference Field",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_field",
+   "fieldtype": "Data",
+   "label": "Vehicle Field"
+  },
+  {
+   "fieldname": "driver_field",
+   "fieldtype": "Data",
+   "label": "Driver Field"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "date_field",
+   "fieldtype": "Data",
+   "label": "Date Field",
+   "in_list_view": 1,
+   "description": "Field holding the dispatch date, or a full datetime if the source has no separate time field."
+  },
+  {
+   "fieldname": "time_field",
+   "fieldtype": "Data",
+   "label": "Time Field",
+   "description": "Leave blank if date_field already holds a full datetime."
+  },
+  {
+   "fieldname": "farm_field",
+   "fieldtype": "Data",
+   "label": "Farm Field"
+  },
+  {
+   "fieldname": "items_summary_field",
+   "fieldtype": "Data",
+   "label": "Items Summary Field"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status_field",
+   "fieldtype": "Data",
+   "label": "Status Field"
+  },
+  {
+   "fieldname": "authorized_status_values",
+   "fieldtype": "Data",
+   "label": "Authorized Status Values",
+   "description": "Comma-separated. Blank means no status gating — any match is treated as checkable."
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-12 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Dispatch Source",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

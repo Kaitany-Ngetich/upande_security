@@ -372,5 +372,14 @@ fixtures = [
             ["name", "=", "Security"],
         ],
     },
+    {
+        # Single doctype — its child-table rows (dispatch_sources config,
+        # among others) are real data, not field defaults, so they need an
+        # actual fixture record or a fresh deploy ships with none configured.
+        "dt": "Security Ops Settings",
+        "filters": [
+            ["name", "=", "Security Ops Settings"],
+        ],
+    },
 ]
 

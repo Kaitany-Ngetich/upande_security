@@ -1,0 +1,28 @@
+[
+ {
+  "dispatch_sources": [
+   {
+    "authorized_status_values": "",
+    "date_field": "custom_date",
+    "driver_field": "custom_truck_drivers_name",
+    "enabled": 1,
+    "farm_field": "custom_farm",
+    "items_summary_field": "custom_total_number_of_boxes_dispatched",
+    "reference_field": "name",
+    "source_doctype": "Dispatch Form",
+    "status_field": "",
+    "time_field": "custom_dispatch_time",
+    "vehicle_field": "custom_truck_reg_no"
+   }
+  ],
+  "docstatus": 0,
+  "doctype": "Security Ops Settings",
+  "fallback_contact_name": "Security Operations Center (test)",
+  "fallback_contact_phone": "+254700000000",
+  "fallback_description": "Local test fallback — replace with the real 24/7 SOC number before this matters for real guards.",
+  "modified": "2026-08-12 10:39:39.932893",
+  "name": "Security Ops Settings",
+  "nearby_alert_stale_minutes": 0,
+  "nearby_guard_alert_radius_m": 0
+ }
+]
