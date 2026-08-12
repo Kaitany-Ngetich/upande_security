@@ -1930,8 +1930,83 @@ def fetchSecurityDasboardData(
         return _fetch_shifts_tab(
             range_from, range_to, farm=farm, shift_type=shift_type, status=status, company=company
         )
+    if tab == "near_miss":
+        return _fetch_near_miss_tab(range_from, range_to)
 
     frappe.throw(_("Unknown dashboard tab: {0}").format(tab))
+
+
+def _fetch_near_miss_tab(range_from, range_to):
+    """Near misses are meant to be caught early, not discovered a week
+    later buried in a list view — this is what actually surfaces them:
+    a dashboard tab plus a "needs review" count driving both this page's
+    nav badge and the Overview page's recent-activity card.
+
+    "Needs review" = not yet escalated to a full Incident Report AND
+    still within the last 48 hours — an old near miss nobody escalated
+    is presumably already a closed matter, not something still pending
+    action; the badge should reflect what's actually still actionable.
+    """
+    if not frappe.has_permission("Near Miss Report", ptype="read"):
+        frappe.throw(
+            _("You do not have permission to view Near Miss Reports."),
+            frappe.PermissionError,
+        )
+
+    rows = frappe.get_all(
+        "Near Miss Report",
+        filters={
+            "near_miss_datetime": ["between", [f"{range_from} 00:00:00", f"{range_to} 23:59:59"]]
+        },
+        fields=[
+            "name", "near_miss_datetime", "farm", "location", "reporter_name",
+            "description", "could_have_resulted_in", "converted_to_incident",
+        ],
+        order_by="near_miss_datetime desc",
+        limit_page_length=500,
+    )
+
+    needs_review_cutoff = frappe.utils.add_to_date(frappe.utils.now_datetime(), hours=-48)
+    needs_review = 0
+    for r in rows:
+        if r.converted_to_incident:
+            continue
+        if frappe.utils.get_datetime(r.near_miss_datetime) >= needs_review_cutoff:
+            needs_review += 1
+
+    by_outcome = {}
+    for r in rows:
+        key = r.could_have_resulted_in or "Other"
+        by_outcome[key] = by_outcome.get(key, 0) + 1
+
+    return {
+        "success": True,
+        "range_from": str(range_from),
+        "range_to": str(range_to),
+        "summary": {
+            "total": len(rows),
+            "needs_review": needs_review,
+            "escalated": sum(1 for r in rows if r.converted_to_incident),
+            "by_outcome": [{"outcome": k, "count": v} for k, v in by_outcome.items()],
+        },
+        "rows": [
+            {
+                "name": r.name,
+                "near_miss_datetime": str(r.near_miss_datetime),
+                "farm": r.farm or "",
+                "location": r.location or "",
+                "reporter_name": r.reporter_name or "",
+                "description": r.description or "",
+                "could_have_resulted_in": r.could_have_resulted_in or "",
+                "converted_to_incident": r.converted_to_incident or "",
+                "needs_review": (
+					not r.converted_to_incident
+					and frappe.utils.get_datetime(r.near_miss_datetime) >= needs_review_cutoff
+				),
+            }
+            for r in rows
+        ],
+    }
 
 
 def _fetch_incidents_tab(range_from, range_to):
