@@ -204,6 +204,11 @@ class PatrolReport(Document):
 		incident = frappe.new_doc("Incident Report")
 		incident.incident_datetime = self.filed_at or self.ended_at or now_datetime()
 		incident.location = _location_for_farm(self.farm, lat, lng)
+		# The patrol's own farm is the authoritative one here — more precise
+		# than whatever the farm-stamping doc_event would guess from
+		# whoever's session is doing the saving (a Security Head reviewing
+		# someone else's patrol, for instance).
+		incident.farm = self.farm
 		incident.nature_of_incident = self.nature_of_incident
 		incident.severity = self.severity
 		incident.status = "Open"
