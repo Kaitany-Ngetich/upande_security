@@ -2386,7 +2386,7 @@ def fetchPatrolData(date=None, farm=None):
                 ) or guard
             elif p.get("external_guard"):
                 guard_name = frappe.db.get_value(
-                    "Security Guard", p["external_guard"], "guard_name"
+                    "Security Guard", p["external_guard"], "full_name"
                 ) or guard
             groups[key] = {
                 "guard_id": guard, "guard_name": guard_name, "farm": guard_farm,
