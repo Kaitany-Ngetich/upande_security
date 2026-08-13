@@ -358,7 +358,6 @@ fixtures = [
                     "Appointment-custom_temp_exit_log",
                     "Appointment-custom_visitorcontractor_tab",
                     "Appointment-custom_contractor_ref",
-                    "Appointment-custom_contractor_person",
                     "Appointment-custom_customer",
                     "Appointment-custom_scope_of_work",
                     "Appointment-custom_expected_exit",
