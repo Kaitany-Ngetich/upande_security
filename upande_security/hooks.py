@@ -157,6 +157,9 @@ doc_events = {
 		"after_insert": "upande_security.api.guard_checkin.sync_shift_checkin",
 		"on_update": "upande_security.api.guard_checkin.sync_shift_checkin",
 	},
+	"Visitor Badge": {
+		"after_insert": "upande_security.api.visitor_badge_qr.generate_qr_for_badge",
+	},
 	# Auto-provision the Company/Farm User Permission rows the hierarchical
 	# access scoping (Patrol Report, Near Miss Report, Patrol GPS Log,
 	# Incident Report, Security Asset, Visitor Badge, Attendance, ...)
