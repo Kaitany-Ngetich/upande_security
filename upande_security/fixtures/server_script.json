@@ -1195,5 +1195,24 @@
   "reference_doctype": null,
   "script": "try:\n    data = {}\n    try:\n        data = frappe.request.get_json(silent=True) or {}\n    except Exception:\n        data = {}\n    if not data:\n        data = dict(frappe.form_dict or {})\n\n    name = \"\"\n    try:\n        name = str(data[\"name\"] or \"\").strip()\n    except (KeyError, TypeError):\n        name = \"\"\n\n    if not name:\n        frappe.response[\"message\"] = {\"error\": \"name is required\"}\n    else:\n        emp = frappe.db.get_value(\n            \"Employee\",\n            name,\n            [\n                \"name\",\n                \"employee_name\",\n                \"department\",\n                \"designation\",\n                \"company\",\n                \"default_shift\",\n                \"custom_farm\",\n                \"employee_category\",\n                \"status\",\n            ],\n            as_dict=True,\n        )\n        if not emp:\n            frappe.response[\"message\"] = {\"error\": \"Employee \" + name + \" not found\"}\n        else:\n            frappe.response[\"message\"] = {\n                \"name\": emp.name,\n                \"employee_name\": emp.employee_name or \"\",\n                \"department\": emp.department or \"\",\n                \"designation\": emp.designation or \"\",\n                \"company\": emp.company or \"\",\n                \"default_shift\": emp.default_shift or \"\",\n                \"custom_farm\": emp.custom_farm or \"\",\n                \"custom_employee_category\": emp.employee_category or \"\",\n                \"status\": emp.status or \"\",\n            }\nexcept Exception as e:\n    frappe.log_error(\"get_employee\", str(e))\n    frappe.response[\"message\"] = {\"error\": str(e)}\n",
   "script_type": "API"
+ },
+ {
+  "allow_guest": 0,
+  "api_method": null,
+  "cron_format": null,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Server Script",
+  "doctype_event": "Before Save",
+  "enable_rate_limit": 0,
+  "event_frequency": "All",
+  "modified": "2026-08-13 12:08:16.585464",
+  "module": "Upande Security",
+  "name": "Clear Appointment Party",
+  "rate_limit_count": 5,
+  "rate_limit_seconds": 86400,
+  "reference_doctype": "Appointment",
+  "script": "# party/appointment_with are core CRM fields this app never uses (Gate Guard/Secretary have them locked read-only, the mobile app never sets them, and the doctype's real customer-tracking field is custom_customer). Left alone, core controller logic auto-fills appointment_with/party with a stale, unrelated value whenever customer_email is blank - on production this silently linked to whatever Customer record was most recently modified anywhere on the bench; here it's landed on the literal string \"Customer\", which fails link validation outright and blocks every save. Same fix already shipped to production - clear both before every save.\ndoc.party = None\ndoc.appointment_with = None\n",
+  "script_type": "DocType Event"
  }
 ]
