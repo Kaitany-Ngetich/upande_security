@@ -12,7 +12,7 @@
     "source_doctype": "Dispatch Form",
     "status_field": "",
     "time_field": "custom_dispatch_time",
-    "vehicle_field": "custom_truck_reg_no"
+    "vehicle_field": "custom_truck"
    }
   ],
   "docstatus": 0,
@@ -20,7 +20,7 @@
   "fallback_contact_name": "Security Operations Center (test)",
   "fallback_contact_phone": "+254700000000",
   "fallback_description": "Local test fallback — replace with the real 24/7 SOC number before this matters for real guards.",
-  "modified": "2026-08-12 10:39:39.932893",
+  "modified": "2026-08-13 11:06:26.768528",
   "name": "Security Ops Settings",
   "nearby_alert_stale_minutes": 0,
   "nearby_guard_alert_radius_m": 0
