@@ -379,6 +379,8 @@ fixtures = [
                     "Appointment-custom_id_number",
                     "Appointment-custom_visitor_badge",
                     "Appointment-custom_host_received_time",
+                    "Appointment-custom_meet_with_email",
+                    "Appointment-custom_meet_with_company",
                     "Attendance-custom_gate_app_entry",
                     "Attendance-custom_temp_exit_time",
                     "Attendance-custom_temp_exit_log",
@@ -472,6 +474,84 @@ fixtures = [
                 [
                     "Appointment-details_section-label",
                     "Appointment-customer_details-label",
+                ],
+            ],
+        ],
+    },
+    {
+        # The Visit Approver role, needed for the Appointment visitor-review
+        # workflow below (Approve/Reject/Redirect/Reschedule) - the real
+        # role name used on actual Kaitet production, not an invented one.
+        # Filtered by name, not swept up by `dt`, for the same reason every
+        # other role already assigned in this system (Gate Guard, Security
+        # Head) is never fixture-tracked wholesale — a `dt`-wide Role export
+        # would ship every role on the site, including ones owned by HR/ERPNext.
+        "dt": "Role",
+        "filters": [
+            ["name", "in", ["Visit Approver"]],
+        ],
+    },
+    {
+        # The Appointment visitor-review Workflow, mirroring the real,
+        # already-working "Visitor Gate Management" workflow on the actual
+        # Kaitet production site (kaitet-group.upande.com) - verified by
+        # direct authenticated fetch against that site's own Workflow/
+        # Workflow Transition/Notification/Server Script/Role/DocPerm
+        # records, not guessed. Before this existed here, Desk showed zero
+        # workflow action buttons to anyone (Administrator included) despite
+        # "Appointment Gate Workflow Actions" (the Client Script above)
+        # having full before_workflow_action handlers for Approve/Reject/
+        # Redirect/Reschedule/Confirm Check In/Confirm Check Out - a real
+        # Workflow document defining those as actual transitions never
+        # existed, so the handlers could never fire for anyone. Workflow
+        # Transition and Workflow Document State are child tables of
+        # Workflow and export automatically with it.
+        #
+        # One real, single role - "Visit Approver" - handles both the
+        # Secretary-review and Host-review stages on real production, not
+        # two separate roles. A guard can route a visit either through
+        # Secretary review first, or straight to the host ("Notify Host"
+        # from Open), so this isn't a rigid mandatory hierarchy - either
+        # path is available every time.
+        "dt": "Workflow",
+        "filters": [
+            ["name", "in", ["Appointment Visitor Review"]],
+        ],
+    },
+    {
+        # Grants Visit Approver base read/write/create on Appointment
+        # (permlevel 0) - a Workflow Transition's `allowed` role can only
+        # ever narrow an already-granted base permission, never create one,
+        # so without this row a Visit Approver gets a bare PermissionError
+        # the moment Desk asks for available workflow actions. No if_owner -
+        # matches real production's actual pattern, where the *broad* role
+        # DocPerm is deliberately unrestricted and the real per-user
+        # narrowing ("only your own appointments") happens entirely via the
+        # "Host Sees Own Appointments" Permission Query script below, not
+        # here. Custom DocPerm names are random per-site hashes, not
+        # portable across environments, so this is filtered on the stable
+        # (parent, role) pair instead of `name`.
+        "dt": "Custom DocPerm",
+        "filters": [
+            ["parent", "=", "Appointment"],
+            ["role", "=", "Visit Approver"],
+        ],
+    },
+    {
+        # Mirrors real production's 6 "Value Change"-triggered notifications
+        # ... no: real production actually uses 3 "New"-event Notification
+        # records (verified by direct fetch, not the earlier wrong guess) -
+        # host/gate alerts fire once, when a new Appointment is created with
+        # a host already set, not on every later workflow_state change.
+        "dt": "Notification",
+        "filters": [
+            [
+                "name",
+                "in",
+                [
+                    "Visitor at Reception - Host & Secretary SMS",
+                    "Visitor at Reception - Host Alert (Kaitet Ltd.)",
+                    "Visitor at Reception - Host Alert (Karen Roses)",
                 ],
             ],
         ],
