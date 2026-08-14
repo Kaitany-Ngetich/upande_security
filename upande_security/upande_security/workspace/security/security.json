@@ -2,7 +2,7 @@
  "app": "upande_security",
  "charts": [],
  "content": "[{\"id\": \"securityNav0001\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"Security Navigation\", \"col\": 12}}]",
- "creation": "2026-07-20 11:33:28.701532",
+ "creation": "2026-08-14 09:41:54.021559",
  "custom_blocks": [
   {
    "custom_block_name": "Security Navigation",
@@ -20,7 +20,7 @@
  "label": "Security",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-07-31 13:13:05.881532",
+ "modified": "2026-08-14 10:51:37.268506",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security",
@@ -31,7 +31,113 @@
  "quick_lists": [],
  "roles": [],
  "sequence_id": 55.0,
- "shortcuts": [],
+ "shortcuts": [
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Appointments",
+   "link_to": "Appointment",
+   "type": "DocType"
+  },
+  {
+   "color": "Pink",
+   "doc_view": "List",
+   "label": "Visitor Badges",
+   "link_to": "Visitor Badge",
+   "type": "DocType"
+  },
+  {
+   "color": "Cyan",
+   "doc_view": "List",
+   "label": "Vehicles",
+   "link_to": "Vehicle",
+   "type": "DocType"
+  },
+  {
+   "color": "Purple",
+   "doc_view": "List",
+   "label": "Dispatch Checks",
+   "link_to": "Gate Dispatch Verification",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "label": "Delivery Checks",
+   "link_to": "Gate Delivery Verification",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "label": "Patrols",
+   "link_to": "Patrol GPS Log",
+   "type": "DocType"
+  },
+  {
+   "color": "Red",
+   "doc_view": "List",
+   "label": "Incidents",
+   "link_to": "Incident Report",
+   "type": "DocType"
+  },
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Patrol Reports",
+   "link_to": "Patrol Report",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "label": "Near Misses",
+   "link_to": "Near Miss Report",
+   "type": "DocType"
+  },
+  {
+   "color": "Red",
+   "doc_view": "List",
+   "label": "Watchlist",
+   "link_to": "Security Watchlist",
+   "type": "DocType"
+  },
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Security Guards",
+   "link_to": "Security Guard",
+   "type": "DocType"
+  },
+  {
+   "color": "Purple",
+   "doc_view": "List",
+   "label": "Shift Assignments",
+   "link_to": "Security Guard Shift Assignment",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Incident Categories",
+   "link_to": "Incident Category",
+   "type": "DocType"
+  },
+  {
+   "color": "Cyan",
+   "doc_view": "List",
+   "label": "Guard Devices",
+   "link_to": "Guard Device Token",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Ops Settings",
+   "link_to": "Security Ops Settings",
+   "type": "DocType"
+  }
+ ],
  "title": "Security",
  "type": "Workspace"
 }
