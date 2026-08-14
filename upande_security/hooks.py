@@ -375,6 +375,7 @@ fixtures = [
                     "Appointment-custom_scope_of_work",
                     "Appointment-custom_expected_exit",
                     "Appointment-custom_contractor_personnel",
+                    "Appointment-custom_taxi_driver_check_out_time",
                     "Attendance-custom_gate_app_entry",
                     "Attendance-custom_temp_exit_time",
                     "Attendance-custom_temp_exit_log",
