@@ -425,6 +425,17 @@ fixtures = [
         ],
     },
     {
+        # Master data, not per-site business records: mirrors the static
+        # options list on Incident Report.nature_of_incident (a plain
+        # Select, not a Link to this doctype) so the mobile app's category
+        # picker - which sources its options from here via
+        # list_incident_categories, not from the Select's own option list -
+        # has something to show. Without this fixture, Incident Category
+        # ships empty on every fresh deploy and the picker is blank, same
+        # bug class as the Workspace-shortcuts gap.
+        "dt": "Incident Category",
+    },
+    {
         # Security Asset and Visitor Badge were built via the Desk UI
         # (DocType.custom = 1) rather than as an app-owned doctype .json,
         # so unlike Patrol Report/Incident Report/etc. their schema (fields,

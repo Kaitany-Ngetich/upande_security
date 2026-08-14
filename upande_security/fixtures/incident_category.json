@@ -1,0 +1,145 @@
+[
+ {
+  "category_name": "Accident",
+  "color": "#F59E0B",
+  "default_severity": "Medium",
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Incident Category",
+  "is_active": 1,
+  "modified": "2026-08-14 13:31:42.206808",
+  "name": "Accident"
+ },
+ {
+  "category_name": "Fire",
+  "color": "#EF4444",
+  "default_severity": "Critical",
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Incident Category",
+  "is_active": 1,
+  "modified": "2026-08-14 13:31:42.276154",
+  "name": "Fire"
+ },
+ {
+  "category_name": "Intrusion",
+  "color": "#DC2626",
+  "default_severity": "High",
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Incident Category",
+  "is_active": 1,
+  "modified": "2026-08-14 13:31:42.278303",
+  "name": "Intrusion"
+ },
+ {
+  "category_name": "Medical Emergency",
+  "color": "#EF4444",
+  "default_severity": "Critical",
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Incident Category",
+  "is_active": 1,
+  "modified": "2026-08-14 13:31:42.296930",
+  "name": "Medical Emergency"
+ },
+ {
+  "category_name": "Near Miss",
+  "color": "#3B82F6",
+  "default_severity": "Low",
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Incident Category",
+  "is_active": 1,
+  "modified": "2026-08-14 13:31:42.313055",
+  "name": "Near Miss"
+ },
+ {
+  "category_name": "Other",
+  "color": "#6B7280",
+  "default_severity": "Medium",
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Incident Category",
+  "is_active": 1,
+  "modified": "2026-08-14 13:31:42.314819",
+  "name": "Other"
+ },
+ {
+  "category_name": "Property Damage",
+  "color": "#F59E0B",
+  "default_severity": "Medium",
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Incident Category",
+  "is_active": 1,
+  "modified": "2026-08-14 13:31:42.316481",
+  "name": "Property Damage"
+ },
+ {
+  "category_name": "Robbery With Violence",
+  "color": "#DC2626",
+  "default_severity": "Critical",
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Incident Category",
+  "is_active": 1,
+  "modified": "2026-08-14 13:31:42.318262",
+  "name": "Robbery With Violence"
+ },
+ {
+  "category_name": "SOS",
+  "color": "#EF4444",
+  "default_severity": "Critical",
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Incident Category",
+  "is_active": 1,
+  "modified": "2026-08-14 13:31:42.320428",
+  "name": "SOS"
+ },
+ {
+  "category_name": "Theft",
+  "color": "#F97316",
+  "default_severity": "High",
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Incident Category",
+  "is_active": 1,
+  "modified": "2026-08-14 13:31:42.322439",
+  "name": "Theft"
+ },
+ {
+  "category_name": "Violation of Company Policy",
+  "color": "#6B7280",
+  "default_severity": "Low",
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Incident Category",
+  "is_active": 1,
+  "modified": "2026-08-14 13:31:42.324536",
+  "name": "Violation of Company Policy"
+ },
+ {
+  "category_name": "Workplace Injury",
+  "color": "#F97316",
+  "default_severity": "High",
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Incident Category",
+  "is_active": 1,
+  "modified": "2026-08-14 13:31:42.327376",
+  "name": "Workplace Injury"
+ },
+ {
+  "category_name": "Suspicious Activity",
+  "color": "#3B82F6",
+  "default_severity": "Medium",
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Incident Category",
+  "is_active": 1,
+  "modified": "2026-08-14 13:31:42.330489",
+  "name": "Suspicious Activity"
+ }
+]
