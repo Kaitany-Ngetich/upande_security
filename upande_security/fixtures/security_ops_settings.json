@@ -20,7 +20,7 @@
   "fallback_contact_name": "Security Operations Center (test)",
   "fallback_contact_phone": "+254700000000",
   "fallback_description": "Local test fallback — replace with the real 24/7 SOC number before this matters for real guards.",
-  "modified": "2026-08-13 11:06:26.768528",
+  "modified": "2026-08-14 13:41:13.484211",
   "name": "Security Ops Settings",
   "nearby_alert_stale_minutes": 0,
   "nearby_guard_alert_radius_m": 0
