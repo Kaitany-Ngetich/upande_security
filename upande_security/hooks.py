@@ -476,5 +476,49 @@ fixtures = [
             ],
         ],
     },
+    {
+        # The Secretary role, needed for the Appointment visitor-review
+        # workflow below (Approve/Reject/Redirect/Reschedule). Filtered by
+        # name, not swept up by `dt`, for the same reason every other role
+        # already assigned in this system (Gate Guard, Security Head) is
+        # never fixture-tracked wholesale — a `dt`-wide Role export would
+        # ship every role on the site, including ones owned by HR/ERPNext.
+        "dt": "Role",
+        "filters": [
+            ["name", "in", ["Secretary"]],
+        ],
+    },
+    {
+        # The Appointment visitor-review Workflow. Before this existed,
+        # Desk showed zero workflow action buttons to anyone (Administrator
+        # included) despite "Appointment Gate Workflow Actions" (the Client
+        # Script above) having full before_workflow_action handlers for
+        # Approve/Reject/Redirect/Reschedule/Confirm Check In/Confirm Check
+        # Out - a Workflow document defining real states/transitions for
+        # those exact action names never existed, so the handlers could
+        # never fire for anyone. Workflow Transition and Workflow Document
+        # State are child tables of Workflow and export automatically with
+        # it - no separate fixture entry needed for either.
+        "dt": "Workflow",
+        "filters": [
+            ["name", "in", ["Appointment Visitor Review"]],
+        ],
+    },
+    {
+        # Grants the new Secretary role base read/write/create on Appointment
+        # (permlevel 0) - a Workflow Transition's `allowed` role can only
+        # ever narrow an already-granted base permission, never create one,
+        # so without this row Secretary users get a bare PermissionError
+        # the moment Desk asks for available workflow actions, before the
+        # workflow engine's own role/condition check is ever reached.
+        # Custom DocPerm names are random per-site hashes (e.g. "qfbl7t58a9"),
+        # not portable across environments, so this is filtered on the
+        # stable (parent, role) pair instead of `name`.
+        "dt": "Custom DocPerm",
+        "filters": [
+            ["parent", "=", "Appointment"],
+            ["role", "=", "Secretary"],
+        ],
+    },
 ]
 
