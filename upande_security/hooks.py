@@ -152,6 +152,16 @@ required_apps = ["erpnext", "hrms"]
 # 	}
 # }
 
+# Runs at the very end of every `bench migrate`, after fixture sync -
+# keeps the Security Workspace's native shortcuts matched to whichever
+# doctypes this app actually owns at that moment, dynamically (not a
+# hardcoded list), on every site this app deploys to. See
+# sync_workspace.py's own docstring for why this has to be after_migrate
+# and not a one-time patch.
+after_migrate = [
+	"upande_security.sync_workspace.sync_shortcuts",
+]
+
 doc_events = {
 	"Attendance": {
 		"after_insert": "upande_security.api.guard_checkin.sync_shift_checkin",
