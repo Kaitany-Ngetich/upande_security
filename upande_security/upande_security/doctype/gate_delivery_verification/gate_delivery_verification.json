@@ -30,8 +30,7 @@
    "label": "Purchase Order",
    "reqd": 1,
    "read_only": 1,
-   "in_list_view": 1,
-   "description": "The authorization this delivery is checked against — resolved by PO number or supplier lookup, not picked by hand."
+   "in_list_view": 1
   },
   {
    "fieldname": "supplier",
@@ -50,8 +49,7 @@
    "fieldname": "vehicle_no",
    "fieldtype": "Data",
    "label": "Vehicle No",
-   "in_list_view": 1,
-   "description": "Captured fresh at the gate — a Purchase Order carries no vehicle info of its own, so there's nothing to snapshot from the source here."
+   "in_list_view": 1
   },
   {
    "fieldname": "driver_name",
@@ -73,22 +71,19 @@
    "fieldname": "items_summary",
    "fieldtype": "Small Text",
    "label": "Items Summary",
-   "read_only": 1,
-   "description": "Item, pending quantity and UOM per line on the Purchase Order at the moment of verification — snapshot, not live."
+   "read_only": 1
   },
   {
    "fieldname": "po_status",
    "fieldtype": "Data",
    "label": "PO Status At Verification",
-   "read_only": 1,
-   "description": "The Purchase Order's own status at the moment it was checked — e.g. 'To Receive'. Snapshot, not live."
+   "read_only": 1
   },
   {
    "fieldname": "supplier_active",
    "fieldtype": "Check",
    "label": "Supplier Was Active At Verification",
-   "read_only": 1,
-   "description": "Supplier.disabled was 0 at the moment of this check — the real 'active supplier' gate, independent of whether they're also flagged a contractor."
+   "read_only": 1
   },
   {
    "fieldname": "section_break_2",
@@ -118,14 +113,12 @@
   {
    "fieldname": "gate_departure_time",
    "fieldtype": "Datetime",
-   "label": "Gate Departure Time",
-   "description": "When the truck leaves after dropping off goods — confirmed separately from arrival, since offloading takes time."
+   "label": "Gate Departure Time"
   },
   {
    "fieldname": "remarks",
    "fieldtype": "Small Text",
-   "label": "Remarks",
-   "description": "Required context when Gate Verification Status is Rejected — why entry was refused (no PO found, wrong vehicle/driver, supplier not active). This is an identity/paperwork check, not a cargo inspection — content verification is the stock team's job at receiving."
+   "label": "Remarks"
   }
  ],
  "links": [],
