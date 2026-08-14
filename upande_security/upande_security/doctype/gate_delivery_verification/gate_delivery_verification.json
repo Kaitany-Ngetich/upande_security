@@ -125,7 +125,7 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks",
-   "description": "Required context when Gate Verification Status is Rejected — why the delivery didn't match."
+   "description": "Required context when Gate Verification Status is Rejected — why entry was refused (no PO found, wrong vehicle/driver, supplier not active). This is an identity/paperwork check, not a cargo inspection — content verification is the stock team's job at receiving."
   }
  ],
  "links": [],

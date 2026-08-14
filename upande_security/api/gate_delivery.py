@@ -1,10 +1,14 @@
 # Copyright (c) 2026, dev@upande.com and contributors
 # For license information, please see license.txt
 
-"""Gate-side lookup and verification for inbound supplier deliveries against
-Purchase Order — the authorization a truck's cargo should match, mirroring
-how Gate Dispatch Verification (api/gate_dispatch.py) checks outbound trucks
-against Dispatch Form.
+"""Gate-side identity/paperwork check for inbound supplier deliveries against
+Purchase Order, mirroring how Gate Dispatch Verification (api/gate_dispatch.py)
+checks outbound trucks against Dispatch Form.
+
+This is deliberately narrow in scope: confirm a PO exists for an active
+supplier, and log vehicle + driver. The guard never inspects or judges
+cargo contents — that's the stock team's job at receiving (Purchase
+Receipt), a separate step this never touches.
 
 Unlike dispatch, kept single-doctype and hardcoded to Purchase Order rather
 than config-driven across a Security Ops Settings child table — there's
@@ -13,8 +17,7 @@ not several competing ones to plan a config layer around.
 
 Read-only against Purchase Order. Security's own record of having checked a
 delivery lives entirely in Gate Delivery Verification, a doctype this app
-owns outright. Whether/when a real Purchase Receipt gets created against the
-PO is a separate warehouse/procurement step this never touches.
+owns outright.
 """
 
 import frappe
