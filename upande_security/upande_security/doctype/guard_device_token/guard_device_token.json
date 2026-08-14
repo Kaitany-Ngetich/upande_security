@@ -8,6 +8,7 @@
   "guard_type",
   "internal_guard",
   "external_guard",
+  "app_user",
   "column_break_1",
   "expo_push_token",
   "platform",
@@ -20,7 +21,7 @@
    "fieldname": "guard_type",
    "fieldtype": "Select",
    "label": "Guard Type",
-   "options": "Internal Guard\nExternal Guard",
+   "options": "Internal Guard\nExternal Guard\nApp User",
    "reqd": 1,
    "in_list_view": 1
   },
@@ -40,6 +41,15 @@
    "label": "External Guard",
    "options": "Security Guard",
    "mandatory_depends_on": "eval:doc.guard_type=='External Guard'"
+  },
+  {
+   "depends_on": "eval:doc.guard_type=='App User'",
+   "fieldname": "app_user",
+   "fieldtype": "Link",
+   "label": "App User",
+   "options": "User",
+   "mandatory_depends_on": "eval:doc.guard_type=='App User'",
+   "in_list_view": 1
   },
   {
    "fieldname": "column_break_1",
