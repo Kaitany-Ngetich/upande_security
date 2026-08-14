@@ -377,6 +377,8 @@ fixtures = [
                     "Appointment-custom_contractor_personnel",
                     "Appointment-custom_taxi_driver_check_out_time",
                     "Appointment-custom_id_number",
+                    "Appointment-custom_visitor_badge",
+                    "Appointment-custom_host_received_time",
                     "Attendance-custom_gate_app_entry",
                     "Attendance-custom_temp_exit_time",
                     "Attendance-custom_temp_exit_log",
@@ -428,6 +430,16 @@ fixtures = [
         "dt": "DocType",
         "filters": [
             ["name", "in", ["Security Asset", "Visitor Badge"]],
+        ],
+    },
+    {
+        # The badge itself (built via Desk's Print Format builder, DB-only,
+        # same class of gap as the Workspace/DocType entries above) - the
+        # Visitor Badge doctype ships fine without this, there's just
+        # nothing to actually render one on a fresh deploy.
+        "dt": "Print Format",
+        "filters": [
+            ["name", "=", "Visitor Badge Card"],
         ],
     },
 ]
