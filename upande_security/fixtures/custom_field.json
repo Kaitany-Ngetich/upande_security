@@ -1980,7 +1980,7 @@
   "in_list_view": 0,
   "in_preview": 0,
   "in_standard_filter": 0,
-  "insert_after": "custom_qr_token",
+  "insert_after": "custom_visitor_badge",
   "is_system_generated": 0,
   "is_virtual": 0,
   "label": "Host Confirmed Receipt At",
