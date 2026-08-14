@@ -457,5 +457,24 @@ fixtures = [
             ["name", "=", "Visitor Badge Card"],
         ],
     },
+    {
+        # Appointment is a core CRM doctype, not owned by this app - these
+        # are label-only overrides (Property Setters) on two of its native
+        # fields, not new fields, so this uses `name`, not `dt`-wide, same
+        # reasoning as the Custom Field allowlist above: a `dt`-wide filter
+        # on Appointment would sweep up every other team's Property
+        # Setters on this same widely-shared doctype.
+        "dt": "Property Setter",
+        "filters": [
+            [
+                "name",
+                "in",
+                [
+                    "Appointment-details_section-label",
+                    "Appointment-customer_details-label",
+                ],
+            ],
+        ],
+    },
 ]
 
