@@ -38,6 +38,13 @@
   "capa_actions",
   "resolution_datetime",
   "column_break_res_1",
+  "section_casualties",
+  "casualties_wounded",
+  "casualties_deceased",
+  "column_break_casualties_1",
+  "casualties_hospitalized",
+  "casualties_unaccounted",
+  "casualties_notes",
   "remarks",
   "section_attachments",
   "attachment_1",
@@ -233,6 +240,45 @@
   {
    "fieldname": "column_break_res_1",
    "fieldtype": "Column Break"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_casualties",
+   "fieldtype": "Section Break",
+   "label": "Casualties"
+  },
+  {
+   "default": "0",
+   "fieldname": "casualties_wounded",
+   "fieldtype": "Int",
+   "label": "Wounded"
+  },
+  {
+   "default": "0",
+   "fieldname": "casualties_deceased",
+   "fieldtype": "Int",
+   "label": "Deceased"
+  },
+  {
+   "fieldname": "column_break_casualties_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "casualties_hospitalized",
+   "fieldtype": "Int",
+   "label": "Hospitalized"
+  },
+  {
+   "default": "0",
+   "fieldname": "casualties_unaccounted",
+   "fieldtype": "Int",
+   "label": "Unaccounted"
+  },
+  {
+   "fieldname": "casualties_notes",
+   "fieldtype": "Small Text",
+   "label": "Casualty Notes"
   },
   {
    "fieldname": "remarks",
