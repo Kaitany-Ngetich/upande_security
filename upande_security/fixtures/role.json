@@ -6,10 +6,10 @@
   "doctype": "Role",
   "home_page": null,
   "is_custom": 0,
-  "modified": "2026-08-14 15:20:43.599460",
-  "name": "Secretary",
+  "modified": "2026-08-14 15:52:27.260468",
+  "name": "Visit Approver",
   "restrict_to_domain": null,
-  "role_name": "Secretary",
+  "role_name": "Visit Approver",
   "two_factor_auth": 0
  }
 ]

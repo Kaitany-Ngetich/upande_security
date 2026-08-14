@@ -1,6 +1,25 @@
 [
  {
   "allow_guest": 0,
+  "api_method": null,
+  "cron_format": null,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Server Script",
+  "doctype_event": "Before Insert",
+  "enable_rate_limit": 0,
+  "event_frequency": "All",
+  "modified": "2026-08-14 15:55:10.703413",
+  "module": "Upande Security",
+  "name": "Host Sees Own Appointments",
+  "rate_limit_count": 5,
+  "rate_limit_seconds": 86400,
+  "reference_doctype": "Appointment",
+  "script": "user_roles = [r[0] for r in frappe.db.sql(\n    \"SELECT role FROM `tabHas Role` WHERE parent = %s AND parenttype = 'User'\",\n    (user,)\n)]\n\nif (\"Host\" in user_roles or \"Visit Approver\" in user_roles) and \"System Manager\" not in user_roles:\n    employee = frappe.db.get_value(\"Employee\", {\"user_id\": user}, \"name\")\n    if employee:\n        conditions = \"`tabAppointment`.custom_meet_with = \" + frappe.db.escape(employee)\n    else:\n        conditions = \"1=0\"\n",
+  "script_type": "Permission Query"
+ },
+ {
+  "allow_guest": 0,
   "api_method": "list_checked_in_staff",
   "cron_format": null,
   "disabled": 0,
