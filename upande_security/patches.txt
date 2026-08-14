@@ -9,3 +9,4 @@ upande_security.patches.backfill_guard_user_permissions
 upande_security.patches.backfill_visitor_badge_qr
 upande_security.patches.remove_dead_contractor_person_field
 upande_security.patches.remove_dead_taxi_driver_fields
+upande_security.patches.remove_dead_qr_token_field

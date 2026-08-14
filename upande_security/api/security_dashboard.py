@@ -2431,6 +2431,7 @@ def fetchPatrolData(date=None, farm=None):
             "farm": g.get("farm") or "",
             "patrol_tag": g["patrol_tag"],
             "points": pts,
+            "timestamps": [str(t) for t in ts],
             "point_count": len(pts),
             "distance_km": round(distance_km, 2),
             "duration_min": duration_min,
