@@ -1233,5 +1233,43 @@
   "reference_doctype": "Appointment",
   "script": "# party/appointment_with are core CRM fields this app never uses (Gate Guard/Secretary have them locked read-only, the mobile app never sets them, and the doctype's real customer-tracking field is custom_customer). Left alone, core controller logic auto-fills appointment_with/party with a stale, unrelated value whenever customer_email is blank - on production this silently linked to whatever Customer record was most recently modified anywhere on the bench; here it's landed on the literal string \"Customer\", which fails link validation outright and blocks every save. Same fix already shipped to production - clear both before every save.\ndoc.party = None\ndoc.appointment_with = None\n",
   "script_type": "DocType Event"
+ },
+ {
+  "allow_guest": 0,
+  "api_method": "search_customers",
+  "cron_format": null,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Server Script",
+  "doctype_event": "Before Insert",
+  "enable_rate_limit": 0,
+  "event_frequency": "All",
+  "modified": "2026-08-15 16:04:58.987148",
+  "module": "Upande Security",
+  "name": "Search Customers",
+  "rate_limit_count": 5,
+  "rate_limit_seconds": 86400,
+  "reference_doctype": null,
+  "script": "try:\n    data = {}\n    try:\n        data = frappe.request.get_json(silent=True) or {}\n    except Exception:\n        data = {}\n    if not data:\n        data = dict(frappe.form_dict or {})\n\n    query = \"\"\n    try:\n        query = str(data[\"query\"] or \"\").strip()\n    except (KeyError, TypeError):\n        query = \"\"\n\n    filters = {}\n    if query:\n        filters[\"customer_name\"] = [\"like\", \"%\" + query + \"%\"]\n\n    rows = frappe.get_all(\n        \"Customer\",\n        filters=filters,\n        fields=[\"name\", \"customer_name\", \"mobile_no\", \"email_id\"],\n        order_by=\"customer_name asc\",\n        limit_page_length=20,\n    )\n    out = []\n    for r in rows:\n        out.append({\n            \"name\": r.name,\n            \"customer_name\": r.customer_name,\n            \"mobile_no\": r.mobile_no or \"\",\n            \"email_id\": r.email_id or \"\",\n        })\n    frappe.response[\"message\"] = out\nexcept Exception as e:\n    frappe.log_error(\"search_customers\", str(e))\n    frappe.response[\"message\"] = {\"error\": str(e)}\n",
+  "script_type": "API"
+ },
+ {
+  "allow_guest": 0,
+  "api_method": "book_customer_appointment",
+  "cron_format": null,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Server Script",
+  "doctype_event": "Before Insert",
+  "enable_rate_limit": 0,
+  "event_frequency": "All",
+  "modified": "2026-08-15 16:08:02.866900",
+  "module": "Upande Security",
+  "name": "Book Customer Appointment",
+  "rate_limit_count": 5,
+  "rate_limit_seconds": 86400,
+  "reference_doctype": null,
+  "script": "try:\n    data = {}\n    try:\n        data = frappe.request.get_json(silent=True) or {}\n    except Exception:\n        data = {}\n    if not data:\n        data = dict(frappe.form_dict or {})\n\n    def s(key):\n        try:\n            v = data[key]\n            if v is None:\n                return \"\"\n            return str(v).strip()\n        except (KeyError, TypeError):\n            return \"\"\n\n    customer = s(\"customer\")\n    person_name = s(\"person_name\")\n    id_number = s(\"id_number\")\n    host = s(\"host\")\n    scheduled_time = s(\"scheduled_time\")\n    purpose = s(\"purpose\")\n\n    if not customer:\n        frappe.response[\"message\"] = {\"error\": \"customer is required\"}\n    elif not person_name:\n        frappe.response[\"message\"] = {\"error\": \"person_name is required\"}\n    elif not host:\n        frappe.response[\"message\"] = {\"error\": \"host is required\"}\n    elif not scheduled_time:\n        frappe.response[\"message\"] = {\"error\": \"scheduled_time is required\"}\n    else:\n        customer_doc = frappe.db.get_value(\n            \"Customer\", customer, [\"name\", \"customer_name\", \"mobile_no\", \"email_id\"], as_dict=True\n        )\n        if not customer_doc:\n            frappe.response[\"message\"] = {\"error\": \"Customer \" + customer + \" not found\"}\n        else:\n            host_ok = frappe.db.get_value(\"Employee\", host, \"name\")\n            if not host_ok:\n                frappe.response[\"message\"] = {\"error\": \"Host \" + host + \" not found\"}\n            else:\n                # Phone/email are always sourced from the linked Customer's own\n                # contact details, never typed by the guard/host booking this -\n                # the only thing captured about the actual person being sent is\n                # their name and ID number.\n                doc = frappe.new_doc(\"Appointment\")\n                doc.flags.ignore_mandatory = True\n                doc.customer_name = person_name\n                doc.custom_id_number = id_number\n                doc.custom_customer = customer_doc.name\n                doc.customer_phone_number = customer_doc.mobile_no or \"\"\n                doc.customer_email = customer_doc.email_id or \"\"\n                doc.custom_meet_with = host\n                doc.scheduled_time = scheduled_time\n                doc.customer_details = purpose\n                doc.custom_visitor_type = \"Customer\"\n                doc.status = \"Open\"\n                # Deliberately NOT setting workflow_state here - a new\n                # Appointment always inserts into the workflow's first state\n                # (Open), and the real Workflow now enforces that a\n                # transition can only move to a state that's actually\n                # reachable via a named action, not an arbitrary direct\n                # assignment. \"Open -> Notify Host -> Pending Host Review\"\n                # IS a real transition, but apply_workflow() can't be\n                # imported inside the safe-exec sandbox - so, same as\n                # Check In Visitor / Check Out Visitor, the move to Pending\n                # Host Review happens via a plain frappe.db.set_value\n                # bypass in a second step below, after the doc already\n                # exists validly in its own initial state.\n                doc.insert(ignore_permissions=True)\n                frappe.db.set_value(\"Appointment\", doc.name, \"workflow_state\", \"Pending Host Review\")\n                frappe.db.commit()\n                frappe.response[\"message\"] = {\n                    \"name\": doc.name,\n                    \"customer_name\": doc.customer_name,\n                    \"custom_customer\": doc.custom_customer,\n                    \"host_id\": host,\n                    \"scheduled_time\": str(doc.scheduled_time),\n                    \"workflow_state\": \"Pending Host Review\",\n                }\nexcept Exception as e:\n    frappe.db.rollback()\n    frappe.log_error(\"book_customer_appointment\", str(e))\n    frappe.response[\"message\"] = {\"error\": str(e)}\n",
+  "script_type": "API"
  }
 ]
