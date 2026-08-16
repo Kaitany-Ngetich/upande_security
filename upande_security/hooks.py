@@ -170,6 +170,15 @@ doc_events = {
 	"Visitor Badge": {
 		"after_insert": "upande_security.api.visitor_badge_qr.generate_qr_for_badge",
 	},
+	"Appointment": {
+		# Releases the visitor's badge back to Available the moment
+		# workflow_state reaches Visitor Checked Out, no matter which path
+		# got it there - the mobile check_out_visitor Server Script already
+		# does this directly, but a host confirming checkout via Desk's own
+		# workflow action button goes through frappe.model.workflow.apply_workflow
+		# instead, which never touched the badge at all before this hook.
+		"on_update": "upande_security.api.visitor_badge_qr.release_badge_on_checkout",
+	},
 	# Auto-provision the Company/Farm User Permission rows the hierarchical
 	# access scoping (Patrol Report, Near Miss Report, Patrol GPS Log,
 	# Incident Report, Security Asset, Visitor Badge, Attendance, ...)
