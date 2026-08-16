@@ -1,0 +1,110 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-31 12:50:45.982579",
+  "name": "Open",
+  "style": "Info",
+  "workflow_state_name": "Open"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-31 12:50:46.048777",
+  "name": "Pending Secretary Review",
+  "style": "Warning",
+  "workflow_state_name": "Pending Secretary Review"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-31 12:50:46.051187",
+  "name": "Pending Host Review",
+  "style": "Warning",
+  "workflow_state_name": "Pending Host Review"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-31 12:50:46.101552",
+  "name": "Approved by Secretary",
+  "style": "Success",
+  "workflow_state_name": "Approved by Secretary"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-31 12:50:46.103433",
+  "name": "Approved by Host",
+  "style": "Success",
+  "workflow_state_name": "Approved by Host"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-31 12:50:46.105443",
+  "name": "Rejected by Secretary",
+  "style": "Danger",
+  "workflow_state_name": "Rejected by Secretary"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-31 12:50:46.107441",
+  "name": "Rejected by Host",
+  "style": "Danger",
+  "workflow_state_name": "Rejected by Host"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-31 12:50:46.109420",
+  "name": "Rescheduled by Secretary",
+  "style": "Warning",
+  "workflow_state_name": "Rescheduled by Secretary"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-31 12:50:46.111377",
+  "name": "Rescheduled by Host",
+  "style": "Warning",
+  "workflow_state_name": "Rescheduled by Host"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-31 12:50:46.113783",
+  "name": "Redirected to Another Host",
+  "style": "Warning",
+  "workflow_state_name": "Redirected to Another Host"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-31 12:50:46.115882",
+  "name": "Visitor Checked In",
+  "style": "Success",
+  "workflow_state_name": "Visitor Checked In"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-07-31 12:50:46.117810",
+  "name": "Visitor Checked Out",
+  "style": "Inverse",
+  "workflow_state_name": "Visitor Checked Out"
+ }
+]

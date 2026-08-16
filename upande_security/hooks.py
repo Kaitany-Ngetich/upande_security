@@ -519,6 +519,65 @@ fixtures = [
         ],
     },
     {
+        # Workflow State is a separate, global master doctype (shared by
+        # every Workflow on the site, not owned by any one app) that the
+        # Workflow above references its 12 states by name against. Missing
+        # this fixture was the real root cause of a live bug: Customize
+        # Form on Appointment threw "Workflow state not found" on a freshly
+        # redeployed site, and the Appointment list view itself 404'd in
+        # Desk - both came from these state names never actually existing
+        # as real Workflow State records there, only the Workflow document
+        # itself (which was fixture-tracked). Filtered by name, not
+        # dt-wide, for the same reason as every other shared/global
+        # doctype in this list - a dt-wide export would ship every other
+        # app's workflow states too.
+        "dt": "Workflow State",
+        "filters": [
+            [
+                "name",
+                "in",
+                [
+                    "Open",
+                    "Pending Secretary Review",
+                    "Pending Host Review",
+                    "Approved by Secretary",
+                    "Rescheduled by Secretary",
+                    "Redirected to Another Host",
+                    "Rejected by Secretary",
+                    "Approved by Host",
+                    "Rescheduled by Host",
+                    "Rejected by Host",
+                    "Visitor Checked Out",
+                    "Visitor Checked In",
+                ],
+            ],
+        ],
+    },
+    {
+        # Workflow Action Master - same story as Workflow State above, a
+        # separate global master doctype the Workflow's transitions
+        # reference by name. Also confirmed missing on krv16 (empty
+        # result), same root cause.
+        "dt": "Workflow Action Master",
+        "filters": [
+            [
+                "name",
+                "in",
+                [
+                    "Approve Visit",
+                    "Reject Visit",
+                    "Redirect to Another Host",
+                    "Reschedule",
+                    "Confirm Check In",
+                    "Confirm Check Out",
+                    "Approve on Behalf of Host",
+                    "Forward to Host",
+                    "Notify Host",
+                ],
+            ],
+        ],
+    },
+    {
         # Grants Visit Approver base read/write/create on Appointment
         # (permlevel 0) - a Workflow Transition's `allowed` role can only
         # ever narrow an already-granted base permission, never create one,
