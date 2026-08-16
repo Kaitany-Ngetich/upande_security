@@ -1,0 +1,65 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Workflow Action Master",
+  "modified": "2026-08-14 15:20:43.829934",
+  "name": "Approve Visit",
+  "workflow_action_name": "Approve Visit"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow Action Master",
+  "modified": "2026-08-14 15:20:43.872940",
+  "name": "Reject Visit",
+  "workflow_action_name": "Reject Visit"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow Action Master",
+  "modified": "2026-08-14 15:20:43.878709",
+  "name": "Redirect to Another Host",
+  "workflow_action_name": "Redirect to Another Host"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow Action Master",
+  "modified": "2026-08-14 15:20:43.929130",
+  "name": "Reschedule",
+  "workflow_action_name": "Reschedule"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow Action Master",
+  "modified": "2026-08-14 15:20:43.935492",
+  "name": "Confirm Check In",
+  "workflow_action_name": "Confirm Check In"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow Action Master",
+  "modified": "2026-08-14 15:20:43.941242",
+  "name": "Confirm Check Out",
+  "workflow_action_name": "Confirm Check Out"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow Action Master",
+  "modified": "2026-08-14 15:53:06.187748",
+  "name": "Notify Host",
+  "workflow_action_name": "Notify Host"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow Action Master",
+  "modified": "2026-08-14 15:53:06.247934",
+  "name": "Forward to Host",
+  "workflow_action_name": "Forward to Host"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow Action Master",
+  "modified": "2026-08-14 15:53:06.250105",
+  "name": "Approve on Behalf of Host",
+  "workflow_action_name": "Approve on Behalf of Host"
+ }
+]
