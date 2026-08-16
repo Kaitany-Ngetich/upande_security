@@ -474,6 +474,7 @@ fixtures = [
                 [
                     "Appointment-details_section-label",
                     "Appointment-customer_details-label",
+                    "Appointment-customer_email-reqd",
                 ],
             ],
         ],
