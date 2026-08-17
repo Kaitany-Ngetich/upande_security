@@ -16,16 +16,18 @@ app_license = "mit"
 # Task at all, so requiring it would block a valid deployment.
 required_apps = ["erpnext", "hrms"]
 
-# Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "upande_security",
-# 		"logo": "/assets/upande_security/logo.png",
-# 		"title": "Upande Security",
-# 		"route": "/upande_security",
-# 		"has_permission": "upande_security.api.permission.has_app_permission"
-# 	}
-# ]
+# Each item in the list will be shown as an app in the apps page.
+# Without this the Security workspace is still delivered in the desk boot, but
+# the app never gets a tile on /apps or an entry in the app switcher, so the
+# only way in is the direct /app/security URL.
+add_to_apps_screen = [
+	{
+		"name": "upande_security",
+		"logo": "/assets/upande_security/images/upande_logo.png",
+		"title": "Security",
+		"route": "/app/security",
+	}
+]
 
 # Includes in <head>
 # ------------------
