@@ -55,9 +55,9 @@
   },
   {
    "fieldname": "company",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "Restrict To Company",
-   "options": "\nKaren Roses\nKaitet Group\nKaitet Ltd."
+   "options": "Company"
   },
   {
    "fieldname": "section_break_1",
