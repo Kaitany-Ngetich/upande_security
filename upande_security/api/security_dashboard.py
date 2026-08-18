@@ -2335,6 +2335,7 @@ def _guard_farm_lookup(selected_date):
     return lookup
 
 
+@frappe.whitelist()
 def fetchPatrolData(date=None, farm=None):
     doctype = "Patrol GPS Log"
 
@@ -2353,12 +2354,17 @@ def fetchPatrolData(date=None, farm=None):
         filters={"captured_at": ["between", [day_start, day_end]]},
         fields=[
             "name", "patrol", "personel", "internal_guard",
-            "external_guard", "captured_at", "latitude", "longitude",
+            "external_guard", "captured_at", "latitude", "longitude", "farm",
         ],
         order_by="captured_at asc",
         page_length=5000,
     )
 
+    # Fallback only — stamp_patrol_gps_log_farm (hooks.py before_insert on
+    # Patrol GPS Log) already writes farm directly onto every row at capture
+    # time, which is reliable regardless of whether the guard has a Shift
+    # Assignment covering this exact date. This lookup only still matters for
+    # rows inserted before that hook existed, where farm is blank.
     guard_farms = _guard_farm_lookup(selected_date)
     farm = (farm or "").strip()
 
@@ -2371,7 +2377,7 @@ def fetchPatrolData(date=None, farm=None):
 
         patrol_id = str(p.get("patrol") or "Unassigned").strip() or "Unassigned"
         guard = p.get("internal_guard") or p.get("external_guard") or "Unassigned"
-        guard_farm = guard_farms.get(guard) or ""
+        guard_farm = str(p.get("farm") or "").strip() or guard_farms.get(guard) or ""
 
         if farm and guard_farm != farm:
             continue
