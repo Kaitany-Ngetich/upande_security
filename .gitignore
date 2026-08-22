@@ -56,4 +56,4 @@ jspm_packages/
 *.before_consolidation_*
 *.broken_before_restore_*
 *.safe_backup_*
-public/node_modules
+upande_security/public/node_modules
