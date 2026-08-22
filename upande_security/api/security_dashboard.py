@@ -1942,42 +1942,51 @@ def _fetch_near_miss_tab(range_from, range_to):
     a dashboard tab plus a "needs review" count driving both this page's
     nav badge and the Overview page's recent-activity card.
 
-    "Needs review" = not yet escalated to a full Incident Report AND
-    still within the last 48 hours — an old near miss nobody escalated
-    is presumably already a closed matter, not something still pending
-    action; the badge should reflect what's actually still actionable.
+    This reads Incident Report directly (nature_of_incident = "Near
+    Miss"), not the separate Near Miss Report doctype - near misses
+    have always actually been filed as Incident Reports in practice
+    (real historical data confirms this), so Near Miss Report sat
+    permanently empty while this tab looked at it. Reading the same
+    doctype people already file into means one place to report a near
+    miss, not two.
+
+    "Needs review" = still Open AND still within the last 48 hours —
+    an Open near miss nobody's touched in 48h+ is presumably stale,
+    not something still actionable today.
     """
-    if not frappe.has_permission("Near Miss Report", ptype="read"):
+    if not frappe.has_permission("Incident Report", ptype="read"):
         frappe.throw(
-            _("You do not have permission to view Near Miss Reports."),
+            _("You do not have permission to view Incident Reports."),
             frappe.PermissionError,
         )
 
     rows = frappe.get_all(
-        "Near Miss Report",
+        "Incident Report",
         filters={
-            "near_miss_datetime": ["between", [f"{range_from} 00:00:00", f"{range_to} 23:59:59"]]
+            "nature_of_incident": "Near Miss",
+            "incident_datetime": ["between", [f"{range_from} 00:00:00", f"{range_to} 23:59:59"]],
         },
         fields=[
-            "name", "near_miss_datetime", "farm", "location", "reporter_name",
-            "description", "could_have_resulted_in", "converted_to_incident",
+            "name", "incident_datetime", "farm", "location", "reporter_name",
+            "description", "severity", "status",
         ],
-        order_by="near_miss_datetime desc",
+        order_by="incident_datetime desc",
         limit_page_length=500,
     )
 
     needs_review_cutoff = frappe.utils.add_to_date(frappe.utils.now_datetime(), hours=-48)
     needs_review = 0
+    resolved = 0
     for r in rows:
-        if r.converted_to_incident:
-            continue
-        if frappe.utils.get_datetime(r.near_miss_datetime) >= needs_review_cutoff:
+        if r.status in ("Resolved", "Closed"):
+            resolved += 1
+        elif r.status == "Open" and frappe.utils.get_datetime(r.incident_datetime) >= needs_review_cutoff:
             needs_review += 1
 
-    by_outcome = {}
+    by_severity = {}
     for r in rows:
-        key = r.could_have_resulted_in or "Other"
-        by_outcome[key] = by_outcome.get(key, 0) + 1
+        key = r.severity or "Unspecified"
+        by_severity[key] = by_severity.get(key, 0) + 1
 
     return {
         "success": True,
@@ -1986,23 +1995,23 @@ def _fetch_near_miss_tab(range_from, range_to):
         "summary": {
             "total": len(rows),
             "needs_review": needs_review,
-            "escalated": sum(1 for r in rows if r.converted_to_incident),
-            "by_outcome": [{"outcome": k, "count": v} for k, v in by_outcome.items()],
+            "resolved": resolved,
+            "by_outcome": [{"outcome": k, "count": v} for k, v in by_severity.items()],
         },
         "rows": [
             {
                 "name": r.name,
-                "near_miss_datetime": str(r.near_miss_datetime),
+                "near_miss_datetime": str(r.incident_datetime),
                 "farm": r.farm or "",
                 "location": r.location or "",
                 "reporter_name": r.reporter_name or "",
                 "description": r.description or "",
-                "could_have_resulted_in": r.could_have_resulted_in or "",
-                "converted_to_incident": r.converted_to_incident or "",
+                "could_have_resulted_in": r.severity or "",
+                "status": r.status or "Open",
                 "needs_review": (
-					not r.converted_to_incident
-					and frappe.utils.get_datetime(r.near_miss_datetime) >= needs_review_cutoff
-				),
+                    r.status == "Open"
+                    and frappe.utils.get_datetime(r.incident_datetime) >= needs_review_cutoff
+                ),
             }
             for r in rows
         ],
