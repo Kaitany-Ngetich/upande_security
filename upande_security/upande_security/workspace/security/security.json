@@ -2,7 +2,7 @@
  "app": "upande_security",
  "charts": [],
  "content": "[{\"id\": \"securityNav0001\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"Security Navigation\", \"col\": 12}}]",
- "creation": "2026-08-14 09:41:54.021559",
+ "creation": "2026-08-21 15:24:49.572784",
  "custom_blocks": [
   {
    "custom_block_name": "Security Navigation",
@@ -20,7 +20,7 @@
  "label": "Security",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-08-14 10:51:37.268506",
+ "modified": "2026-08-22 11:34:10.101818",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security",
@@ -33,24 +33,10 @@
  "sequence_id": 55.0,
  "shortcuts": [
   {
-   "color": "Blue",
-   "doc_view": "List",
-   "label": "Appointments",
-   "link_to": "Appointment",
-   "type": "DocType"
-  },
-  {
    "color": "Pink",
    "doc_view": "List",
    "label": "Visitor Badges",
    "link_to": "Visitor Badge",
-   "type": "DocType"
-  },
-  {
-   "color": "Cyan",
-   "doc_view": "List",
-   "label": "Vehicles",
-   "link_to": "Vehicle",
    "type": "DocType"
   },
   {
@@ -92,8 +78,8 @@
    "color": "Orange",
    "doc_view": "List",
    "label": "Near Misses",
-   "link_to": "Near Miss Report",
-   "type": "DocType"
+   "type": "URL",
+   "url": "/app/incident-report?nature_of_incident=Near%20Miss"
   },
   {
    "color": "Red",
@@ -135,6 +121,32 @@
    "doc_view": "List",
    "label": "Ops Settings",
    "link_to": "Security Ops Settings",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Security Asset",
+   "link_to": "Security Asset",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Asset Scan Log",
+   "link_to": "Asset Scan Log",
+   "type": "DocType"
+  },
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Appointments",
+   "link_to": "Appointment",
+   "type": "DocType"
+  },
+  {
+   "color": "Cyan",
+   "doc_view": "List",
+   "label": "Vehicles",
+   "link_to": "Vehicle",
    "type": "DocType"
   }
  ],
