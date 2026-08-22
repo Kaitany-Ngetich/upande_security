@@ -2520,12 +2520,17 @@ def _farm_name_field() -> str:
     doctype on a given site: upande_kaitet's Farm names itself `farm`,
     upande_core's Farm (krv16, kaitetv16-staging, ...) names itself
     `farm_name` instead - there's no field called `farm` there at all.
-    Resolving this once from the site's own Farm meta, rather than
-    hardcoding either name, is what lets this same dashboard code run
-    unmodified across both schemas instead of throwing a field-permission
-    error on whichever schema it wasn't written against."""
-    meta = frappe.get_meta("Farm")
-    return "farm_name" if meta.has_field("farm_name") else "farm"
+
+    Rather than track that per schema, use `name` itself: both variants
+    declare `autoname: field:<whichever field>`, so Frappe guarantees
+    `name` already equals that field's value on every Farm record,
+    regardless of which app supplied the doctype on this site. Verified
+    against real data on all three: local ({"name": "Chepsito", "farm":
+    "Chepsito"}), krv16 and kaitetv16-staging ({"name": "Chepsito",
+    "farm_name": "Chepsito"}) - identical every time. That sidesteps the
+    cross-schema field-name problem entirely instead of resolving it at
+    runtime."""
+    return "name"
 
 
 @frappe.whitelist()
