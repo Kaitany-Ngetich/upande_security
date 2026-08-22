@@ -2515,6 +2515,19 @@ def _shift_guard_name(row, employee_names, security_guard_names) -> str:
     return _("Unassigned")
 
 
+def _farm_name_field() -> str:
+    """Farm's own display/naming field differs by which app supplies the
+    doctype on a given site: upande_kaitet's Farm names itself `farm`,
+    upande_core's Farm (krv16, kaitetv16-staging, ...) names itself
+    `farm_name` instead - there's no field called `farm` there at all.
+    Resolving this once from the site's own Farm meta, rather than
+    hardcoding either name, is what lets this same dashboard code run
+    unmodified across both schemas instead of throwing a field-permission
+    error on whichever schema it wasn't written against."""
+    meta = frappe.get_meta("Farm")
+    return "farm_name" if meta.has_field("farm_name") else "farm"
+
+
 @frappe.whitelist()
 def search_guards_for_shift(guard_type, query):
     """Guard type-ahead for the Shift Assignments tab's New/Rotate modal.
@@ -2572,6 +2585,7 @@ def search_guards_for_shift(guard_type, query):
 
 def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=None, company=None):
     doctype = "Security Guard Shift Assignment"
+    farm_name_field = _farm_name_field()
 
     if not frappe.has_permission(doctype, ptype="read"):
         frappe.throw(
@@ -2587,10 +2601,11 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
     company_farms = frappe.get_list(
         "Farm",
         filters={"company": company} if company else {},
-        fields=["name", "farm"],
-        order_by="farm asc",
+        fields=["name", farm_name_field],
+        order_by=f"{farm_name_field} asc",
         page_length=500,
     )
+    company_farms = [{"name": f["name"], "farm": f.get(farm_name_field)} for f in company_farms]
 
     # An explicit farm always wins; otherwise fall back to the company's farms
     # (or no restriction at all if neither farm nor company was picked).
@@ -2665,9 +2680,10 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
     # Coverage board is built over the same farm scope as the data above: just
     # the selected farm, or every farm in the selected company, or all farms.
     if farm:
-        board_farms = [f for f in company_farms if f["name"] == farm] or frappe.get_list(
-            "Farm", filters={"name": farm}, fields=["name", "farm"]
-        )
+        fallback = frappe.get_list("Farm", filters={"name": farm}, fields=["name", farm_name_field])
+        board_farms = [f for f in company_farms if f["name"] == farm] or [
+            {"name": f["name"], "farm": f.get(farm_name_field)} for f in fallback
+        ]
     else:
         board_farms = company_farms
 
@@ -2769,13 +2785,24 @@ def get_farm_boundaries() -> dict[str, Any]:
             frappe.PermissionError,
         )
 
+    farm_meta = frappe.get_meta("Farm")
+    if not farm_meta.has_field("boundary_geojson"):
+        # This site's Farm doctype (e.g. upande_core's, not upande_kaitet's)
+        # has nowhere to store a boundary at all yet - same "just omit it"
+        # treatment as a Farm that simply hasn't had one uploaded, rather
+        # than erroring the whole Patrol Map over a field that doesn't exist
+        # here.
+        return {"success": True, "boundaries": []}
+
+    farm_name_field = _farm_name_field()
     farms = frappe.get_list(
         "Farm",
         filters={"boundary_geojson": ["is", "set"]},
-        fields=["name", "farm", "boundary_geojson"],
-        order_by="farm asc",
+        fields=["name", farm_name_field, "boundary_geojson"],
+        order_by=f"{farm_name_field} asc",
         page_length=500,
     )
+    farms = [{"name": f["name"], "farm": f.get(farm_name_field), "boundary_geojson": f["boundary_geojson"]} for f in farms]
 
     return {
         "success": True,
