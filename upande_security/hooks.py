@@ -85,10 +85,11 @@ add_to_apps_screen = [
 # ----------
 
 # add methods and filters to jinja environment
-# jinja = {
-# 	"methods": "upande_security.utils.jinja_methods",
-# 	"filters": "upande_security.utils.jinja_filters"
-# }
+jinja = {
+	"methods": [
+		"upande_security.utils.dispatch_qr.get_dispatch_qr_svg",
+	],
+}
 
 # Installation
 # ------------
@@ -330,7 +331,7 @@ fixtures = [
     {
         "dt": "Web Page",
         "filters": [
-            ["route", "in", ["security-dashboard", "patrol-map"]],
+            ["route", "in", ["security-dashboard", "patrol-map", "visitor-received"]],
         ],
     },
     {
@@ -409,6 +410,8 @@ fixtures = [
                     "Supplier-custom_approved_by",
                     "Supplier-custom_compliance_documents",
                     "Timesheet-custom_asset",
+                    "Delivery Note-security_check_tab",
+                    "Delivery Note-security_check_html",
                 ],
             ],
         ],
@@ -465,10 +468,22 @@ fixtures = [
         # The badge itself (built via Desk's Print Format builder, DB-only,
         # same class of gap as the Workspace/DocType entries above) - the
         # Visitor Badge doctype ships fine without this, there's just
-        # nothing to actually render one on a fresh deploy.
+        # nothing to actually render one on a fresh deploy. Combined with
+        # Delivery Note's gate-copy format (a custom print format on a
+        # foreign doctype owned by Stock, deliberately its own separate
+        # format rather than a modification of ERPNext's own "Delivery Note
+        # Standard", so a Stock/ERPNext upgrade can never silently clobber
+        # it, and vice versa) into ONE fixture entry - `bench
+        # export-fixtures` does NOT merge multiple filter blocks for the
+        # same `dt`, it overwrites the file with whichever block runs last,
+        # so two separate Print Format entries here silently drop one
+        # format from disk (still live in the DB, just no longer
+        # source-tracked) every time a full export runs. Add any future
+        # Security-owned Print Format name to this same `in` list, never as
+        # a new sibling entry.
         "dt": "Print Format",
         "filters": [
-            ["name", "=", "Visitor Badge Card"],
+            ["name", "in", ["Visitor Badge Card", "Delivery Note - Gate Copy"]],
         ],
     },
     {

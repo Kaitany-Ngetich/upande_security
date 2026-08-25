@@ -16,7 +16,7 @@ exactly one clear source of inbound delivery authorization in this system,
 not several competing ones to plan a config layer around.
 
 Read-only against Purchase Order. Security's own record of having checked a
-delivery lives entirely in Gate Delivery Verification, a doctype this app
+delivery lives entirely in Gate Receiving Verification, a doctype this app
 owns outright.
 """
 
@@ -105,7 +105,7 @@ def _lookup(reference):
 
 
 @frappe.whitelist()
-def search_delivery_for_gate(reference):
+def search_receiving_for_gate(reference):
 	"""Guard types/scans the PO number off the delivery paperwork, or the
 	supplier's name if that's all they have. Read-only — never touches the
 	Purchase Order."""
@@ -117,7 +117,7 @@ def search_delivery_for_gate(reference):
 	try:
 		match = _lookup(reference)
 	except Exception as e:
-		frappe.log_error("search_delivery_for_gate", str(e))
+		frappe.log_error("search_receiving_for_gate", str(e))
 		match = None
 
 	if match:
@@ -131,8 +131,8 @@ def search_delivery_for_gate(reference):
 
 
 @frappe.whitelist()
-def verify_delivery_at_gate(reference, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None):
-	"""Creates the actual audit record — a NEW Gate Delivery Verification
+def verify_receiving_at_gate(reference, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None):
+	"""Creates the actual audit record — a NEW Gate Receiving Verification
 	document, never an edit to the Purchase Order. Re-resolves the PO fresh
 	(rather than trusting whatever the client cached from the search call)
 	so the snapshot reflects the document at the moment of the actual gate
@@ -147,7 +147,7 @@ def verify_delivery_at_gate(reference, gate_verification_status, vehicle_no=None
 		frappe.response["message"] = {"error": "No active Purchase Order found for that reference."}
 		return
 
-	doc = frappe.new_doc("Gate Delivery Verification")
+	doc = frappe.new_doc("Gate Receiving Verification")
 	doc.purchase_order = match["purchase_order"]
 	doc.supplier = match["supplier"]
 	doc.po_status = match["po_status"]
@@ -171,17 +171,17 @@ def verify_delivery_at_gate(reference, gate_verification_status, vehicle_no=None
 
 
 @frappe.whitelist()
-def confirm_delivery_departure(name):
+def confirm_receiving_departure(name):
 	"""Confirms the truck has left after dropping off goods — offloading
-	takes time, so this is a separate call from verify_delivery_at_gate,
-	not a field set at arrival. name here is the Gate Delivery
+	takes time, so this is a separate call from verify_receiving_at_gate,
+	not a field set at arrival. name here is the Gate Receiving
 	Verification record's own name, not the Purchase Order's."""
-	if not frappe.db.exists("Gate Delivery Verification", name):
-		frappe.response["message"] = {"error": "Gate Delivery Verification " + str(name) + " not found."}
+	if not frappe.db.exists("Gate Receiving Verification", name):
+		frappe.response["message"] = {"error": "Gate Receiving Verification " + str(name) + " not found."}
 		return
 
 	frappe.db.set_value(
-		"Gate Delivery Verification", name, "gate_departure_time", frappe.utils.now_datetime()
+		"Gate Receiving Verification", name, "gate_departure_time", frappe.utils.now_datetime()
 	)
 	frappe.db.commit()
 	frappe.response["message"] = {"name": name, "gate_departure_time": str(frappe.utils.now_datetime())}

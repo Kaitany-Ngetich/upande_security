@@ -49,8 +49,8 @@
   {
    "color": "Green",
    "doc_view": "List",
-   "label": "Delivery Checks",
-   "link_to": "Gate Delivery Verification",
+   "label": "Receiving Checks",
+   "link_to": "Gate Receiving Verification",
    "type": "DocType"
   },
   {

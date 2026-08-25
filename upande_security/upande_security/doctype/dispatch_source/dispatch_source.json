@@ -18,7 +18,14 @@
   "items_summary_field",
   "column_break_3",
   "status_field",
-  "authorized_status_values"
+  "authorized_status_values",
+  "section_break_items",
+  "items_child_table",
+  "item_code_field",
+  "item_name_field",
+  "column_break_4",
+  "item_qty_field",
+  "item_uom_field"
  ],
  "fields": [
   {
@@ -64,14 +71,12 @@
    "fieldname": "date_field",
    "fieldtype": "Data",
    "label": "Date Field",
-   "in_list_view": 1,
-   "description": "Field holding the dispatch date, or a full datetime if the source has no separate time field."
+   "in_list_view": 1
   },
   {
    "fieldname": "time_field",
    "fieldtype": "Data",
-   "label": "Time Field",
-   "description": "Leave blank if date_field already holds a full datetime."
+   "label": "Time Field"
   },
   {
    "fieldname": "farm_field",
@@ -95,8 +100,41 @@
   {
    "fieldname": "authorized_status_values",
    "fieldtype": "Data",
-   "label": "Authorized Status Values",
-   "description": "Comma-separated. Blank means no status gating — any match is treated as checkable."
+   "label": "Authorized Status Values"
+  },
+  {
+   "fieldname": "section_break_items",
+   "fieldtype": "Section Break",
+   "label": "Per-Item Content Check"
+  },
+  {
+   "fieldname": "items_child_table",
+   "fieldtype": "Data",
+   "label": "Items Child Table Fieldname"
+  },
+  {
+   "fieldname": "item_code_field",
+   "fieldtype": "Data",
+   "label": "Item Code Field"
+  },
+  {
+   "fieldname": "item_name_field",
+   "fieldtype": "Data",
+   "label": "Item Name Field"
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "item_qty_field",
+   "fieldtype": "Data",
+   "label": "Item Qty Field"
+  },
+  {
+   "fieldname": "item_uom_field",
+   "fieldtype": "Data",
+   "label": "Item UOM Field"
   }
  ],
  "istable": 1,
