@@ -43,15 +43,13 @@
    "fieldtype": "Float",
    "label": "Expected Qty",
    "read_only": 1,
-   "in_list_view": 1,
-   "description": "From the dispatch document's own item line at the moment this record was created — a snapshot, not live-linked."
+   "in_list_view": 1
   },
   {
    "fieldname": "actual_qty",
    "fieldtype": "Float",
    "label": "Actual Qty",
-   "in_list_view": 1,
-   "description": "What the guard physically counted at the gate."
+   "in_list_view": 1
   },
   {
    "default": "Not Checked",
@@ -60,8 +58,7 @@
    "label": "Match Status",
    "options": "Not Checked\nMatches\nShort\nOver",
    "read_only": 1,
-   "in_list_view": 1,
-   "description": "Computed server-side from actual_qty vs expected_qty when the gate verification is submitted — never set by hand."
+   "in_list_view": 1
   }
  ],
  "istable": 1,

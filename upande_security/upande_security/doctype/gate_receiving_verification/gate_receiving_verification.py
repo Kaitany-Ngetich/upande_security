@@ -6,7 +6,7 @@ from frappe import _
 from frappe.model.document import Document
 
 
-class GateDeliveryVerification(Document):
+class GateReceivingVerification(Document):
 	def validate(self):
 		if self.gate_verification_status == "Rejected" and not self.remarks:
 			frappe.throw(

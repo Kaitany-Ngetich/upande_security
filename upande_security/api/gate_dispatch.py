@@ -154,7 +154,9 @@ def search_dispatch_for_gate(reference):
 
 
 @frappe.whitelist()
-def verify_dispatch_at_gate(reference, gate_verification_status, remarks=None, item_checks=None):
+def verify_dispatch_at_gate(
+	reference, gate_verification_status, remarks=None, item_checks=None, gate_arrival_time=None
+):
 	"""Creates the actual audit record — a NEW Gate Dispatch Verification
 	document, never an edit to the source. Re-resolves the source fresh
 	(rather than trusting whatever the client cached from the search call)
@@ -167,7 +169,15 @@ def verify_dispatch_at_gate(reference, gate_verification_status, remarks=None, i
 	item_checks: optional JSON string (or list, if called internally) of
 	{"item_code": ..., "actual_qty": ...} - one entry per item the guard
 	actually counted. Items the guard didn't get to are left "Not Checked"
-	rather than assumed to match or fail."""
+	rather than assumed to match or fail.
+
+	gate_arrival_time: optional, client-supplied timestamp of when the
+	truck/driver first presented at the gate (captured on the client the
+	moment search_dispatch_for_gate returned a match) - distinct from
+	gate_exit_time below, which is stamped server-side at the moment this
+	call is made (i.e. when the guard actually clears the truck to leave).
+	Never backfilled/defaulted if omitted - a blank arrival time is the
+	honest answer when the client didn't send one, not something to fake."""
 	reference = (reference or "").strip()
 	gate_verification_status = (gate_verification_status or "").strip()
 	if gate_verification_status not in ("Verified", "Rejected"):
@@ -246,6 +256,7 @@ def verify_dispatch_at_gate(reference, gate_verification_status, remarks=None, i
 
 	doc.gate_verification_status = gate_verification_status
 	doc.gate_verified_by = frappe.session.user
+	doc.gate_arrival_time = frappe.utils.get_datetime(gate_arrival_time) if gate_arrival_time else None
 	doc.gate_exit_time = frappe.utils.now_datetime()
 	doc.remarks = remarks
 	doc.insert(ignore_permissions=True)
@@ -270,16 +281,95 @@ def verify_dispatch_at_gate(reference, gate_verification_status, remarks=None, i
 
 
 @frappe.whitelist()
-def confirm_dispatch_return(name):
-	"""Not every dispatch returns to the farm (an export truck headed to
-	port doesn't) — this is only called for the ones that do. name here is
-	the Gate Dispatch Verification record's own name, not the source's."""
-	if not frappe.db.exists("Gate Dispatch Verification", name):
-		frappe.response["message"] = {"error": "Gate Dispatch Verification " + str(name) + " not found."}
+def get_gate_dispatch_verification_summary(reference_doctype, reference_name):
+	"""Read-only lookup for a source document's own UI (e.g. Delivery
+	Note's "Security Check" tab) to show whatever gate verification has
+	already happened for it, without Delivery Note ever storing a copy of
+	that data itself — Gate Dispatch Verification stays the sole owner,
+	same "read-only against the source" principle as the rest of this
+	file, just mirrored: here the source is reading from us instead of us
+	reading from the source.
+
+	Returns None if no verification exists yet for this document. If more
+	than one verification attempt exists (a guard re-checked after a
+	Rejected first pass, say), returns only the most recent one.
+
+	Deliberately built entirely on frappe.db.get_value / frappe.get_all,
+	neither of which enforce doctype permissions the way frappe.get_doc /
+	frappe.get_list do - no explicit ignore_permissions needed. That's the
+	right call here, not an oversight: Gate Guard's own read access on
+	Gate Dispatch Verification is if_owner=1 (a guard can only read
+	verifications *they personally* created), so a different guard - or a
+	Sales/Stock user with no Security role at all - legitimately can't
+	read someone else's verification row directly through the doctype
+	itself. But anyone who can already open this Delivery Note in Desk
+	should be able to see whether/how it was checked at the gate; that's
+	guard-entered operational metadata about a document they can already
+	see in full, not a new exposure of anything sensitive (no PII beyond
+	a guard's own name, which is also visible via the record's owner/
+	modified_by on any other doctype)."""
+	reference_doctype = (reference_doctype or "").strip()
+	reference_name = (reference_name or "").strip()
+	if not reference_doctype or not reference_name:
+		frappe.response["message"] = None
 		return
 
-	frappe.db.set_value(
-		"Gate Dispatch Verification", name, "gate_return_time", frappe.utils.now_datetime()
+	# The precondition the rest of this function relies on ("anyone who can
+	# already open this Delivery Note in Desk should be able to see whether
+	# it was checked") is NOT enforced by frappe.db.get_value/get_all below
+	# - both bypass doctype permissions entirely, so without this explicit
+	# check any logged-in user could pass an arbitrary reference_doctype/
+	# reference_name and read another guard's verification (including
+	# flagged shortages) despite having no read access to either doctype.
+	# Fails soft (None, same as "no verification found") rather than
+	# frappe.throw, so a permission gap here just hides the tab instead of
+	# surfacing a scary error on someone's Delivery Note page.
+	if not frappe.has_permission(reference_doctype, "read", doc=reference_name):
+		frappe.response["message"] = None
+		return
+
+	name = frappe.db.get_value(
+		"Gate Dispatch Verification",
+		{"reference_doctype": reference_doctype, "reference_name": reference_name},
+		"name",
+		order_by="creation desc",
 	)
-	frappe.db.commit()
-	frappe.response["message"] = {"name": name, "gate_return_time": str(frappe.utils.now_datetime())}
+	if not name:
+		frappe.response["message"] = None
+		return
+
+	# frappe.db.get_value never checks permissions to begin with (it's a
+	# raw SQL read, unlike frappe.get_doc) - no ignore_permissions kwarg
+	# exists on it, and passing one would raise a TypeError. Safe here only
+	# because the has_permission gate above already confirmed the caller
+	# can read the source document this verification is about.
+	verification = frappe.db.get_value(
+		"Gate Dispatch Verification",
+		name,
+		["gate_verification_status", "gate_verified_by", "gate_arrival_time", "gate_exit_time", "remarks"],
+		as_dict=True,
+	)
+
+	verified_by_name = None
+	if verification.gate_verified_by:
+		verified_by_name = frappe.db.get_value("User", verification.gate_verified_by, "full_name")
+
+	# frappe.get_all already ignores permissions internally (unlike
+	# frappe.get_list) - no need to pass ignore_permissions here either.
+	item_checks = frappe.get_all(
+		"Dispatch Item Check",
+		filters={"parenttype": "Gate Dispatch Verification", "parent": name},
+		fields=["item_code", "item_name", "uom", "expected_qty", "actual_qty", "match_status"],
+		order_by="idx asc",
+	)
+
+	frappe.response["message"] = {
+		"name": name,
+		"gate_verification_status": verification.gate_verification_status,
+		"gate_verified_by": verification.gate_verified_by,
+		"gate_verified_by_name": verified_by_name or verification.gate_verified_by,
+		"gate_arrival_time": verification.gate_arrival_time,
+		"gate_exit_time": verification.gate_exit_time,
+		"remarks": verification.remarks,
+		"item_checks": item_checks,
+	}

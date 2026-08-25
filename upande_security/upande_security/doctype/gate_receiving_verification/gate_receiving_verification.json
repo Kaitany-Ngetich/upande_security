@@ -125,7 +125,7 @@
  "modified": "2026-08-14 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
- "name": "Gate Delivery Verification",
+ "name": "Gate Receiving Verification",
  "naming_rule": "By fieldname",
  "autoname": "hash",
  "owner": "Administrator",

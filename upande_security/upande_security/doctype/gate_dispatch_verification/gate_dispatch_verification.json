@@ -21,8 +21,8 @@
   "gate_verification_status",
   "gate_verified_by",
   "column_break_2",
+  "gate_arrival_time",
   "gate_exit_time",
-  "gate_return_time",
   "remarks"
  ],
  "fields": [
@@ -32,8 +32,7 @@
    "label": "Dispatch Source",
    "reqd": 1,
    "read_only": 1,
-   "in_list_view": 1,
-   "description": "Which doctype this verification is against (e.g. 'Dispatch Form') — resolved automatically from the matched Dispatch Source config, not picked by hand."
+   "in_list_view": 1
   },
   {
    "fieldname": "reference_name",
@@ -60,8 +59,7 @@
    "fieldtype": "Data",
    "label": "Vehicle No",
    "read_only": 1,
-   "in_list_view": 1,
-   "description": "Snapshot from the dispatch document at the moment of gate verification — not live-linked, so later edits to the source don't silently rewrite this record."
+   "in_list_view": 1
   },
   {
    "fieldname": "driver_name",
@@ -73,8 +71,7 @@
    "fieldname": "dispatch_datetime",
    "fieldtype": "Datetime",
    "label": "Dispatch Date/Time",
-   "read_only": 1,
-   "description": "Combined from the source's date + time fields, per its Dispatch Source config."
+   "read_only": 1
   },
   {
    "fieldname": "section_break_1",
@@ -90,8 +87,7 @@
    "fieldname": "source_status",
    "fieldtype": "Data",
    "label": "Source Status At Verification",
-   "read_only": 1,
-   "description": "The dispatch document's own status field value at the moment it was checked — e.g. 'Sealed'. Snapshot, not live."
+   "read_only": 1
   },
   {
    "fieldname": "section_break_items",
@@ -102,8 +98,7 @@
    "fieldname": "item_checks",
    "fieldtype": "Table",
    "options": "Dispatch Item Check",
-   "label": "Item Checks",
-   "description": "Empty when the matched Dispatch Source has no per-item breakdown configured (Items Child Table Fieldname blank) — falls back to the Items Summary text above in that case."
+   "label": "Item Checks"
   },
   {
    "fieldname": "section_break_2",
@@ -131,22 +126,20 @@
    "fieldtype": "Column Break"
   },
   {
+   "fieldname": "gate_arrival_time",
+   "fieldtype": "Datetime",
+   "label": "Gate Arrival Time"
+  },
+  {
    "fieldname": "gate_exit_time",
    "fieldtype": "Datetime",
    "label": "Gate Exit Time",
    "in_list_view": 1
   },
   {
-   "fieldname": "gate_return_time",
-   "fieldtype": "Datetime",
-   "label": "Gate Return Time",
-   "description": "Not every dispatch returns to the farm the same way (an export truck headed to port typically doesn't) — leave blank when there's nothing to confirm on return."
-  },
-  {
    "fieldname": "remarks",
    "fieldtype": "Small Text",
-   "label": "Remarks",
-   "description": "Required context when Gate Verification Status is Rejected — why the truck/driver didn't match."
+   "label": "Remarks"
   }
  ],
  "links": [],
