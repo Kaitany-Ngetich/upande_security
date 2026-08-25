@@ -85,10 +85,11 @@ add_to_apps_screen = [
 # ----------
 
 # add methods and filters to jinja environment
-# jinja = {
-# 	"methods": "upande_security.utils.jinja_methods",
-# 	"filters": "upande_security.utils.jinja_filters"
-# }
+jinja = {
+	"methods": [
+		"upande_security.utils.dispatch_qr.get_dispatch_qr_svg",
+	],
+}
 
 # Installation
 # ------------
@@ -331,6 +332,18 @@ fixtures = [
         "dt": "Web Page",
         "filters": [
             ["route", "in", ["security-dashboard", "patrol-map"]],
+        ],
+    },
+    {
+        # A custom (non-standard) print format on a foreign doctype
+        # (Delivery Note, owned by Stock) - deliberately its own separate
+        # print format rather than a modification of ERPNext's own
+        # "Delivery Note Standard"/"Delivery Note with Item Image", so a
+        # Stock/ERPNext upgrade can never silently clobber Security's gate
+        # copy, and vice versa.
+        "dt": "Print Format",
+        "filters": [
+            ["name", "=", "Delivery Note - Gate Copy"],
         ],
     },
     {

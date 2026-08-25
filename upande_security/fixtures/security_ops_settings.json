@@ -12,7 +12,12 @@
     "source_doctype": "Dispatch Form",
     "status_field": "",
     "time_field": "custom_dispatch_time",
-    "vehicle_field": "custom_truck"
+    "vehicle_field": "custom_truck",
+    "items_child_table": "dispatch_form_item",
+    "item_code_field": "item_code",
+    "item_name_field": "",
+    "item_qty_field": "bunch_qty",
+    "item_uom_field": "bunch_uom"
    },
    {
     "authorized_status_values": "",
@@ -25,7 +30,12 @@
     "source_doctype": "Delivery Note",
     "status_field": "",
     "time_field": "posting_time",
-    "vehicle_field": "vehicle_no"
+    "vehicle_field": "vehicle_no",
+    "items_child_table": "items",
+    "item_code_field": "item_code",
+    "item_name_field": "item_name",
+    "item_qty_field": "qty",
+    "item_uom_field": "uom"
    }
   ],
   "docstatus": 0,

@@ -18,7 +18,14 @@
   "items_summary_field",
   "column_break_3",
   "status_field",
-  "authorized_status_values"
+  "authorized_status_values",
+  "section_break_items",
+  "items_child_table",
+  "item_code_field",
+  "item_name_field",
+  "column_break_4",
+  "item_qty_field",
+  "item_uom_field"
  ],
  "fields": [
   {
@@ -97,6 +104,44 @@
    "fieldtype": "Data",
    "label": "Authorized Status Values",
    "description": "Comma-separated. Blank means no status gating — any match is treated as checkable."
+  },
+  {
+   "fieldname": "section_break_items",
+   "fieldtype": "Section Break",
+   "label": "Per-Item Content Check"
+  },
+  {
+   "fieldname": "items_child_table",
+   "fieldtype": "Data",
+   "label": "Items Child Table Fieldname",
+   "description": "Fieldname of the source doctype's own item child table (e.g. 'items' on Delivery Note, 'dispatch_form_item' on Dispatch Form). Blank means this source has no per-item breakdown available — the gate check falls back to the single Items Summary Field above."
+  },
+  {
+   "fieldname": "item_code_field",
+   "fieldtype": "Data",
+   "label": "Item Code Field",
+   "description": "Fieldname on each child row holding the item code."
+  },
+  {
+   "fieldname": "item_name_field",
+   "fieldtype": "Data",
+   "label": "Item Name Field",
+   "description": "Fieldname on each child row holding a human-readable item name. Leave blank to fall back to the item code itself."
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "item_qty_field",
+   "fieldtype": "Data",
+   "label": "Item Qty Field",
+   "description": "Fieldname on each child row holding the expected quantity."
+  },
+  {
+   "fieldname": "item_uom_field",
+   "fieldtype": "Data",
+   "label": "Item UOM Field"
   }
  ],
  "istable": 1,
