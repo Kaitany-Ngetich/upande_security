@@ -572,7 +572,7 @@
   "ignore_xss_filter": 0,
   "in_global_search": 0,
   "in_preview": 0,
-  "insert_after": "custom_is_contractor",
+  "insert_after": "language",
   "is_system_generated": 0,
   "is_virtual": 0,
   "label": "Security/Overview",
