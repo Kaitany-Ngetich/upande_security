@@ -402,6 +402,7 @@ fixtures = [
                     "Employee-custom_farm",
                     "Employee-default_shift",
                     "Supplier-custom_is_contractor",
+                    "Supplier-security_overview_tab",
                     "Supplier-custom_access_start_date",
                     "Supplier-custom_access_end_date",
                     "Supplier-custom_approval_date",

@@ -2364,10 +2364,21 @@ def fetchPatrolData(date=None, farm=None):
         fields=[
             "name", "patrol", "personel", "internal_guard",
             "external_guard", "captured_at", "latitude", "longitude", "farm",
+            "gps_accuracy",
         ],
         order_by="captured_at asc",
         page_length=5000,
     )
+
+    # A phone's location service typically starts with a coarse network/
+    # cell-tower fix (100s-1000s of metres off) before the GPS chip locks
+    # on a few seconds later. Plotting those early fixes draws an
+    # unrealistic teleport-and-snap-back spike at the start of every patrol
+    # path instead of a clean walking track - drop anything this coarse
+    # rather than plot it as real guard movement. Missing/unparsable
+    # accuracy (older rows, before this field existed) is kept rather than
+    # dropped, since absence of data isn't evidence of a bad fix.
+    GPS_ACCURACY_THRESHOLD_M = 100
 
     # Fallback only — stamp_patrol_gps_log_farm (hooks.py before_insert on
     # Patrol GPS Log) already writes farm directly onto every row at capture
@@ -2382,6 +2393,10 @@ def fetchPatrolData(date=None, farm=None):
         lat = _patrol_float(p.get("latitude"))
         lng = _patrol_float(p.get("longitude"))
         if lat is None or lng is None or not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+            continue
+
+        accuracy = _patrol_float(p.get("gps_accuracy"))
+        if accuracy is not None and accuracy > GPS_ACCURACY_THRESHOLD_M:
             continue
 
         patrol_id = str(p.get("patrol") or "Unassigned").strip() or "Unassigned"
@@ -2612,9 +2627,22 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
     # Farms scoped to the selected Company (or every farm, if no company chosen) —
     # drives both the Farm dropdown options and, below, which farms the coverage
     # board / rotation metrics are computed over.
+    #
+    # Only honoured when this site's own Farm doctype actually has a `company`
+    # field to filter on (upande_kaitet's does; upande_core's - krv16,
+    # kaitetv16-staging - doesn't, with no other field anywhere linking a Farm
+    # to a Company either). Rather than invent that relationship ourselves in
+    # this dashboard - it isn't ours to define - the Company filter is simply
+    # a no-op for farm-scoping on sites where it can't be answered, instead of
+    # throwing "You do not have permission to access field: Farm.company".
+    if company and frappe.get_meta("Farm").has_field("company"):
+        company_farm_filters = {"company": company}
+    else:
+        company_farm_filters = {}
+
     company_farms = frappe.get_list(
         "Farm",
-        filters={"company": company} if company else {},
+        filters=company_farm_filters,
         fields=["name", farm_name_field],
         order_by=f"{farm_name_field} asc",
         page_length=500,
