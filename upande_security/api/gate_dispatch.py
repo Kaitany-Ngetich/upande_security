@@ -256,7 +256,20 @@ def verify_dispatch_at_gate(
 
 	doc.gate_verification_status = gate_verification_status
 	doc.gate_verified_by = frappe.session.user
-	doc.gate_arrival_time = frappe.utils.get_datetime(gate_arrival_time) if gate_arrival_time else None
+	# The client sends new Date().toISOString(), which is always UTC/"Z"
+	# suffixed. frappe.utils.get_datetime() correctly parses that into a
+	# timezone-AWARE datetime, but Datetime fields need a naive one - left
+	# as-is, the tz-aware value round-trips through str() with a "+00:00"
+	# offset that MariaDB's strict mode rejects outright, failing this
+	# insert() entirely (not just the arrival-time field). Convert to the
+	# site's own timezone and strip tzinfo, same idiom Frappe itself uses
+	# internally (frappe.utils.data.convert_utc_to_system_timezone).
+	arrival_dt = None
+	if gate_arrival_time:
+		arrival_dt = frappe.utils.get_datetime(gate_arrival_time)
+		if arrival_dt.tzinfo is not None:
+			arrival_dt = frappe.utils.convert_utc_to_system_timezone(arrival_dt).replace(tzinfo=None)
+	doc.gate_arrival_time = arrival_dt
 	doc.gate_exit_time = frappe.utils.now_datetime()
 	doc.remarks = remarks
 	doc.insert(ignore_permissions=True)
