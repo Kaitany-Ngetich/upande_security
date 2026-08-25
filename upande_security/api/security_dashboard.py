@@ -2612,9 +2612,22 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
     # Farms scoped to the selected Company (or every farm, if no company chosen) —
     # drives both the Farm dropdown options and, below, which farms the coverage
     # board / rotation metrics are computed over.
+    #
+    # Only honoured when this site's own Farm doctype actually has a `company`
+    # field to filter on (upande_kaitet's does; upande_core's - krv16,
+    # kaitetv16-staging - doesn't, with no other field anywhere linking a Farm
+    # to a Company either). Rather than invent that relationship ourselves in
+    # this dashboard - it isn't ours to define - the Company filter is simply
+    # a no-op for farm-scoping on sites where it can't be answered, instead of
+    # throwing "You do not have permission to access field: Farm.company".
+    if company and frappe.get_meta("Farm").has_field("company"):
+        company_farm_filters = {"company": company}
+    else:
+        company_farm_filters = {}
+
     company_farms = frappe.get_list(
         "Farm",
-        filters={"company": company} if company else {},
+        filters=company_farm_filters,
         fields=["name", farm_name_field],
         order_by=f"{farm_name_field} asc",
         page_length=500,
