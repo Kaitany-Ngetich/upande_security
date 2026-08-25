@@ -13,6 +13,19 @@
     "status_field": "",
     "time_field": "custom_dispatch_time",
     "vehicle_field": "custom_truck"
+   },
+   {
+    "authorized_status_values": "",
+    "date_field": "posting_date",
+    "driver_field": "driver_name",
+    "enabled": 1,
+    "farm_field": "",
+    "items_summary_field": "",
+    "reference_field": "name",
+    "source_doctype": "Delivery Note",
+    "status_field": "",
+    "time_field": "posting_time",
+    "vehicle_field": "vehicle_no"
    }
   ],
   "docstatus": 0,
