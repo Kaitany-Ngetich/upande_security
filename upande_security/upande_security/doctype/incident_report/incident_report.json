@@ -35,7 +35,6 @@
   "section_resolution",
   "resolution",
   "corrective_actions",
-  "capa_actions",
   "resolution_datetime",
   "column_break_res_1",
   "section_casualties",
@@ -224,12 +223,6 @@
    "fieldname": "corrective_actions",
    "fieldtype": "Long Text",
    "label": "Corrective Actions"
-  },
-  {
-   "fieldname": "capa_actions",
-   "fieldtype": "Table",
-   "label": "Corrective Actions (CAPA)",
-   "options": "CAPA Action"
   },
   {
    "fieldname": "resolution_datetime",
