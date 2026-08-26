@@ -220,6 +220,13 @@ def verify_dispatch_at_gate(
 	doc.items_summary = match.get("items_summary")
 	doc.source_status = match.get("source_status")
 
+	# Stored as a JSON blob on this doctype's own item_checks_json field,
+	# not a child-table doctype - this data doesn't need Frappe's list-view/
+	# report-builder querying on individual item rows, and every consumer
+	# (verify's own response below, get_gate_dispatch_verification_summary)
+	# already only ever reads the whole set at once per verification, never
+	# filters across rows from many different verifications at once.
+	item_check_rows = []
 	for expected in match.get("expected_items") or []:
 		# Rounded to 2dp before comparing - the source's own qty field can
 		# carry binary-float noise (e.g. 12.000000000000002) picked up from
@@ -239,20 +246,15 @@ def verify_dispatch_at_gate(
 				match_status = "Short"
 			else:
 				match_status = "Over"
-		doc.append("item_checks", {
+		item_check_rows.append({
 			"item_code": expected["item_code"],
 			"item_name": expected.get("item_name"),
 			"uom": expected.get("uom"),
 			"expected_qty": expected_qty,
-			# Float fields cast None -> 0.0 at the DB layer regardless of
-			# what's assigned here (Frappe's get_valid_dict), so a
-			# "Not Checked" row persists actual_qty=0.0 in the database
-			# even though it's correctly None in this response - the two
-			# are distinguishable via match_status, never via actual_qty
-			# alone, for any future report/consumer of this table.
 			"actual_qty": actual_qty,
 			"match_status": match_status,
 		})
+	doc.item_checks_json = frappe.as_json(item_check_rows)
 
 	doc.gate_verification_status = gate_verification_status
 	doc.gate_verified_by = frappe.session.user
@@ -280,16 +282,7 @@ def verify_dispatch_at_gate(
 		"reference_name": doc.reference_name,
 		"gate_verification_status": doc.gate_verification_status,
 		"is_authorized": match.get("is_authorized"),
-		"item_checks": [
-			{
-				"item_code": r.item_code,
-				"item_name": r.item_name,
-				"expected_qty": r.expected_qty,
-				"actual_qty": r.actual_qty,
-				"match_status": r.match_status,
-			}
-			for r in doc.item_checks
-		],
+		"item_checks": item_check_rows,
 	}
 
 
@@ -359,7 +352,14 @@ def get_gate_dispatch_verification_summary(reference_doctype, reference_name):
 	verification = frappe.db.get_value(
 		"Gate Dispatch Verification",
 		name,
-		["gate_verification_status", "gate_verified_by", "gate_arrival_time", "gate_exit_time", "remarks"],
+		[
+			"gate_verification_status",
+			"gate_verified_by",
+			"gate_arrival_time",
+			"gate_exit_time",
+			"remarks",
+			"item_checks_json",
+		],
 		as_dict=True,
 	)
 
@@ -367,14 +367,7 @@ def get_gate_dispatch_verification_summary(reference_doctype, reference_name):
 	if verification.gate_verified_by:
 		verified_by_name = frappe.db.get_value("User", verification.gate_verified_by, "full_name")
 
-	# frappe.get_all already ignores permissions internally (unlike
-	# frappe.get_list) - no need to pass ignore_permissions here either.
-	item_checks = frappe.get_all(
-		"Dispatch Item Check",
-		filters={"parenttype": "Gate Dispatch Verification", "parent": name},
-		fields=["item_code", "item_name", "uom", "expected_qty", "actual_qty", "match_status"],
-		order_by="idx asc",
-	)
+	item_checks = frappe.parse_json(verification.item_checks_json) if verification.item_checks_json else []
 
 	frappe.response["message"] = {
 		"name": name,
