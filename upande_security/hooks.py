@@ -231,10 +231,6 @@ scheduler_events = {
         # documents (insurance, safety certs, permits) expiring within 14
         # days or already expired.
         "upande_security.tasks.check_contractor_document_expiry",
-        # Nags the assignee + Security Heads/System Managers about any
-        # Incident Report corrective action (CAPA) past its due date and
-        # still not Completed.
-        "upande_security.tasks.check_overdue_capa_actions",
     ],
 }
 
