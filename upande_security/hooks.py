@@ -380,6 +380,7 @@ fixtures = [
                     "Appointment-custom_visitorcontractor_tab",
                     "Appointment-custom_contractor_ref",
                     "Appointment-custom_customer",
+                    "Appointment-custom_customer_name",
                     "Appointment-custom_scope_of_work",
                     "Appointment-custom_expected_exit",
                     "Appointment-custom_contractor_personnel",
