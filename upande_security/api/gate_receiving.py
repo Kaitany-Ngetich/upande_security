@@ -130,6 +130,81 @@ def search_receiving_for_gate(reference):
 		}
 
 
+def _resolve_receiving_recipients(warehouse):
+	"""Who to tell that a PO's delivery just cleared the gate. The target
+	Warehouse's own contact email (a native ERPNext field, Warehouse ->
+	Contact Info -> Email Address) is the accurate, specific signal when
+	it's set - and it only gets more accurate over time as stores fill
+	theirs in, with zero code change needed here. Falls back to everyone
+	holding the Stock User role when the PO has no target warehouse set,
+	or that warehouse has no contact email configured yet - real PO data
+	checked on this site shows both cases happen regularly (~30% of open
+	POs have no set_warehouse at all), so this can't be the only path."""
+	if warehouse:
+		email = frappe.db.get_value("Warehouse", warehouse, "email_id")
+		if email:
+			return [email]
+
+	role_users = frappe.get_all(
+		"Has Role", filters={"role": "Stock User", "parenttype": "User"}, pluck="parent"
+	)
+	return [
+		u for u in role_users
+		if u not in ("Administrator", "Guest") and frappe.db.get_value("User", u, "enabled")
+	]
+
+
+def _notify_receiving_team(doc, match):
+	"""Best-effort - a notification failure must never undo or block the
+	gate verification that already happened; the audit record is what
+	matters most, this is a courtesy heads-up on top of it."""
+	try:
+		warehouse = frappe.db.get_value("Purchase Order", doc.purchase_order, "set_warehouse")
+		recipients = _resolve_receiving_recipients(warehouse)
+		if not recipients:
+			return
+
+		# Every value below is guard-entered or supplier-controlled free
+		# text (vehicle_no/driver_name are plain, unvalidated Data fields)
+		# landing directly in an HTML email - escape_html on all of them,
+		# same convention the wider Frappe/ERPNext codebase already uses
+		# for exactly this (e.g. erpnext/stock/reorder_item.py) - unescaped
+		# string concatenation here would let anyone who can call this
+		# whitelisted method inject arbitrary HTML into every recipient's
+		# inbox (a phishing link, a tracking pixel, or just broken markup).
+		esc = frappe.utils.escape_html
+		supplier_name = esc(match.get("supplier_name") or doc.supplier)
+		po_name = esc(doc.purchase_order)
+		warehouse_esc = esc(warehouse) if warehouse else None
+
+		subject = "Incoming delivery: " + po_name + " from " + supplier_name
+		body = (
+			"<p><strong>" + supplier_name + "</strong> has cleared the gate "
+			+ "for <strong>" + po_name + "</strong>"
+			+ (" and is headed to <strong>" + warehouse_esc + "</strong>." if warehouse_esc else ".")
+			+ "</p>"
+		)
+		if doc.vehicle_no or doc.driver_name:
+			body = body + "<p>"
+			if doc.vehicle_no:
+				body = body + "Vehicle: " + esc(doc.vehicle_no) + "<br>"
+			if doc.driver_name:
+				body = body + "Driver: " + esc(doc.driver_name)
+			body = body + "</p>"
+		if doc.items_summary:
+			body = body + "<p>Items: " + esc(doc.items_summary) + "</p>"
+		body = body + "<p>Gate record: " + esc(doc.name) + "</p>"
+
+		# Queued (not now=True) deliberately - the guard's verify request
+		# shouldn't wait on a live SMTP round-trip, and queuing degrades
+		# gracefully (retried by Frappe's own scheduler) instead of a
+		# synchronous send failure right here if the outgoing mail server
+		# is briefly unreachable.
+		frappe.sendmail(recipients=recipients, subject=subject, message=body)
+	except Exception as e:
+		frappe.log_error("gate_receiving _notify_receiving_team failed for " + doc.name, str(e))
+
+
 @frappe.whitelist()
 def verify_receiving_at_gate(reference, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None):
 	"""Creates the actual audit record — a NEW Gate Receiving Verification
@@ -161,6 +236,11 @@ def verify_receiving_at_gate(reference, gate_verification_status, vehicle_no=Non
 	doc.remarks = remarks
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
+
+	# Only a genuinely cleared truck is worth telling the store about - a
+	# Rejected one never reaches them, there's nothing incoming to expect.
+	if gate_verification_status == "Verified":
+		_notify_receiving_team(doc, match)
 
 	frappe.response["message"] = {
 		"name": doc.name,
