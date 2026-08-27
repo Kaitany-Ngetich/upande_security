@@ -6,4 +6,15 @@ from frappe.model.document import Document
 
 
 class SecurityOpsSettings(Document):
-	pass
+	def validate(self):
+		if (
+			self.missed_checkin_minutes
+			and self.escalation_minutes
+			and self.escalation_minutes < self.missed_checkin_minutes
+		):
+			frappe.throw(
+				"SOS Escalation Threshold ({0} min) must be longer than the Missed Check-in"
+				" Threshold ({1} min), otherwise every missed check-in escalates immediately.".format(
+					self.escalation_minutes, self.missed_checkin_minutes
+				)
+			)
