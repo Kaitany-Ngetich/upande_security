@@ -16,7 +16,7 @@
   "items_summary",
   "source_status",
   "section_break_items",
-  "item_checks_json",
+  "item_checks",
   "section_break_2",
   "gate_verification_status",
   "gate_verified_by",
@@ -95,10 +95,10 @@
    "label": "Content Check"
   },
   {
-   "fieldname": "item_checks_json",
-   "fieldtype": "Long Text",
-   "label": "Item Checks (JSON)",
-   "read_only": 1
+   "fieldname": "item_checks",
+   "fieldtype": "Table",
+   "options": "Dispatch Item Check",
+   "label": "Item Checks"
   },
   {
    "fieldname": "section_break_2",
