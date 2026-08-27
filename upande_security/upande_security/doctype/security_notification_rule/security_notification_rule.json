@@ -1,0 +1,86 @@
+{
+ "actions": [],
+ "creation": "2026-08-27 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "role",
+  "column_break_1",
+  "receives_missed_checkin",
+  "receives_geofence_alerts",
+  "receives_escalation",
+  "receives_receiving_alerts",
+  "column_break_2",
+  "report_subscription"
+ ],
+ "fields": [
+  {
+   "fieldname": "role",
+   "fieldtype": "Link",
+   "options": "Role",
+   "label": "Role",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "receives_missed_checkin",
+   "fieldtype": "Check",
+   "label": "Missed Check-in",
+   "in_list_view": 1,
+   "description": "Guard has sent no GPS ping past the Missed Check-in Threshold."
+  },
+  {
+   "default": "1",
+   "fieldname": "receives_geofence_alerts",
+   "fieldtype": "Check",
+   "label": "Geofence Breach",
+   "in_list_view": 1,
+   "description": "Guard's last known position falls outside their assigned farm's boundary."
+  },
+  {
+   "default": "1",
+   "fieldname": "receives_escalation",
+   "fieldtype": "Check",
+   "label": "SOS Escalation",
+   "in_list_view": 1,
+   "description": "Silence past the SOS Escalation Threshold auto-opens a tracked SOS Incident Report."
+  },
+  {
+   "default": "0",
+   "fieldname": "receives_receiving_alerts",
+   "fieldtype": "Check",
+   "label": "Receiving Alerts",
+   "in_list_view": 1,
+   "description": "A dispatch/delivery was verified at the gate and cleared for receiving."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "None",
+   "fieldname": "report_subscription",
+   "fieldtype": "Select",
+   "options": "None\nDaily\nWeekly\nDaily & Weekly",
+   "label": "Report Subscription",
+   "in_list_view": 1,
+   "description": "Reserved for the upcoming daily patrol / weekly security report feature - not wired to anything yet."
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-27 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Security Notification Rule",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

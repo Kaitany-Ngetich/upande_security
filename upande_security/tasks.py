@@ -11,6 +11,7 @@ import frappe
 from upande_security.upande_security.doctype.security_guard_shift_assignment.security_guard_shift_assignment import (
 	derive_status,
 )
+from upande_security.utils.notifications import resolve_notification_users
 
 
 def refresh_shift_statuses():
@@ -377,9 +378,10 @@ def _resolve_security_head_phone(company, farm):
 	return contact_name, phone
 
 
-def _escalate_lone_worker(shift_name, guard_label, company, farm, last_seen):
-	"""A guard silent for 60+ minutes (double the initial 30-minute
-	threshold) gets escalated beyond a Desk bell notification: an actual SOS
+def _escalate_lone_worker(shift_name, guard_label, company, farm, last_seen, escalation_minutes):
+	"""A guard silent beyond escalation_minutes (Security Ops Settings,
+	defaults to double the missed-check-in threshold) gets escalated beyond
+	a Desk bell notification: an actual SOS
 	Incident Report is opened (so it's tracked and can't just get missed in
 	a notification list), and the alert to Security Heads includes the
 	resolved Security Head phone number directly, closing the loop toward
@@ -422,7 +424,7 @@ def _escalate_lone_worker(shift_name, guard_label, company, farm, last_seen):
 		+ shift_name
 		+ ") has sent no GPS ping since "
 		+ str(last_seen)
-		+ " — over 60 minutes of silence. "
+		+ " — over " + str(escalation_minutes) + " minutes of silence. "
 		+ contact_line
 		+ " "
 		+ tag
@@ -435,18 +437,13 @@ def _escalate_lone_worker(shift_name, guard_label, company, farm, last_seen):
 	return incident.name, head_phone
 
 
-def _notify_security_ops(shift_name, alert_kind, message):
-	head_rows = frappe.get_all(
-		"Has Role",
-		filters={"role": ["in", ("Security Head", "System Manager")], "parenttype": "User"},
-		fields=["parent"],
-		distinct=True,
-	)
-	for row in head_rows:
-		if row.parent == "Administrator":
-			continue
+def _notify_security_ops(shift_name, alert_kind, message, alert_type):
+	"""alert_type selects which Notification Rules column (Security Ops
+	Settings) gates who hears about this - see
+	upande_security.utils.notifications.resolve_notification_users."""
+	for recipient in resolve_notification_users(alert_type):
 		notification = frappe.new_doc("Notification Log")
-		notification.for_user = row.parent
+		notification.for_user = recipient
 		notification.subject = alert_kind + ": " + shift_name
 		notification.email_content = message.replace("\n", "<br>")
 		notification.document_type = "Security Guard Shift Assignment"
@@ -460,24 +457,33 @@ def _notify_security_ops(shift_name, alert_kind, message):
 
 def check_patrol_geofence_and_gaps():
 	"""For every currently Active shift: flag a guard who's gone quiet (no
-	GPS ping in the last 30 minutes) and, separately, flag a guard whose most
-	recent ping falls outside their assigned farm's boundary — a live
-	real-time check, not just the after-the-fact Patrol Map visualization.
+	GPS ping in over missed_checkin_minutes, Security Ops Settings) and,
+	separately, flag a guard whose most recent ping falls outside their
+	assigned farm's boundary — a live real-time check, not just the
+	after-the-fact Patrol Map visualization.
 
 	A shift with no farm assigned, or a farm with no boundary_geojson on
 	record yet, only gets the missed-check-in test — there's nothing to
 	geofence against. The missed-check-in half of this task works
 	regardless and is fully testable without one.
 
-	A guard silent for 60+ minutes (double the missed-check-in threshold)
-	gets escalated beyond a Desk notification — see _escalate_lone_worker.
-	This is this app's answer to a "lone worker check-in timer": there's no
-	separate button-press check-in from the guard, the GPS ping itself IS
-	the check-in signal, and losing it long enough auto-opens a tracked SOS
-	incident with the Security Head's phone number attached.
+	A guard silent past escalation_minutes (Security Ops Settings, defaults
+	to double the missed-check-in threshold) gets escalated beyond a Desk
+	notification — see _escalate_lone_worker. This is this app's answer to
+	a "lone worker check-in timer": there's no separate button-press
+	check-in from the guard, the GPS ping itself IS the check-in signal,
+	and losing it long enough auto-opens a tracked SOS incident with the
+	Security Head's phone number attached.
 
 	Runs every 15 minutes.
 	"""
+	settings = frappe.get_single("Security Ops Settings")
+	# Falls back to the original hardcoded values (30/60) when either
+	# setting is left blank/zero, so an unconfigured site behaves exactly
+	# as before this became configurable.
+	missed_checkin_minutes = settings.missed_checkin_minutes or 30
+	escalation_minutes = settings.escalation_minutes or 60
+
 	active_shifts = frappe.get_all(
 		"Security Guard Shift Assignment",
 		filters={"status": "Active"},
@@ -487,8 +493,8 @@ def check_patrol_geofence_and_gaps():
 	gap_flagged = 0
 	geofence_flagged = 0
 	escalated = 0
-	stale_cutoff = frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-30)
-	escalation_cutoff = frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-60)
+	stale_cutoff = frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-missed_checkin_minutes)
+	escalation_cutoff = frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-escalation_minutes)
 
 	for shift in active_shifts:
 		if shift.security_guard == "Internal Guard":
@@ -514,19 +520,30 @@ def check_patrol_geofence_and_gaps():
 		if not latest or frappe.utils.get_datetime(latest[0].captured_at) < frappe.utils.get_datetime(stale_cutoff):
 			last_seen = str(latest[0].captured_at) if latest else "never this shift"
 
-			# 60+ minutes of total silence (not just past this run's 30-minute
-			# threshold) escalates to an actual tracked SOS incident, on top
-			# of the regular Desk notification below.
+			# Total silence past escalation_minutes (not just this run's
+			# missed_checkin_minutes threshold) escalates to an actual
+			# tracked SOS incident, on top of the regular Desk notification
+			# below.
 			if not latest or frappe.utils.get_datetime(latest[0].captured_at) < frappe.utils.get_datetime(escalation_cutoff):
-				result = _escalate_lone_worker(shift.name, guard_label, company, shift.farm, last_seen)
+				result = _escalate_lone_worker(shift.name, guard_label, company, shift.farm, last_seen, escalation_minutes)
 				if result:
 					escalated += 1
+					incident_name, _head_phone = result
+					_notify_security_ops(
+						shift.name,
+						"SOS escalation",
+						"Guard " + guard_label + " (shift " + shift.name + ") has been silent over "
+						+ str(escalation_minutes) + " minutes. Auto-opened Incident Report: " + incident_name,
+						"escalation",
+					)
 
 			if not _recent_alert_exists(shift.name, "Missed check-in"):
 				_notify_security_ops(
 					shift.name,
 					"Missed check-in",
-					"Guard " + guard_label + " (shift " + shift.name + ") has sent no GPS ping in over 30 minutes. Last seen: " + last_seen,
+					"Guard " + guard_label + " (shift " + shift.name + ") has sent no GPS ping in over "
+					+ str(missed_checkin_minutes) + " minutes. Last seen: " + last_seen,
+					"missed_checkin",
 				)
 				gap_flagged += 1
 			continue
@@ -552,6 +569,7 @@ def check_patrol_geofence_and_gaps():
 					"Guard " + guard_label + " (shift " + shift.name + ") is currently outside the boundary of their assigned farm ("
 					+ shift.farm + "). Last position: " + str(lat) + ", " + str(lng)
 					+ " at " + str(latest[0].captured_at),
+					"geofence",
 				)
 				geofence_flagged += 1
 

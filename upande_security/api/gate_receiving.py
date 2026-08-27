@@ -23,6 +23,8 @@ owns outright.
 import frappe
 from frappe import _
 
+from upande_security.utils.notifications import resolve_notification_users
+
 # PO statuses where goods are still genuinely expected to arrive — anything
 # else (Draft, To Bill, Completed, Cancelled, Closed, Delivered) means either
 # nothing was formally/fully ordered yet, or there's nothing left to check
@@ -135,23 +137,19 @@ def _resolve_receiving_recipients(warehouse):
 	Warehouse's own contact email (a native ERPNext field, Warehouse ->
 	Contact Info -> Email Address) is the accurate, specific signal when
 	it's set - and it only gets more accurate over time as stores fill
-	theirs in, with zero code change needed here. Falls back to everyone
-	holding the Stock User role when the PO has no target warehouse set,
-	or that warehouse has no contact email configured yet - real PO data
-	checked on this site shows both cases happen regularly (~30% of open
-	POs have no set_warehouse at all), so this can't be the only path."""
+	theirs in, with zero code change needed here. Falls back to whoever
+	Security Ops Settings' Notification Rules configure for "receiving"
+	(Stock User role, if left unconfigured) when the PO has no target
+	warehouse set, or that warehouse has no contact email configured yet -
+	real PO data checked on this site shows both cases happen regularly
+	(~30% of open POs have no set_warehouse at all), so this can't be the
+	only path."""
 	if warehouse:
 		email = frappe.db.get_value("Warehouse", warehouse, "email_id")
 		if email:
 			return [email]
 
-	role_users = frappe.get_all(
-		"Has Role", filters={"role": "Stock User", "parenttype": "User"}, pluck="parent"
-	)
-	return [
-		u for u in role_users
-		if u not in ("Administrator", "Guest") and frappe.db.get_value("User", u, "enabled")
-	]
+	return resolve_notification_users("receiving")
 
 
 def _notify_receiving_team(doc, match):

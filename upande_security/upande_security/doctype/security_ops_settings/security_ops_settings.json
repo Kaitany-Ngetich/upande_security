@@ -11,6 +11,13 @@
   "nearby_alert_section",
   "nearby_guard_alert_radius_m",
   "nearby_alert_stale_minutes",
+  "geofence_section",
+  "missed_checkin_minutes",
+  "escalation_minutes",
+  "notification_recipients_section",
+  "notification_rules",
+  "gates_section",
+  "farm_gates",
   "dispatch_section",
   "dispatch_sources"
  ],
@@ -51,6 +58,49 @@
    "fieldname": "nearby_alert_stale_minutes",
    "fieldtype": "Int",
    "label": "Ignore Pings Older Than (minutes)"
+  },
+  {
+   "fieldname": "geofence_section",
+   "fieldtype": "Section Break",
+   "label": "Patrol Geofence / Missed Check-in"
+  },
+  {
+   "default": "30",
+   "fieldname": "missed_checkin_minutes",
+   "fieldtype": "Int",
+   "label": "Missed Check-in Threshold (minutes)",
+   "description": "How long a guard's Active shift can go with no GPS ping before it's flagged as a missed check-in."
+  },
+  {
+   "default": "60",
+   "fieldname": "escalation_minutes",
+   "fieldtype": "Int",
+   "label": "SOS Escalation Threshold (minutes)",
+   "description": "Total silence beyond this auto-opens a tracked SOS Incident Report, on top of the regular missed check-in alert. Should be longer than the threshold above."
+  },
+  {
+   "fieldname": "notification_recipients_section",
+   "fieldtype": "Section Break",
+   "label": "Notification Recipients"
+  },
+  {
+   "fieldname": "notification_rules",
+   "fieldtype": "Table",
+   "options": "Security Notification Rule",
+   "label": "Notification Rules",
+   "description": "Per-role control over which alert types each role hears about, plus a (not yet wired) report subscription. Leave this table empty and every alert type falls back to Security Head + System Manager (Receiving Alerts falls back to the Stock User role) - exactly as before this became configurable. Add rows to take explicit control: once at least one row exists, only the checked alert types for each role fire - leaving every checkbox off for an alert type across all rows deliberately silences it for everyone, it does not fall back to the default."
+  },
+  {
+   "fieldname": "gates_section",
+   "fieldtype": "Section Break",
+   "label": "Farm Gates"
+  },
+  {
+   "fieldname": "farm_gates",
+   "fieldtype": "Table",
+   "options": "Security Gate Config",
+   "label": "Gates",
+   "description": "Security's own list of physical gates per farm (a farm can have a Main Gate plus others) - lives entirely here, the Farm doctype itself is never touched."
   },
   {
    "fieldname": "dispatch_section",
