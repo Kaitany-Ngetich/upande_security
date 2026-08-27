@@ -80,6 +80,20 @@ def _lookup_expected_items(source, name):
 	return items
 
 
+def _latest_verification(reference_doctype, reference_name):
+	"""Most recent Gate Dispatch Verification for this reference, or None.
+	Shared by search (so the guard sees "already verified" before they even
+	try to submit) and verify (which uses it to actually block a duplicate
+	Verified record)."""
+	return frappe.db.get_value(
+		"Gate Dispatch Verification",
+		{"reference_doctype": reference_doctype, "reference_name": reference_name},
+		["name", "gate_verification_status", "gate_verified_by", "gate_exit_time"],
+		order_by="creation desc",
+		as_dict=True,
+	)
+
+
 def _lookup_in_source(source, reference):
 	"""Try to find `reference` in this one configured source doctype.
 	Returns a normalized dict, or None if nothing matched here."""
@@ -112,6 +126,12 @@ def _lookup_in_source(source, reference):
 		allowed = [v.strip() for v in source.authorized_status_values.split(",") if v.strip()]
 		authorized = status_value in allowed
 
+	latest = _latest_verification(source.source_doctype, doc_values.get("name"))
+	already_verified = bool(latest and latest.gate_verification_status == "Verified")
+	verified_by_name = None
+	if already_verified:
+		verified_by_name = frappe.db.get_value("User", latest.gate_verified_by, "full_name") or latest.gate_verified_by
+
 	return {
 		"reference_doctype": source.source_doctype,
 		"reference_name": doc_values.get("name"),
@@ -126,6 +146,9 @@ def _lookup_in_source(source, reference):
 		"source_status": status_value,
 		"is_authorized": authorized,
 		"expected_items": _lookup_expected_items(source, name),
+		"already_verified": already_verified,
+		"already_verified_at": latest.gate_exit_time if already_verified else None,
+		"already_verified_by": verified_by_name,
 	}
 
 
@@ -155,7 +178,13 @@ def search_dispatch_for_gate(reference):
 
 @frappe.whitelist()
 def verify_dispatch_at_gate(
-	reference, gate_verification_status, remarks=None, item_checks=None, gate_arrival_time=None
+	reference,
+	gate_verification_status,
+	remarks=None,
+	item_checks=None,
+	gate_arrival_time=None,
+	vehicle_no=None,
+	driver_name=None,
 ):
 	"""Creates the actual audit record — a NEW Gate Dispatch Verification
 	document, never an edit to the source. Re-resolves the source fresh
@@ -177,7 +206,16 @@ def verify_dispatch_at_gate(
 	gate_exit_time below, which is stamped server-side at the moment this
 	call is made (i.e. when the guard actually clears the truck to leave).
 	Never backfilled/defaulted if omitted - a blank arrival time is the
-	honest answer when the client didn't send one, not something to fake."""
+	honest answer when the client didn't send one, not something to fake.
+
+	vehicle_no/driver_name: optional, guard-entered at the moment of
+	verification - deliberately AUTHORITATIVE over whatever the source
+	document says (not just a fallback for when the source is blank). The
+	guard is looking at the actual truck; the source's own vehicle/driver
+	fields reflect what was planned when the document was created, which
+	can legitimately differ (a truck swap, a driver change) from what
+	actually shows up at the gate. Falls back to the source's value only
+	when the guard's field is left blank."""
 	reference = (reference or "").strip()
 	gate_verification_status = (gate_verification_status or "").strip()
 	if gate_verification_status not in ("Verified", "Rejected"):
@@ -197,6 +235,28 @@ def verify_dispatch_at_gate(
 		frappe.response["message"] = {"error": "No dispatch document found for that reference."}
 		return
 
+	# Block a second Verified record for the same reference - re-checking
+	# after a Rejected attempt is a legitimate, intentional flow (the issue
+	# gets fixed, the guard re-verifies), so only the MOST RECENT attempt
+	# matters here, not "has this ever been verified." Without this check,
+	# nothing stops the same truck being verified twice in a row, silently
+	# creating two audit records for one gate exit. Re-resolved fresh here
+	# (not trusting match["already_verified"] from a stale search result)
+	# for the same freshness reasoning as everything else in this function.
+	latest = _latest_verification(match["reference_doctype"], match["reference_name"])
+	if latest and latest.gate_verification_status == "Verified":
+		verified_by_name = frappe.db.get_value("User", latest.gate_verified_by, "full_name") or latest.gate_verified_by
+		frappe.response["message"] = {
+			"error": (
+				"This dispatch was already verified at "
+				+ frappe.utils.format_datetime(latest.gate_exit_time)
+				+ " by "
+				+ (verified_by_name or "another guard")
+				+ "."
+			)
+		}
+		return
+
 	# Keyed by row_id (the source's own child-row name), not item_code -
 	# the same item_code can legitimately appear on more than one expected
 	# row (see _lookup_expected_items's comment on why), and a code-keyed
@@ -214,8 +274,10 @@ def verify_dispatch_at_gate(
 	doc.reference_doctype = match["reference_doctype"]
 	doc.reference_name = match["reference_name"]
 	doc.farm = match.get("farm")
-	doc.vehicle_no = match.get("vehicle_no")
-	doc.driver_name = match.get("driver_name")
+	vehicle_no = (vehicle_no or "").strip()
+	driver_name = (driver_name or "").strip()
+	doc.vehicle_no = vehicle_no or match.get("vehicle_no")
+	doc.driver_name = driver_name or match.get("driver_name")
 	doc.dispatch_datetime = match.get("dispatch_datetime")
 	doc.items_summary = match.get("items_summary")
 	doc.source_status = match.get("source_status")
