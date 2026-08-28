@@ -2839,30 +2839,42 @@ def get_farm_boundaries() -> dict[str, Any]:
         )
 
     farm_meta = frappe.get_meta("Farm")
-    if not farm_meta.has_field("boundary_geojson"):
-        # This site's Farm doctype (e.g. upande_core's, not upande_kaitet's)
-        # has nowhere to store a boundary at all yet - same "just omit it"
-        # treatment as a Farm that simply hasn't had one uploaded, rather
-        # than erroring the whole Patrol Map over a field that doesn't exist
-        # here.
+    farm_name_field = _farm_name_field()
+
+    # Which field actually holds a farm's boundary varies by site: upande_kaitet's
+    # Farm has a dedicated boundary_geojson Attach field; upande_core's (krv16,
+    # kaitetv16-staging) has none of those - boundaries live in the standard
+    # Geolocation `location` field instead. Prefer boundary_geojson where it
+    # exists (matches existing farms/behavior); fall back to location rather
+    # than silently returning no boundaries at all on sites that only have
+    # the Geolocation field.
+    if farm_meta.has_field("boundary_geojson"):
+        boundary_field = "boundary_geojson"
+    elif farm_meta.has_field("location"):
+        boundary_field = "location"
+    else:
         return {"success": True, "boundaries": []}
 
-    farm_name_field = _farm_name_field()
     farms = frappe.get_list(
         "Farm",
-        filters={"boundary_geojson": ["is", "set"]},
-        fields=["name", farm_name_field, "boundary_geojson"],
+        filters={boundary_field: ["is", "set"]},
+        fields=["name", farm_name_field, boundary_field],
         order_by=f"{farm_name_field} asc",
         page_length=500,
     )
-    farms = [{"name": f["name"], "farm": f.get(farm_name_field), "boundary_geojson": f["boundary_geojson"]} for f in farms]
 
     return {
         "success": True,
         "boundaries": [
             {
-                "farm": f.get("farm") or f.get("name"),
-                "url": f.get("boundary_geojson"),
+                # The client already handles this "url" value being either a
+                # real fetchable URL (boundary_geojson, a real uploaded
+                # Attach file) or inline GeoJSON text starting with '{'/'['
+                # (location, a Geolocation field's raw stored value, or a
+                # boundary_geojson written in-place rather than uploaded) -
+                # see patrol-map's loadBoundaries(). No client change needed.
+                "farm": f.get(farm_name_field) or f.get("name"),
+                "url": f.get(boundary_field),
             }
             for f in farms
         ],
