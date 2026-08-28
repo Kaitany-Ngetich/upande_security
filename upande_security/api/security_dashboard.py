@@ -2175,6 +2175,34 @@ def _patrol_reports_by_tag(tags):
     return by_tag
 
 
+def _patrol_guard_identity(row):
+	"""(guard_id, guard_name) for a Patrol GPS Log row, in the same priority
+	order the raw ingestion (submit_patrol_points) tries to resolve an
+	identity: a real linked Employee, then a real linked Security Guard,
+	then - since every Frappe document always has an owner regardless of
+	whether either link resolved - the submitting User. "Unassigned" was
+	never actually true for any of these rows: every one has a real owner,
+	the old logic just never looked. Only a row with no owner at all
+	(shouldn't happen, but the field is optional to callers) falls all the
+	way to "Unassigned".
+
+	The owner-fallback case is suffixed so it reads differently from a
+	genuine registered-guard identity - a name here means "this account
+	submitted it", not "this is a known guard's shift".
+	"""
+	if row.get("internal_guard"):
+		name = frappe.db.get_value("Employee", row["internal_guard"], "employee_name")
+		return row["internal_guard"], (name or row["internal_guard"])
+	if row.get("external_guard"):
+		name = frappe.db.get_value("Security Guard", row["external_guard"], "full_name")
+		return row["external_guard"], (name or row["external_guard"])
+	owner = row.get("owner")
+	if owner and owner not in ("Administrator", "Guest"):
+		full_name = frappe.db.get_value("User", owner, "full_name")
+		return owner, (full_name or owner) + " (no guard link)"
+	return "Unassigned", _("Unassigned")
+
+
 def _fetch_patrols_tab(range_from, range_to):
     doctype = "Patrol GPS Log"
 
@@ -2192,7 +2220,7 @@ def _fetch_patrols_tab(range_from, range_to):
         filters={"captured_at": ["between", [day_start, day_end]]},
         fields=[
             "name", "patrol", "personel", "internal_guard",
-            "external_guard", "captured_at", "latitude", "longitude",
+            "external_guard", "captured_at", "latitude", "longitude", "owner",
         ],
         order_by="captured_at asc",
         page_length=5000,
@@ -2201,10 +2229,10 @@ def _fetch_patrols_tab(range_from, range_to):
     groups = {}
     for p in points:
         patrol_id = str(p.get("patrol") or "Unassigned").strip() or "Unassigned"
-        guard = p.get("internal_guard") or p.get("external_guard") or "Unassigned"
-        key = f"{guard}::{patrol_id}"
+        guard_id, guard_name = _patrol_guard_identity(p)
+        key = f"{guard_id}::{patrol_id}"
         if key not in groups:
-            groups[key] = {"guard": guard, "patrol": patrol_id, "points": [], "timestamps": []}
+            groups[key] = {"guard": guard_name, "patrol": patrol_id, "points": [], "timestamps": []}
         lat = _patrol_float(p.get("latitude"))
         lng = _patrol_float(p.get("longitude"))
         if lat is not None and lng is not None and -90 <= lat <= 90 and -180 <= lng <= 180:
@@ -2364,7 +2392,7 @@ def fetchPatrolData(date=None, farm=None):
         fields=[
             "name", "patrol", "personel", "internal_guard",
             "external_guard", "captured_at", "latitude", "longitude", "farm",
-            "gps_accuracy",
+            "gps_accuracy", "owner",
         ],
         order_by="captured_at asc",
         page_length=5000,
@@ -2400,26 +2428,21 @@ def fetchPatrolData(date=None, farm=None):
             continue
 
         patrol_id = str(p.get("patrol") or "Unassigned").strip() or "Unassigned"
-        guard = p.get("internal_guard") or p.get("external_guard") or "Unassigned"
-        guard_farm = str(p.get("farm") or "").strip() or guard_farms.get(guard) or ""
+        # Kept separate from guard_id below: guard_farms is keyed on real
+        # internal_guard/external_guard IDs only, an owner-fallback email
+        # would never be a valid key into it.
+        raw_guard_id = p.get("internal_guard") or p.get("external_guard") or ""
+        guard_farm = str(p.get("farm") or "").strip() or guard_farms.get(raw_guard_id) or ""
 
         if farm and guard_farm != farm:
             continue
 
-        key = f"{guard}::{patrol_id}"
+        guard_id, guard_name = _patrol_guard_identity(p)
+        key = f"{guard_id}::{patrol_id}"
 
         if key not in groups:
-            guard_name = guard
-            if p.get("internal_guard"):
-                guard_name = frappe.db.get_value(
-                    "Employee", p["internal_guard"], "employee_name"
-                ) or guard
-            elif p.get("external_guard"):
-                guard_name = frappe.db.get_value(
-                    "Security Guard", p["external_guard"], "full_name"
-                ) or guard
             groups[key] = {
-                "guard_id": guard, "guard_name": guard_name, "farm": guard_farm,
+                "guard_id": guard_id, "guard_name": guard_name, "farm": guard_farm,
                 "patrol_tag": patrol_id, "points": [], "timestamps": [],
             }
 
