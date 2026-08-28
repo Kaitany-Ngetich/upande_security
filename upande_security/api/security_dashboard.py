@@ -2685,7 +2685,14 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
     # All-time rows (unfiltered by date, but still scoped to farm/company) drive
     # the rotation metric and today's coverage board, since a shift can span
     # outside the picked date range.
-    all_rows_filters = {"status": "Active"}
+    #
+    # "Active" alone under-reports here: this is a PLANNING view, and a shift
+    # that's correctly still "Scheduled" because it hasn't started yet today
+    # (e.g. an 18:00 Night shift checked at 2pm) is just as much part of
+    # today's plan as one already in progress. Excluding it made a fully
+    # covered farm look unstaffed for the night, when the shift genuinely
+    # exists - it just hadn't clocked in yet.
+    all_rows_filters = {"status": ["in", ["Active", "Scheduled"]]}
     if farm_scope is not None:
         all_rows_filters["farm"] = ["in", farm_scope]
 
@@ -2780,8 +2787,12 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
         guard_farms.setdefault(key, set()).add(r["farm"])
     guards_on_rotation = sum(1 for farms_set in guard_farms.values() if len(farms_set) > 1)
 
-    day_count = sum(1 for r in rows if r["shift_type"] == "Day" and r["status"] == "Active")
-    night_count = sum(1 for r in rows if r["shift_type"] == "Night" and r["status"] == "Active")
+    # Same reasoning as all_rows_filters above: a Scheduled shift that hasn't
+    # started yet is still part of the plan for its date range, not an
+    # absence of one - counting only "Active" undercounts every shift whose
+    # start time hasn't arrived yet at the moment this is viewed.
+    day_count = sum(1 for r in rows if r["shift_type"] == "Day" and r["status"] in ("Active", "Scheduled"))
+    night_count = sum(1 for r in rows if r["shift_type"] == "Night" and r["status"] in ("Active", "Scheduled"))
 
     return {
         "success": True,
