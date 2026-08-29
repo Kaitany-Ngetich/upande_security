@@ -16,8 +16,7 @@
    "options": "Company",
    "label": "Company",
    "reqd": 1,
-   "in_list_view": 1,
-   "description": "Used before the single org-wide fallback below, whenever a distress call resolves to this company but neither its farm nor company has a Security Head configured yet."
+   "in_list_view": 1
   },
   {
    "fieldname": "column_break_1",

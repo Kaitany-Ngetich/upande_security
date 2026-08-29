@@ -31,32 +31,28 @@
    "fieldname": "receives_missed_checkin",
    "fieldtype": "Check",
    "label": "Missed Check-in",
-   "in_list_view": 1,
-   "description": "Guard has sent no GPS ping past the Missed Check-in Threshold."
+   "in_list_view": 1
   },
   {
    "default": "1",
    "fieldname": "receives_geofence_alerts",
    "fieldtype": "Check",
    "label": "Geofence Breach",
-   "in_list_view": 1,
-   "description": "Guard's last known position falls outside their assigned farm's boundary."
+   "in_list_view": 1
   },
   {
    "default": "1",
    "fieldname": "receives_escalation",
    "fieldtype": "Check",
    "label": "SOS Escalation",
-   "in_list_view": 1,
-   "description": "Silence past the SOS Escalation Threshold auto-opens a tracked SOS Incident Report."
+   "in_list_view": 1
   },
   {
    "default": "0",
    "fieldname": "receives_receiving_alerts",
    "fieldtype": "Check",
    "label": "Receiving Alerts",
-   "in_list_view": 1,
-   "description": "A dispatch/delivery was verified at the gate and cleared for receiving."
+   "in_list_view": 1
   },
   {
    "fieldname": "column_break_2",
@@ -68,8 +64,7 @@
    "fieldtype": "Select",
    "options": "None\nDaily\nWeekly\nDaily & Weekly",
    "label": "Report Subscription",
-   "in_list_view": 1,
-   "description": "Reserved for the upcoming daily patrol / weekly security report feature - not wired to anything yet."
+   "in_list_view": 1
   }
  ],
  "istable": 1,
