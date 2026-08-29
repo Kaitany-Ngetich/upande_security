@@ -366,10 +366,15 @@ def _resolve_security_head_phone(company, farm):
 			contact_name = rows[0].full_name or ""
 			phone = rows[0].mobile_no or rows[0].phone or ""
 	if not phone and company:
-		# A company's own configured fallback, checked before the single
-		# org-wide one below - lets each company (Kaitet Ltd., Karen Roses,
-		# Westwood Dairies, ...) have its own number without needing a real
-		# Security Head assignment just to get one.
+		# A company's own configured fallback - lets each company (Kaitet
+		# Ltd., Karen Roses, Westwood Dairies, ...) have its own number
+		# without needing a real Security Head assignment just to get one.
+		# The single org-wide fallback (Security Ops Settings'
+		# fallback_contact_name/phone/description) was removed once every
+		# company got its own row here - a company with neither a Security
+		# Head nor a row here now returns no phone at all, a real gap to
+		# fix by adding one, not something to paper over with a stale
+		# org-wide number.
 		row = frappe.db.get_value(
 			"Security Fallback Contact",
 			{"parent": "Security Ops Settings", "company": company},
@@ -379,16 +384,6 @@ def _resolve_security_head_phone(company, farm):
 		if row and row.contact_phone:
 			contact_name = row.contact_name or "Security Operations"
 			phone = row.contact_phone
-	if not phone:
-		settings = frappe.db.get_value(
-			"Security Ops Settings",
-			"Security Ops Settings",
-			["fallback_contact_name", "fallback_contact_phone"],
-			as_dict=True,
-		)
-		if settings and settings.fallback_contact_phone:
-			contact_name = settings.fallback_contact_name or "Security Operations"
-			phone = settings.fallback_contact_phone
 	return contact_name, phone
 
 

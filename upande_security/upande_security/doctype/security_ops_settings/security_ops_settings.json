@@ -5,9 +5,6 @@
  "engine": "InnoDB",
  "field_order": [
   "fallback_section",
-  "fallback_contact_name",
-  "fallback_contact_phone",
-  "fallback_description",
   "fallback_contacts",
   "nearby_alert_section",
   "nearby_guard_alert_radius_m",
@@ -27,21 +24,6 @@
    "fieldname": "fallback_section",
    "fieldtype": "Section Break",
    "label": "SOS Fallback Contact"
-  },
-  {
-   "fieldname": "fallback_contact_name",
-   "fieldtype": "Data",
-   "label": "Fallback Contact Name"
-  },
-  {
-   "fieldname": "fallback_contact_phone",
-   "fieldtype": "Data",
-   "label": "Fallback Contact Phone"
-  },
-  {
-   "fieldname": "fallback_description",
-   "fieldtype": "Small Text",
-   "label": "Notes"
   },
   {
    "fieldname": "fallback_contacts",
