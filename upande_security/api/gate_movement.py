@@ -35,5 +35,14 @@ def get_farm_gates(farm):
 def compute_gate_mismatch(entry_gate, exit_gate):
 	"""True only when both ends are known and genuinely differ - a blank
 	gate (guard skipped the picker, or the site predates this feature) is
-	never treated as a mismatch, since that would just be noise."""
+	never treated as a mismatch, since that would just be noise.
+
+	Kept here as the one shared definition, even though the two consumers
+	(Appointment for visitors/contractors, Timesheet for the Company
+	Vehicle gate-tracking flow - NOT Tractor Daily Task's custom_gate_*
+	fields, which were only ever a design-doc spec and were never actually
+	wired up) each set their own custom_gate_mismatch inline via
+	frappe.db.set_value from a sandboxed Server Script, which can't import
+	this module. This function documents the rule those scripts duplicate.
+	"""
 	return bool(entry_gate and exit_gate and entry_gate != exit_gate)
