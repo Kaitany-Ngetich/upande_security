@@ -173,6 +173,10 @@ doc_events = {
 	"Visitor Badge": {
 		"after_insert": "upande_security.api.visitor_badge_qr.generate_qr_for_badge",
 	},
+	"Supplier Badge": {
+		"after_insert": "upande_security.api.supplier_badge_qr.generate_qr_for_badge",
+		"validate": "upande_security.api.supplier_badge_qr.auto_sync_status",
+	},
 	"Appointment": {
 		# Releases the visitor's badge back to Available the moment
 		# workflow_state reaches Visitor Checked Out, no matter which path
@@ -450,15 +454,16 @@ fixtures = [
         "dt": "Incident Category",
     },
     {
-        # Security Asset and Visitor Badge were built via the Desk UI
-        # (DocType.custom = 1) rather than as an app-owned doctype .json,
-        # so unlike Patrol Report/Incident Report/etc. their schema (fields,
-        # permissions) lives only in the DB. Without this they — and any
-        # DocPerm fix made to them — would silently vanish on a fresh
-        # deploy, the same class of bug the Security workspace hit before.
+        # Security Asset, Visitor Badge, and Supplier Badge were built via
+        # the Desk UI (DocType.custom = 1) rather than as an app-owned
+        # doctype .json, so unlike Patrol Report/Incident Report/etc. their
+        # schema (fields, permissions) lives only in the DB. Without this
+        # they — and any DocPerm fix made to them — would silently vanish
+        # on a fresh deploy, the same class of bug the Security workspace
+        # hit before.
         "dt": "DocType",
         "filters": [
-            ["name", "in", ["Security Asset", "Visitor Badge"]],
+            ["name", "in", ["Security Asset", "Visitor Badge", "Supplier Badge"]],
         ],
     },
     {

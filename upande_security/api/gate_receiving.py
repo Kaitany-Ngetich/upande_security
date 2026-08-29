@@ -132,6 +132,65 @@ def search_receiving_for_gate(reference):
 		}
 
 
+@frappe.whitelist()
+def search_receiving_by_supplier_badge(reference):
+	"""Guard scans a Supplier Badge's QR instead of typing a PO number.
+	Unlike search_receiving_for_gate (which resolves to that supplier's
+	single most-recent open PO for a quick manual reference lookup), this
+	returns EVERY currently open PO for the badge's supplier - a badge
+	holder can easily have more than one delivery in flight at once, and
+	the guard needs to pick the right one for the truck actually at the
+	gate, not have one silently guessed for them."""
+	reference = (reference or "").strip()
+	if not reference:
+		frappe.response["message"] = {"found": False, "error": "A badge reference is required."}
+		return
+
+	badge = frappe.db.get_value(
+		"Supplier Badge", reference, ["name", "status", "supplier"], as_dict=True
+	)
+	if not badge:
+		frappe.response["message"] = {"found": False, "error": "No Supplier Badge found for that reference."}
+		return
+	if badge.status != "Active" or not badge.supplier:
+		frappe.response["message"] = {
+			"found": False,
+			"error": "This badge is not currently assigned to a supplier (status: " + (badge.status or "Unassigned") + ").",
+		}
+		return
+
+	po_names = frappe.get_all(
+		"Purchase Order",
+		filters={
+			"supplier": badge.supplier,
+			"status": ["in", list(AUTHORIZED_PO_STATUSES)],
+			"docstatus": 1,
+		},
+		fields=["name"],
+		order_by="transaction_date desc",
+	)
+
+	matches = []
+	for row in po_names:
+		try:
+			m = _lookup(row.name)
+		except Exception as e:
+			frappe.log_error("search_receiving_by_supplier_badge", str(e))
+			m = None
+		if m:
+			matches.append(m)
+
+	supplier_name = frappe.db.get_value("Supplier", badge.supplier, "supplier_name") or badge.supplier
+	frappe.response["message"] = {
+		"found": bool(matches),
+		"badge": badge.name,
+		"supplier": badge.supplier,
+		"supplier_name": supplier_name,
+		"matches": matches,
+		"error": None if matches else "No open Purchase Orders for " + supplier_name + " right now.",
+	}
+
+
 def _resolve_receiving_recipients(warehouse):
 	"""Who to tell that a PO's delivery just cleared the gate. The target
 	Warehouse's own contact email (a native ERPNext field, Warehouse ->
