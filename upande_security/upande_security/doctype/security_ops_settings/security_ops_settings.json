@@ -8,6 +8,7 @@
   "fallback_contact_name",
   "fallback_contact_phone",
   "fallback_description",
+  "fallback_contacts",
   "nearby_alert_section",
   "nearby_guard_alert_radius_m",
   "nearby_alert_stale_minutes",
@@ -41,6 +42,13 @@
    "fieldname": "fallback_description",
    "fieldtype": "Small Text",
    "label": "Notes"
+  },
+  {
+   "fieldname": "fallback_contacts",
+   "fieldtype": "Table",
+   "options": "Security Fallback Contact",
+   "label": "Per-Company Fallback Contacts",
+   "description": "Checked before the single org-wide fallback above. Resolution order is: farm Security Head -> company Security Head -> that company's row here -> the org-wide Fallback Contact fields above. Add a row only for a company that needs its own number; a company with no row here just falls through to the org-wide one."
   },
   {
    "fieldname": "nearby_alert_section",
