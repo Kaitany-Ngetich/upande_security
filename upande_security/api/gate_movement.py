@@ -19,6 +19,15 @@ def get_farm_gates(farm):
 	for a single-gate farm this is a one-item list (auto-flagged as the
 	main gate by Security Ops Settings' own validate()), so the picker can
 	just as easily be skipped and defaulted client-side.
+
+	A farm with ZERO rows in Security Ops Settings gets a synthetic single
+	"Main Gate" entry rather than an empty list - most farms only have one
+	physical gate, and a single gate has nothing to disambiguate anyway, so
+	requiring someone to add a row per farm just to get a non-blank value
+	recorded would be pure busywork with no security benefit. The moment a
+	farm gets real rows configured (e.g. Kapkolia's actual 3 gates), those
+	take over automatically - this fallback only fires for a farm nobody
+	has configured yet.
 	"""
 	if not farm:
 		return []
@@ -28,6 +37,8 @@ def get_farm_gates(farm):
 		for row in (settings.farm_gates or [])
 		if row.farm == farm and row.active
 	]
+	if not gates:
+		return [{"gate_name": "Main Gate", "is_main_gate": True}]
 	gates.sort(key=lambda g: (not g["is_main_gate"], g["gate_name"]))
 	return gates
 
