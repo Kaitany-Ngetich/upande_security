@@ -269,6 +269,34 @@
     "stats_filter": null,
     "type": "DocType",
     "url": null
+   },
+   {
+    "color": "Orange",
+    "doc_view": "List",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Staff Vehicle Stickers",
+    "link_to": "Staff Vehicle Sticker",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": null,
+    "type": "DocType",
+    "url": null
+   },
+   {
+    "color": "Yellow",
+    "doc_view": "List",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Sticker Requests",
+    "link_to": "Staff Vehicle Sticker Request",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": null,
+    "type": "DocType",
+    "url": null
    }
   ],
   "title": "Security",
