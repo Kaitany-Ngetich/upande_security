@@ -2217,7 +2217,7 @@
   "color": null,
   "custom": 1,
   "default_email_template": null,
-  "default_print_format": null,
+  "default_print_format": "Staff Vehicle Sticker Card",
   "default_view": null,
   "description": null,
   "docstatus": 0,
