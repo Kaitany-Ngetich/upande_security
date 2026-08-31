@@ -518,7 +518,7 @@ fixtures = [
         # would ship every role on the site, including ones owned by HR/ERPNext.
         "dt": "Role",
         "filters": [
-            ["name", "in", ["Visit Approver"]],
+            ["name", "in", ["Visit Approver", "Secretary"]],
         ],
     },
     {
