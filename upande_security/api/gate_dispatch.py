@@ -152,6 +152,54 @@ def _lookup_in_source(source, reference):
 	}
 
 
+def _find_related_by_vehicle(primary_match):
+	"""Other open (not yet Verified) dispatch documents — across ALL
+	enabled sources, not just the one the primary match came from — that
+	share the same vehicle_no as the just-scanned reference. One truck can
+	genuinely be carrying more than one delivery note/dispatch form at
+	once; this is what lets the guard release the whole load in one action
+	instead of scanning each document separately. Excludes the primary
+	match itself and anything already Verified.
+
+	Best-effort and read-only, same as the rest of this file: a source
+	lookup failure here never blocks the primary match from returning, it
+	just means that source's documents won't show up as related."""
+	vehicle_no = primary_match.get("vehicle_no")
+	if not vehicle_no:
+		return []
+
+	related = []
+	for source in _enabled_dispatch_sources():
+		if not source.vehicle_field:
+			continue
+		try:
+			filters = {source.vehicle_field: vehicle_no}
+			if source.status_field and source.authorized_status_values:
+				allowed = [v.strip() for v in source.authorized_status_values.split(",") if v.strip()]
+				filters[source.status_field] = ["in", allowed]
+			names = frappe.get_all(source.source_doctype, filters=filters, pluck="name")
+		except Exception as e:
+			frappe.log_error("search_dispatch_for_gate related-by-vehicle: " + source.source_doctype, str(e))
+			continue
+
+		for name in names:
+			if name == primary_match.get("reference_name") and source.source_doctype == primary_match.get(
+				"reference_doctype"
+			):
+				continue
+			latest = _latest_verification(source.source_doctype, name)
+			if latest and latest.gate_verification_status == "Verified":
+				continue
+			try:
+				other = _lookup_in_source(source, name)
+			except Exception as e:
+				frappe.log_error("search_dispatch_for_gate related-by-vehicle lookup: " + name, str(e))
+				other = None
+			if other:
+				related.append(other)
+	return related
+
+
 @frappe.whitelist()
 def search_dispatch_for_gate(reference):
 	"""Guard types/scans whatever reference is on the physical dispatch
@@ -170,6 +218,11 @@ def search_dispatch_for_gate(reference):
 			continue
 		if match:
 			match["found"] = True
+			try:
+				match["related_by_vehicle"] = _find_related_by_vehicle(match)
+			except Exception as e:
+				frappe.log_error("search_dispatch_for_gate related-by-vehicle", str(e))
+				match["related_by_vehicle"] = []
 			frappe.response["message"] = match
 			return
 
@@ -221,6 +274,91 @@ def verify_dispatch_at_gate(
 	if gate_verification_status not in ("Verified", "Rejected"):
 		frappe.throw(_("gate_verification_status must be 'Verified' or 'Rejected'."))
 
+	frappe.response["message"] = _verify_dispatch_one(
+		reference,
+		gate_verification_status,
+		remarks=remarks,
+		item_checks=item_checks,
+		gate_arrival_time=gate_arrival_time,
+		vehicle_no=vehicle_no,
+		driver_name=driver_name,
+	)
+
+
+@frappe.whitelist()
+def verify_dispatch_at_gate_bulk(
+	references,
+	gate_verification_status,
+	remarks=None,
+	gate_arrival_time=None,
+	vehicle_no=None,
+	driver_name=None,
+):
+	"""Same idea as verify_dispatch_at_gate, but for every dispatch document
+	the guard selected off one scan's related_by_vehicle list — one truck
+	can be carrying more than one delivery note, released together against
+	the one vehicle/driver instead of scanned one at a time.
+
+	No item_checks here: per-item quantity counting only ever applies to
+	the ONE document the guard actually scanned and is looking at (still
+	go through verify_dispatch_at_gate for that one, with its own
+	item_checks, exactly as before) - every other reference in this bulk
+	call gets verified/rejected at the document level only, same as
+	calling verify_dispatch_at_gate for it with item_checks omitted (every
+	row lands "Not Checked", no shortfall detection for those). Each
+	reference still gets its own Gate Dispatch Verification record - the
+	full per-document audit trail is unchanged."""
+	gate_verification_status = (gate_verification_status or "").strip()
+	if gate_verification_status not in ("Verified", "Rejected"):
+		frappe.throw(_("gate_verification_status must be 'Verified' or 'Rejected'."))
+
+	if isinstance(references, str):
+		try:
+			references = frappe.parse_json(references)
+		except Exception:
+			references = [references]
+
+	if not references:
+		frappe.response["message"] = {"results": [], "error": "At least one reference is required."}
+		return
+
+	results = []
+	for ref in references:
+		ref = (ref or "").strip()
+		if not ref:
+			continue
+		try:
+			results.append(
+				_verify_dispatch_one(
+					ref,
+					gate_verification_status,
+					remarks=remarks,
+					item_checks=None,
+					gate_arrival_time=gate_arrival_time,
+					vehicle_no=vehicle_no,
+					driver_name=driver_name,
+				)
+			)
+		except Exception as e:
+			frappe.log_error("verify_dispatch_at_gate_bulk for " + str(ref), str(e))
+			results.append({"reference": ref, "error": str(e)})
+
+	frappe.response["message"] = {"results": results}
+
+
+def _verify_dispatch_one(
+	reference,
+	gate_verification_status,
+	remarks=None,
+	item_checks=None,
+	gate_arrival_time=None,
+	vehicle_no=None,
+	driver_name=None,
+):
+	"""Core single-dispatch verification, factored out of
+	verify_dispatch_at_gate so both it and verify_dispatch_at_gate_bulk
+	share the exact same logic instead of drifting apart over time.
+	Returns a result dict rather than writing frappe.response directly."""
 	match = None
 	for source in _enabled_dispatch_sources():
 		try:
@@ -232,8 +370,7 @@ def verify_dispatch_at_gate(
 			break
 
 	if not match:
-		frappe.response["message"] = {"error": "No dispatch document found for that reference."}
-		return
+		return {"reference": reference, "error": "No dispatch document found for that reference."}
 
 	# Block a second Verified record for the same reference - re-checking
 	# after a Rejected attempt is a legitimate, intentional flow (the issue
@@ -246,16 +383,16 @@ def verify_dispatch_at_gate(
 	latest = _latest_verification(match["reference_doctype"], match["reference_name"])
 	if latest and latest.gate_verification_status == "Verified":
 		verified_by_name = frappe.db.get_value("User", latest.gate_verified_by, "full_name") or latest.gate_verified_by
-		frappe.response["message"] = {
+		return {
+			"reference": reference,
 			"error": (
 				"This dispatch was already verified at "
 				+ frappe.utils.format_datetime(latest.gate_exit_time)
 				+ " by "
 				+ (verified_by_name or "another guard")
 				+ "."
-			)
+			),
 		}
-		return
 
 	# Keyed by row_id (the source's own child-row name), not item_code -
 	# the same item_code can legitimately appear on more than one expected
@@ -339,7 +476,7 @@ def verify_dispatch_at_gate(
 
 	shortfall_incident = _auto_file_shortfall_incident(doc)
 
-	frappe.response["message"] = {
+	return {
 		"name": doc.name,
 		"reference_name": doc.reference_name,
 		"gate_verification_status": doc.gate_verification_status,

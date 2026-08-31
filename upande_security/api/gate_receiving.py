@@ -275,22 +275,20 @@ def _notify_receiving_team(doc, match):
 		frappe.log_error("gate_receiving _notify_receiving_team failed for " + doc.name, str(e))
 
 
-@frappe.whitelist()
-def verify_receiving_at_gate(reference, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None):
-	"""Creates the actual audit record — a NEW Gate Receiving Verification
-	document, never an edit to the Purchase Order. Re-resolves the PO fresh
-	(rather than trusting whatever the client cached from the search call)
-	so the snapshot reflects the document at the moment of the actual gate
-	decision, not whenever the guard first looked it up."""
-	reference = (reference or "").strip()
-	gate_verification_status = (gate_verification_status or "").strip()
-	if gate_verification_status not in ("Verified", "Rejected"):
-		frappe.throw(_("gate_verification_status must be 'Verified' or 'Rejected'."))
+def _verify_receiving_one(reference, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None):
+	"""Core single-PO verification: creates the actual audit record — a NEW
+	Gate Receiving Verification document, never an edit to the Purchase
+	Order. Re-resolves the PO fresh (rather than trusting whatever the
+	client cached from the search call) so the snapshot reflects the
+	document at the moment of the actual gate decision, not whenever the
+	guard first looked it up.
 
+	Returns a result dict rather than writing frappe.response directly, so
+	both the single-PO and bulk (multi-PO, one badge scan) verify endpoints
+	share this exact logic instead of drifting apart over time."""
 	match = _lookup(reference)
 	if not match:
-		frappe.response["message"] = {"error": "No active Purchase Order found for that reference."}
-		return
+		return {"reference": reference, "error": "No active Purchase Order found for that reference."}
 
 	doc = frappe.new_doc("Gate Receiving Verification")
 	doc.purchase_order = match["purchase_order"]
@@ -312,12 +310,65 @@ def verify_receiving_at_gate(reference, gate_verification_status, vehicle_no=Non
 	if gate_verification_status == "Verified":
 		_notify_receiving_team(doc, match)
 
-	frappe.response["message"] = {
+	return {
 		"name": doc.name,
 		"purchase_order": doc.purchase_order,
 		"gate_verification_status": doc.gate_verification_status,
 		"is_authorized": match.get("is_authorized"),
 	}
+
+
+@frappe.whitelist()
+def verify_receiving_at_gate(reference, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None):
+	reference = (reference or "").strip()
+	gate_verification_status = (gate_verification_status or "").strip()
+	if gate_verification_status not in ("Verified", "Rejected"):
+		frappe.throw(_("gate_verification_status must be 'Verified' or 'Rejected'."))
+
+	frappe.response["message"] = _verify_receiving_one(
+		reference, gate_verification_status, vehicle_no, driver_name, remarks
+	)
+
+
+@frappe.whitelist()
+def verify_receiving_at_gate_bulk(references, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None):
+	"""Same as verify_receiving_at_gate, but for every PO the guard selected
+	off one Supplier Badge scan in one action — one driver can be carrying
+	goods for several open POs, so instead of scanning/verifying each PO
+	one at a time, the guard picks all of them and this releases the lot
+	together against the one truck/driver at the gate.
+
+	Each PO still gets its OWN Gate Receiving Verification record — the
+	full per-PO audit trail is unchanged, this only collapses the guard's
+	taps, not the underlying data model."""
+	gate_verification_status = (gate_verification_status or "").strip()
+	if gate_verification_status not in ("Verified", "Rejected"):
+		frappe.throw(_("gate_verification_status must be 'Verified' or 'Rejected'."))
+
+	if isinstance(references, str):
+		try:
+			references = frappe.parse_json(references)
+		except Exception:
+			references = [references]
+
+	if not references:
+		frappe.response["message"] = {"results": [], "error": "At least one reference is required."}
+		return
+
+	results = []
+	for ref in references:
+		ref = (ref or "").strip()
+		if not ref:
+			continue
+		try:
+			results.append(
+				_verify_receiving_one(ref, gate_verification_status, vehicle_no, driver_name, remarks)
+			)
+		except Exception as e:
+			frappe.log_error("verify_receiving_at_gate_bulk for " + str(ref), str(e))
+			results.append({"reference": ref, "error": str(e)})
+
+	frappe.response["message"] = {"results": results}
 
 
 @frappe.whitelist()
