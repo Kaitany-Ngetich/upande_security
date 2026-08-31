@@ -18,6 +18,7 @@ automatic side effect of a gate scan.
 """
 
 import io
+import urllib.parse
 
 import frappe
 
@@ -26,13 +27,22 @@ def generate_qr_for_badge(doc, method=None):
 	"""Fixed, pre-printed physical object - the QR always encodes the same
 	company + badge_number, never anything about whichever supplier
 	currently holds it. Wired via hooks.py doc_events on
-	Supplier Badge.after_insert, mirroring Visitor Badge's own QR gen."""
+	Supplier Badge.after_insert, mirroring Visitor Badge's own QR gen.
+
+	Encodes a public info-page URL (/supplier-badge?badge=...), not the
+	bare doc name - so scanning with an ordinary phone camera shows the
+	supplier it's currently assigned to (name only, nothing about any
+	visit - a supplier badge has no host/purpose to show), same as
+	Visitor Badge's own /visitor-received page. The gate app's own
+	scanner still resolves this fine: search_receiving_by_supplier_badge
+	pulls the badge name back out of the "badge" query param."""
 	if doc.qr_image:
 		return
 	if not doc.company or not doc.badge_number:
 		return
 
-	png_bytes = _render_qr_png(doc.name)
+	url = frappe.utils.get_url() + "/supplier-badge?badge=" + urllib.parse.quote(str(doc.name))
+	png_bytes = _render_qr_png(url)
 	fname = "qr-" + str(doc.name) + ".png"
 
 	file_doc = frappe.get_doc(

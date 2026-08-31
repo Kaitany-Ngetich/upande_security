@@ -20,6 +20,8 @@ delivery lives entirely in Gate Receiving Verification, a doctype this app
 owns outright.
 """
 
+import urllib.parse
+
 import frappe
 from frappe import _
 
@@ -145,6 +147,17 @@ def search_receiving_by_supplier_badge(reference):
 	if not reference:
 		frappe.response["message"] = {"found": False, "error": "A badge reference is required."}
 		return
+
+	# A badge's printed QR now encodes a public info-page URL (see
+	# supplier_badge_qr.py) rather than the bare doctype name, so a scan
+	# from either the gate app's own scanner or someone's plain camera
+	# resolves the same badge. Pull the "badge" query param back out if
+	# that's what we got; fall through to treating it as a bare name
+	# otherwise, for any badge printed before this change.
+	if "supplier-badge?" in reference:
+		parsed = urllib.parse.urlparse(reference)
+		qs = urllib.parse.parse_qs(parsed.query)
+		reference = (qs.get("badge") or [reference])[0]
 
 	badge = frappe.db.get_value(
 		"Supplier Badge", reference, ["name", "status", "supplier"], as_dict=True
