@@ -335,7 +335,7 @@ fixtures = [
     {
         "dt": "Web Page",
         "filters": [
-            ["route", "in", ["security-dashboard", "patrol-map", "visitor-received", "supplier-badge"]],
+            ["route", "in", ["security-dashboard", "patrol-map", "visitor-received", "supplier-badge", "request-sticker"]],
         ],
     },
     {
@@ -467,7 +467,7 @@ fixtures = [
         # hit before.
         "dt": "DocType",
         "filters": [
-            ["name", "in", ["Security Asset", "Visitor Badge", "Supplier Badge", "Staff Vehicle Sticker"]],
+            ["name", "in", ["Security Asset", "Visitor Badge", "Supplier Badge", "Staff Vehicle Sticker", "Staff Vehicle Sticker Request"]],
         ],
     },
     {
