@@ -177,6 +177,10 @@ doc_events = {
 		"after_insert": "upande_security.api.supplier_badge_qr.generate_qr_for_badge",
 		"validate": "upande_security.api.supplier_badge_qr.auto_sync_status",
 	},
+	"Staff Vehicle Sticker": {
+		"after_insert": "upande_security.api.staff_vehicle_sticker_qr.generate_qr_for_sticker",
+		"validate": "upande_security.api.staff_vehicle_sticker_qr.auto_sync_status",
+	},
 	"Appointment": {
 		# Releases the visitor's badge back to Available the moment
 		# workflow_state reaches Visitor Checked Out, no matter which path
@@ -463,7 +467,7 @@ fixtures = [
         # hit before.
         "dt": "DocType",
         "filters": [
-            ["name", "in", ["Security Asset", "Visitor Badge", "Supplier Badge"]],
+            ["name", "in", ["Security Asset", "Visitor Badge", "Supplier Badge", "Staff Vehicle Sticker"]],
         ],
     },
     {
