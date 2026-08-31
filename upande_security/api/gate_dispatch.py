@@ -337,11 +337,14 @@ def verify_dispatch_at_gate(
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 
+	shortfall_incident = _auto_file_shortfall_incident(doc)
+
 	frappe.response["message"] = {
 		"name": doc.name,
 		"reference_name": doc.reference_name,
 		"gate_verification_status": doc.gate_verification_status,
 		"is_authorized": match.get("is_authorized"),
+		"shortfall_incident": shortfall_incident,
 		"item_checks": [
 			{
 				"item_code": r.item_code,
@@ -353,6 +356,75 @@ def verify_dispatch_at_gate(
 			for r in doc.item_checks
 		],
 	}
+
+
+def _auto_file_shortfall_incident(doc):
+	"""A truck cleared the gate short of what its own dispatch paperwork
+	says it was carrying - that's the textbook definition of pilferage in
+	transit, and it should never depend on the guard remembering to file a
+	separate Incident Report by hand. Fires for any farm's gate, in either
+	direction (a farm-to-farm transfer's arrival end included, once that
+	side is verified through this same Dispatch Checks flow rather than
+	Receiving Checks - Receiving stays scoped to the stock team's own
+	Purchase Order checks, untouched by this).
+
+	Best-effort: a failure here must never undo or block the verification
+	that already happened - the Gate Dispatch Verification record is the
+	authoritative audit trail either way, this is a courtesy escalation on
+	top of it, same reasoning as _notify_receiving_team.
+	"""
+	short_rows = [r for r in doc.item_checks if r.match_status == "Short"]
+	if not short_rows:
+		return None
+
+	try:
+		lines = []
+		for r in short_rows:
+			expected = frappe.utils.flt(r.expected_qty, 2)
+			actual = frappe.utils.flt(r.actual_qty, 2)
+			short_by = frappe.utils.flt(expected - actual, 2)
+			lines.append(
+				(r.item_name or r.item_code)
+				+ ": expected "
+				+ str(expected)
+				+ " "
+				+ (r.uom or "")
+				+ ", received "
+				+ str(actual)
+				+ " "
+				+ (r.uom or "")
+				+ " (short "
+				+ str(short_by)
+				+ ")"
+			)
+
+		incident = frappe.new_doc("Incident Report")
+		incident.flags.ignore_links = True
+		incident.flags.ignore_mandatory = True
+		incident.incident_datetime = doc.gate_exit_time or frappe.utils.now_datetime()
+		incident.location = doc.farm or ""
+		incident.farm = doc.farm
+		incident.nature_of_incident = "Theft"
+		incident.severity = "High"
+		incident.status = "Open"
+		incident.reported_by = frappe.session.user
+		incident.description = (
+			"Auto-opened: dispatch "
+			+ doc.reference_name
+			+ " (vehicle "
+			+ (doc.vehicle_no or "unknown")
+			+ ", driver "
+			+ (doc.driver_name or "unknown")
+			+ ") cleared the gate short of its own paperwork.\n"
+			+ "\n".join(lines)
+			+ "\n[auto-dispatch-shortfall:" + doc.name + "]"
+		)
+		incident.insert(ignore_permissions=True)
+		frappe.db.commit()
+		return incident.name
+	except Exception as e:
+		frappe.log_error("_auto_file_shortfall_incident for " + doc.name, str(e))
+		return None
 
 
 @frappe.whitelist()
