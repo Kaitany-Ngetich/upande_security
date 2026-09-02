@@ -60,10 +60,14 @@ def sync_shifts_from_hr_roster():
 	doctype in real use on this site, so an "off day" per HR is simply a
 	day with no Active Shift Assignment covering it — nothing to create.
 
-	HR's roster has no farm/location at all, so a synced record's farm is
-	only ever a starting guess: whatever farm this guard was posted to most
-	recently. It's left blank if there's no prior posting to guess from —
-	visible as a gap for a Security Head to fill in, not a wrong guess.
+	HR's roster names the farm via Shift Assignment.shift_location (a Link
+	to Shift Location, not Farm — a separate doctype HR maintains). Where
+	that value is also a real Farm name, it's the synced record's farm,
+	full stop. It's only a starting guess — whatever farm this guard was
+	posted to most recently — when shift_location is blank or names a
+	location with no Farm counterpart (e.g. "Greenhouse", which isn't a
+	Farm on this site). Left blank if neither gives an answer — visible as
+	a gap for a Security Head to fill in, not a wrong guess.
 
 	Only ever creates — never touches an existing record (synced or made
 	by hand), so a Security Head's own edits (farm, block, a Cancelled
@@ -77,7 +81,7 @@ def sync_shifts_from_hr_roster():
 	rostered = frappe.db.sql(
 		"""
 		SELECT sa.name AS hr_shift_assignment, sa.employee, sa.shift_type,
-		       st.start_time, st.end_time
+		       sa.shift_location, st.start_time, st.end_time
 		FROM `tabShift Assignment` sa
 		JOIN `tabEmployee` emp ON emp.name = sa.employee
 		JOIN `tabShift Type` st ON st.name = sa.shift_type
@@ -129,12 +133,16 @@ def sync_shifts_from_hr_roster():
 			already_existed += 1
 			continue
 
-		last_farm = frappe.db.get_value(
-			"Security Guard Shift Assignment",
-			{"internal_guard": row.employee},
-			"farm",
-			order_by="start_date desc",
-		)
+		farm = None
+		if row.shift_location and frappe.db.exists("Farm", row.shift_location):
+			farm = row.shift_location
+		if not farm:
+			farm = frappe.db.get_value(
+				"Security Guard Shift Assignment",
+				{"internal_guard": row.employee},
+				"farm",
+				order_by="start_date desc",
+			)
 
 		shift_label = "Night" if "night" in (row.shift_type or "").lower() else "Day"
 
@@ -146,7 +154,7 @@ def sync_shifts_from_hr_roster():
 		shift.start_time = row.start_time
 		shift.end_date = end_dt.date()
 		shift.end_time = row.end_time
-		shift.farm = last_farm
+		shift.farm = farm
 		shift.synced_from_hr_shift = row.hr_shift_assignment
 		shift.remarks = "Auto-synced from HR roster (" + row.hr_shift_assignment + ")"
 		try:
