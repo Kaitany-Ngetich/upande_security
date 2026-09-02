@@ -1,0 +1,188 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-09-02 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "external_guard",
+  "status",
+  "mode",
+  "column_break_1",
+  "shift_type",
+  "start_time",
+  "end_time",
+  "column_break_2",
+  "start_date",
+  "end_date",
+  "rotation_interval_days",
+  "rotation_section",
+  "rotation_farms",
+  "preview_rows",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "default": "SGRP-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "SGRP-.#####",
+   "reqd": 1
+  },
+  {
+   "fieldname": "external_guard",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "External Guard",
+   "options": "Security Guard",
+   "reqd": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nApplied\nCancelled",
+   "read_only": 1
+  },
+  {
+   "default": "Semi-Automatic",
+   "fieldname": "mode",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Mode",
+   "options": "Automatic\nSemi-Automatic",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "shift_type",
+   "fieldtype": "Select",
+   "label": "Shift Type",
+   "options": "Day\nNight",
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_time",
+   "fieldtype": "Time",
+   "label": "Start Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "label": "End Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date",
+   "reqd": 1
+  },
+  {
+   "default": "7",
+   "fieldname": "rotation_interval_days",
+   "fieldtype": "Int",
+   "label": "Rotation Interval (Days)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "rotation_section",
+   "fieldtype": "Section Break",
+   "label": "Rotation Schedule"
+  },
+  {
+   "fieldname": "rotation_farms",
+   "fieldtype": "Table",
+   "label": "Rotation Farms (Order)",
+   "options": "Security Guard Rotation Farm",
+   "reqd": 1
+  },
+  {
+   "fieldname": "preview_rows",
+   "fieldtype": "Table",
+   "label": "Preview / Generated Schedule",
+   "options": "Security Guard Rotation Preview Row"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-02 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Security Guard Rotation Plan",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

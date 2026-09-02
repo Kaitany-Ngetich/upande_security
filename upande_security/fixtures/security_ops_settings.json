@@ -1,5 +1,6 @@
 [
  {
+  "command_center_extra_users": [],
   "dispatch_sources": [
    {
     "authorized_status_values": "",
@@ -41,6 +42,7 @@
   "docstatus": 0,
   "doctype": "Security Ops Settings",
   "escalation_minutes": 0,
+  "fallback_contacts": [],
   "farm_gates": [],
   "missed_checkin_minutes": 0,
   "modified": "2026-08-29 00:00:00.000000",

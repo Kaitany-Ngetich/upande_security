@@ -5,7 +5,7 @@
   "document_type": "Appointment",
   "enable_action_confirmation": 0,
   "is_active": 1,
-  "modified": "2026-08-31 00:00:00.000000",
+  "modified": "2026-08-31 00:00:00",
   "name": "Appointment Visitor Review",
   "override_status": 0,
   "send_email_alert": 1,

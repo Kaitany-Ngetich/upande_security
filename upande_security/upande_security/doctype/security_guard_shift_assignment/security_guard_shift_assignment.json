@@ -24,7 +24,13 @@
   "end_date",
   "start_time",
   "end_time",
-  "remarks"
+  "remarks",
+  "rotation_tab",
+  "off_days_section",
+  "off_days_html",
+  "rotation_plans_section",
+  "new_rotation_plan_btn",
+  "rotation_plans_html"
  ],
  "fields": [
   {
@@ -96,7 +102,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Section / Block",
-   "options": "Blocks",
+   "options": "Security Block",
    "read_only_depends_on": "eval:doc.security_guard=='Internal Guard' && !doc.__islocal"
   },
   {
@@ -156,6 +162,38 @@
   {
    "fieldname": "column_break_csna",
    "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.security_guard==\"External Guard\"",
+   "fieldname": "rotation_tab",
+   "fieldtype": "Tab Break",
+   "label": "Rotation & Off-Days"
+  },
+  {
+   "fieldname": "off_days_section",
+   "fieldtype": "Section Break",
+   "label": "Off-Days"
+  },
+  {
+   "description": "Off days configured here belong to the guard, not this shift — they're reused across all of this guard's Shift Assignment / Rotation Plan records. Rotation planning skips these dates automatically.",
+   "fieldname": "off_days_html",
+   "fieldtype": "HTML",
+   "label": "Guard's Off Days"
+  },
+  {
+   "fieldname": "rotation_plans_section",
+   "fieldtype": "Section Break",
+   "label": "Rotation Plans"
+  },
+  {
+   "fieldname": "new_rotation_plan_btn",
+   "fieldtype": "Button",
+   "label": "+ New Rotation Plan For This Guard"
+  },
+  {
+   "fieldname": "rotation_plans_html",
+   "fieldtype": "HTML",
+   "label": "Rotation Plans"
   }
  ],
  "grid_page_length": 50,
