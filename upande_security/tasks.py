@@ -395,63 +395,102 @@ def _resolve_security_head_phone(company, farm):
 	return contact_name, phone
 
 
+def _resolve_security_head_users(company, farm):
+	"""Same farm-then-company resolution as _resolve_security_head_phone,
+	but returns the actual User id(s) to notify rather than a phone number -
+	used by _escalate_lone_worker to alert specifically the guard's own
+	Security Head(s), not the broader "escalation" Notification Rules
+	audience. No org-wide fallback here (unlike the phone lookup): a
+	fallback CONTACT is a phone number to call, not a Frappe User to notify,
+	so there's nothing sensible to fall back to if neither farm nor company
+	resolves anyone - an empty list means _escalate_lone_worker's caller
+	falls back to the org-wide "escalation" notification instead."""
+	if farm:
+		rows = frappe.db.sql(
+			"SELECT DISTINCT up.user "
+			"FROM `tabUser Permission` up "
+			"JOIN `tabHas Role` hr ON hr.parent = up.user AND hr.role = 'Security Head' "
+			"WHERE up.allow = 'Farm' AND up.for_value = %s",
+			(farm,),
+		)
+		users = [row[0] for row in rows if row and row[0]]
+		if users:
+			return users
+	if company:
+		rows = frappe.db.sql(
+			"SELECT DISTINCT up.user "
+			"FROM `tabUser Permission` up "
+			"JOIN `tabHas Role` hr ON hr.parent = up.user AND hr.role = 'Security Head' "
+			"WHERE up.allow = 'Company' AND up.for_value = %s",
+			(company,),
+		)
+		users = [row[0] for row in rows if row and row[0]]
+		if users:
+			return users
+	return []
+
+
 def _escalate_lone_worker(shift_name, guard_label, company, farm, last_seen, escalation_minutes):
 	"""A guard silent beyond escalation_minutes (Security Ops Settings,
 	defaults to double the missed-check-in threshold) gets escalated beyond
-	a Desk bell notification: an actual SOS
-	Incident Report is opened (so it's tracked and can't just get missed in
-	a notification list), and the alert to Security Heads includes the
-	resolved Security Head phone number directly, closing the loop toward
-	the same contact a guard's own panic button would reach.
+	the regular Desk bell notification: a direct alert to that guard's own
+	Security Head (resolved by farm, falling back to company - same lookup
+	as the phone number below), not an org-wide notification.
 
-	Only escalates once per silence episode — guarded by checking whether an
-	auto-created SOS Incident Report already exists for this shift's current
-	gap (marked via a distinctive tag in the description), not by the
-	1-hour Notification Log dedup used elsewhere, since an open incident
-	should not multiply just because the check keeps running every 15
-	minutes while the guard stays unreachable.
+	An earlier version of this auto-opened a real "SOS" Incident Report per
+	escalation. Dropped per the project owner's explicit request - it was
+	firing on GPS/connectivity gaps as often as genuine emergencies and had
+	become noise instead of signal for the people meant to act on it fast.
+	Returns None if nobody was actually notified - the caller only counts a
+	real escalation, never a silent no-op.
+
+	Only escalates once per silence episode - guarded by the same 55-minute
+	Notification Log dedup (_recent_alert_exists) the other alerts here use,
+	on the "SOS escalation" kind, rather than an Incident Report's existence
+	(there's no longer an Incident Report to check).
 	"""
-	tag = "[auto-lone-worker:" + shift_name + "]"
-	already_escalated = frappe.db.exists(
-		"Incident Report",
-		{"description": ["like", "%" + tag + "%"], "status": ["!=", "Closed"]},
-	)
-	if already_escalated:
+	if _recent_alert_exists(shift_name, "SOS escalation"):
 		return None
 
 	head_name, head_phone = _resolve_security_head_phone(company, farm)
-	contact_line = (
-		"Security Head on file: " + head_name + " " + head_phone
-		if head_phone
-		else "No Security Head contact could be resolved for this guard's company/farm — check Security Ops Settings fallback."
+	head_users = _resolve_security_head_users(company, farm)
+
+	message = (
+		"Guard " + guard_label + " (shift " + shift_name + ") has sent no GPS ping since "
+		+ str(last_seen) + " - over " + str(escalation_minutes) + " minutes of silence."
 	)
 
-	incident = frappe.new_doc("Incident Report")
-	incident.flags.ignore_links = True
-	incident.flags.ignore_mandatory = True
-	incident.incident_datetime = frappe.utils.now_datetime()
-	incident.location = farm or ""
-	incident.nature_of_incident = "SOS"
-	incident.severity = "Critical"
-	incident.status = "Open"
-	incident.description = (
-		"Auto-opened: guard "
-		+ guard_label
-		+ " (shift "
-		+ shift_name
-		+ ") has sent no GPS ping since "
-		+ str(last_seen)
-		+ " — over " + str(escalation_minutes) + " minutes of silence. "
-		+ contact_line
-		+ " "
-		+ tag
-	)
-	try:
-		incident.insert(ignore_permissions=True)
-	except Exception as e:
-		frappe.log_error("_escalate_lone_worker", str(e))
+	if not head_users:
+		# No Security Head resolvable for this guard's farm/company at all -
+		# a real gap to fix (User Permission missing), not something to
+		# silently drop. Falls back to the org-wide "escalation" audience so
+		# the alert still reaches someone.
+		_notify_security_ops(
+			shift_name,
+			"SOS escalation",
+			message + " No Security Head could be resolved for this guard's company/farm - check User Permissions.",
+			"escalation",
+		)
+		return {"head_name": head_name, "head_phone": head_phone, "notified_users": [], "fallback": True}
+
+	notified = []
+	for user in head_users:
+		notification = frappe.new_doc("Notification Log")
+		notification.for_user = user
+		notification.subject = "SOS escalation: " + shift_name
+		notification.email_content = message.replace("\n", "<br>")
+		notification.document_type = "Security Guard Shift Assignment"
+		notification.document_name = shift_name
+		notification.type = "Alert"
+		try:
+			notification.insert(ignore_permissions=True)
+			notified.append(user)
+		except Exception as e:
+			frappe.log_error("_escalate_lone_worker notify", str(e))
+
+	if not notified:
 		return None
-	return incident.name, head_phone
+	return {"head_name": head_name, "head_phone": head_phone, "notified_users": notified, "fallback": False}
 
 
 def _notify_security_ops(shift_name, alert_kind, message, alert_type):
@@ -538,21 +577,14 @@ def check_patrol_geofence_and_gaps():
 			last_seen = str(latest[0].captured_at) if latest else "never this shift"
 
 			# Total silence past escalation_minutes (not just this run's
-			# missed_checkin_minutes threshold) escalates to an actual
-			# tracked SOS incident, on top of the regular Desk notification
-			# below.
+			# missed_checkin_minutes threshold) escalates beyond the regular
+			# Desk notification below: a direct alert to this guard's own
+			# Security Head (see _escalate_lone_worker's own docstring for
+			# why this no longer auto-opens an Incident Report).
 			if not latest or frappe.utils.get_datetime(latest[0].captured_at) < frappe.utils.get_datetime(escalation_cutoff):
 				result = _escalate_lone_worker(shift.name, guard_label, company, shift.farm, last_seen, escalation_minutes)
 				if result:
 					escalated += 1
-					incident_name, _head_phone = result
-					_notify_security_ops(
-						shift.name,
-						"SOS escalation",
-						"Guard " + guard_label + " (shift " + shift.name + ") has been silent over "
-						+ str(escalation_minutes) + " minutes. Auto-opened Incident Report: " + incident_name,
-						"escalation",
-					)
 
 			if not _recent_alert_exists(shift.name, "Missed check-in"):
 				_notify_security_ops(
