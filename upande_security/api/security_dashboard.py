@@ -6,6 +6,10 @@ import frappe
 from frappe import _
 from frappe.utils import get_datetime
 
+from upande_security.upande_security.doctype.security_guard_shift_assignment.security_guard_shift_assignment import (
+    combine_date_time,
+)
+
 
 @frappe.whitelist()
 def get_visitors_dashboard(
@@ -2698,7 +2702,8 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
         filters=range_filters,
         fields=[
             "name", "security_guard", "internal_guard", "external_guard",
-            "farm", "block", "shift_type", "start_date", "end_date", "status",
+            "farm", "block", "shift_type", "start_date", "start_time",
+            "end_date", "end_time", "status",
             "assigned_by", "remarks", "modified",
         ],
         order_by="start_date desc",
@@ -2774,8 +2779,13 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
             "farm_color": color,
             "block": r.get("block") or "",
             "shift_type": r.get("shift_type"),
-            "start_date": str(r["start_date"]) if r.get("start_date") else None,
-            "end_date": str(r["end_date"]) if r.get("end_date") else None,
+            # Full date+time, not date alone — a date-only string like
+            # "2026-09-02" gets parsed by the browser's `new Date(...)` as UTC
+            # midnight, then localized, which showed every shift starting and
+            # ending at the same wrong clock time (03:00 in Kenya, UTC+3)
+            # regardless of its real start_time/end_time.
+            "start_date": str(combine_date_time(r.get("start_date"), r.get("start_time")) or "") or None,
+            "end_date": str(combine_date_time(r.get("end_date"), r.get("end_time")) or "") or None,
             "status": r.get("status"),
             "remarks": r.get("remarks") or "",
         })
