@@ -654,6 +654,7 @@ fixtures = [
                     "Visitor at Reception - Host & Secretary SMS",
                     "Visitor at Reception - Host Alert (Kaitet Ltd.)",
                     "Visitor at Reception - Host Alert (Karen Roses)",
+                    "Staff Vehicle Sticker Approved - Employee Email",
                 ],
             ],
         ],
