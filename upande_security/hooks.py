@@ -403,6 +403,7 @@ fixtures = [
                     "Appointment-custom_gate_mismatch",
                     "Appointment-custom_meet_with_farm",
                     "Appointment-custom_meet_with_phone",
+                    "Appointment-customer_organization",
                     "Timesheet-custom_entry_gate",
                     "Timesheet-custom_exit_gate",
                     "Timesheet-custom_gate_mismatch",
