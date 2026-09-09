@@ -403,6 +403,8 @@ fixtures = [
                     "Appointment-custom_gate_mismatch",
                     "Appointment-custom_meet_with_farm",
                     "Appointment-custom_meet_with_phone",
+                    "Appointment-custom_meet_with_name",
+                    "Appointment-custom_meet_with_wa",
                     "Appointment-customer_organization",
                     "Timesheet-custom_entry_gate",
                     "Timesheet-custom_exit_gate",
@@ -659,6 +661,18 @@ fixtures = [
                     "Staff Vehicle Sticker Approved - Employee Email",
                 ],
             ],
+        ],
+    },
+    {
+        # frappe_whatsapp's own Notification doctype (production-only app —
+        # not installed on this local bench, so this fixture documents the
+        # live config but can't be replayed here). Fires the same "visitor
+        # arrived" alert as the Email/SMS Notifications above, over
+        # WhatsApp, using the already-Meta-approved visitor_host_alert_v2
+        # template (body + an "Open Appointment" button).
+        "dt": "WhatsApp Notification",
+        "filters": [
+            ["name", "in", ["Visitor at Reception - Host Alert (WhatsApp)"]],
         ],
     },
 ]

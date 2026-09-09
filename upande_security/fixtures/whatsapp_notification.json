@@ -1,0 +1,72 @@
+[
+ {
+  "name": "Visitor at Reception - Host Alert (WhatsApp)",
+  "creation": "2026-09-09 19:21:27.738906",
+  "modified": "2026-09-09 19:22:24.472484",
+  "docstatus": 0,
+  "idx": 0,
+  "notification_name": "Visitor at Reception - Host Alert (WhatsApp)",
+  "notification_type": "DocType Event",
+  "reference_doctype": "Appointment",
+  "field_name": "custom_meet_with_wa",
+  "event_frequency": "All",
+  "doctype_event": "After Insert",
+  "days_in_advance": 0,
+  "disabled": 0,
+  "template": "visitor_host_alert_v2-en",
+  "attach_document_print": 0,
+  "custom_attachment": 0,
+  "whatsapp_account": "james@upande.com",
+  "doctype": "WhatsApp Notification",
+  "fields": [
+   {
+    "name": 5,
+    "creation": "2026-09-09 19:21:27.738906",
+    "modified": "2026-09-09 19:22:24.472484",
+    "docstatus": 0,
+    "idx": 1,
+    "field_name": "custom_meet_with_name",
+    "parent": "Visitor at Reception - Host Alert (WhatsApp)",
+    "parentfield": "fields",
+    "parenttype": "WhatsApp Notification",
+    "doctype": "WhatsApp Message Fields"
+   },
+   {
+    "name": 6,
+    "creation": "2026-09-09 19:21:27.738906",
+    "modified": "2026-09-09 19:22:24.472484",
+    "docstatus": 0,
+    "idx": 2,
+    "field_name": "customer_name",
+    "parent": "Visitor at Reception - Host Alert (WhatsApp)",
+    "parentfield": "fields",
+    "parenttype": "WhatsApp Notification",
+    "doctype": "WhatsApp Message Fields"
+   },
+   {
+    "name": 7,
+    "creation": "2026-09-09 19:21:27.738906",
+    "modified": "2026-09-09 19:22:24.472484",
+    "docstatus": 0,
+    "idx": 3,
+    "field_name": "custom_visit_purpose",
+    "parent": "Visitor at Reception - Host Alert (WhatsApp)",
+    "parentfield": "fields",
+    "parenttype": "WhatsApp Notification",
+    "doctype": "WhatsApp Message Fields"
+   },
+   {
+    "name": 8,
+    "creation": "2026-09-09 19:21:27.738906",
+    "modified": "2026-09-09 19:22:24.472484",
+    "docstatus": 0,
+    "idx": 4,
+    "field_name": "name",
+    "parent": "Visitor at Reception - Host Alert (WhatsApp)",
+    "parentfield": "fields",
+    "parenttype": "WhatsApp Notification",
+    "doctype": "WhatsApp Message Fields"
+   }
+  ]
+ }
+]
