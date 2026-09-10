@@ -33,6 +33,13 @@
     "condition": null,
     "receiver_by_document_field": "custom_meet_with_email",
     "receiver_by_role": null
+   },
+   {
+    "bcc": null,
+    "cc": null,
+    "condition": null,
+    "receiver_by_document_field": null,
+    "receiver_by_role": "Secretary"
    }
   ],
   "send_system_notification": 0,

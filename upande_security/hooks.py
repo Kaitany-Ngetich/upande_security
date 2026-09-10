@@ -639,8 +639,7 @@ fixtures = [
         # (parent, role) pair instead of `name`.
         "dt": "Custom DocPerm",
         "filters": [
-            ["parent", "=", "Appointment"],
-            ["role", "=", "Visit Approver"],
+            ["role", "in", ["Visit Approver", "Secretary"]],
         ],
     },
     {
