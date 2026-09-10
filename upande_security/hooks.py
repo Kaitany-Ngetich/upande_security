@@ -405,6 +405,8 @@ fixtures = [
                     "Appointment-custom_meet_with_phone",
                     "Appointment-custom_meet_with_name",
                     "Appointment-custom_meet_with_wa",
+                    "Appointment-custom_secretary_wa",
+                    "Company-custom_secretary",
                     "Appointment-customer_organization",
                     "Timesheet-custom_entry_gate",
                     "Timesheet-custom_exit_gate",
@@ -671,7 +673,14 @@ fixtures = [
         # template (body + an "Open Appointment" button).
         "dt": "WhatsApp Notification",
         "filters": [
-            ["name", "in", ["Visitor at Reception - Host Alert (WhatsApp)"]],
+            [
+                "name",
+                "in",
+                [
+                    "Visitor at Reception - Host Alert (WhatsApp)",
+                    "Visitor at Reception - Secretary Alert (Karen Roses)",
+                ],
+            ],
         ],
     },
 ]
