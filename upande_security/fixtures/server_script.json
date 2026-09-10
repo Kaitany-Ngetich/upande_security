@@ -1567,13 +1567,13 @@
   "doctype_event": "Before Save",
   "enable_rate_limit": 0,
   "event_frequency": "All",
-  "modified": "2026-09-10 11:49:38.993846",
+  "modified": "2026-09-10 12:11:00.000000",
   "module": "Upande Security",
   "name": "Appointment Secretary WA Number",
   "rate_limit_count": 5,
   "rate_limit_seconds": 86400,
   "reference_doctype": "Appointment",
-  "script": "secretary = frappe.db.get_value(\"Company\", doc.custom_meet_with_company, \"custom_secretary\") if doc.custom_meet_with_company else None\nraw = None\nif secretary:\n    raw = frappe.db.get_value(\"Employee\", secretary, \"cell_number\")\n\nd = \"\".join(c for c in (raw or \"\") if c.isdigit())\nif d.startswith(\"254\"):\n    pass\nelif d.startswith(\"0\"):\n    d = \"254\" + d[1:]\nelif len(d) == 9 and d[0] in (\"7\", \"1\"):\n    d = \"254\" + d\n\ndoc.custom_secretary_wa = d\n",
+  "script": "secretary = frappe.db.get_value(\"Company\", doc.custom_meet_with_company, \"custom_secretary\") if doc.custom_meet_with_company else None\nraw = None\ndoc.custom_secretary_email = \"\"\nif secretary:\n    emp = frappe.db.get_value(\"Employee\", secretary, [\"cell_number\", \"user_id\"], as_dict=True)\n    if emp:\n        raw = emp.cell_number\n        doc.custom_secretary_email = emp.user_id or \"\"\n\nd = \"\".join(c for c in (raw or \"\") if c.isdigit())\nif d.startswith(\"254\"):\n    pass\nelif d.startswith(\"0\"):\n    d = \"254\" + d[1:]\nelif len(d) == 9 and d[0] in (\"7\", \"1\"):\n    d = \"254\" + d\n\ndoc.custom_secretary_wa = d\n",
   "script_type": "DocType Event"
  }
 ]

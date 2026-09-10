@@ -406,6 +406,7 @@ fixtures = [
                     "Appointment-custom_meet_with_name",
                     "Appointment-custom_meet_with_wa",
                     "Appointment-custom_secretary_wa",
+                    "Appointment-custom_secretary_email",
                     "Company-custom_secretary",
                     "Appointment-customer_organization",
                     "Timesheet-custom_entry_gate",

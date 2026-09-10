@@ -38,8 +38,8 @@
     "bcc": null,
     "cc": null,
     "condition": null,
-    "receiver_by_document_field": null,
-    "receiver_by_role": "Secretary"
+    "receiver_by_document_field": "custom_secretary_email",
+    "receiver_by_role": null
    }
   ],
   "send_system_notification": 0,
