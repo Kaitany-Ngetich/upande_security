@@ -3792,7 +3792,7 @@
   "columns": 0,
   "default": null,
   "depends_on": null,
-  "description": "Gets notified (Email/WhatsApp) on every visitor arrival for this company, on top of the host.",
+  "description": "",
   "docstatus": 0,
   "doctype": "Custom Field",
   "dt": "Company",
