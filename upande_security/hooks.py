@@ -525,6 +525,7 @@ fixtures = [
                     "Appointment-customer_details_section-label",
                     "Appointment-customer_email-reqd",
                     "Patrol GPS Log-personel-options",
+                    "Patrol GPS Log-main-sort_field",
                 ],
             ],
         ],
