@@ -62,5 +62,21 @@
   "property_type": "Check",
   "row_name": null,
   "value": "0"
+ },
+ {
+  "default_value": null,
+  "doc_type": "Patrol GPS Log",
+  "docstatus": 0,
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "field_name": "personel",
+  "is_system_generated": 0,
+  "modified": "2026-09-10 19:33:23.796343",
+  "module": null,
+  "name": "Patrol GPS Log-personel-options",
+  "property": "options",
+  "property_type": "Text",
+  "row_name": null,
+  "value": "\nInternal Guard\nExternal Guard"
  }
 ]
