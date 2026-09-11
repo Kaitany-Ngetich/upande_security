@@ -1569,7 +1569,7 @@
   "event_frequency": "All",
   "modified": "2026-09-11 05:50:00.000000",
   "module": "Upande Security",
-  "name": "Appointment Secretary WA Number",
+  "name": "Company Receptionist WA Number",
   "rate_limit_count": 5,
   "rate_limit_seconds": 86400,
   "reference_doctype": "Appointment",
