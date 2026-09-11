@@ -33,6 +33,8 @@
   "designation",
   "farm",
   "location",
+  "post",
+  "reliever",
   "section_identification",
   "national_id",
   "tax_id",
@@ -185,6 +187,19 @@
    "fieldtype": "Select",
    "label": "Location",
    "options": "\nRavine\nKaren\nKitale"
+  },
+  {
+   "fieldname": "post",
+   "fieldtype": "Data",
+   "label": "Post",
+   "description": "Their usual gate/station (e.g. Gate C, Patrol, Main gate) or \"Reliever\" if they're the designated backup for a group of guards."
+  },
+  {
+   "fieldname": "reliever",
+   "fieldtype": "Link",
+   "label": "Reliever",
+   "options": "Security Guard",
+   "description": "Who covers this guard's off days on the monthly schedule - auto-fills their shift when this guard is marked off."
   },
   {
    "fieldname": "section_identification",
