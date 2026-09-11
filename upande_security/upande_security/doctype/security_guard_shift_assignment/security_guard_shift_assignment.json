@@ -25,6 +25,7 @@
   "start_time",
   "end_time",
   "remarks",
+  "covering_for",
   "rotation_tab",
   "off_days_section",
   "off_days_html",
@@ -141,6 +142,14 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks"
+  },
+  {
+   "fieldname": "covering_for",
+   "fieldtype": "Link",
+   "label": "Covering For",
+   "options": "Security Guard",
+   "read_only": 1,
+   "description": "Set automatically when this shift was auto-filled by a reliever standing in for another guard's off day on the monthly schedule."
   },
   {
    "depends_on": "eval:doc.security_guard==\"Internal Guard\"",

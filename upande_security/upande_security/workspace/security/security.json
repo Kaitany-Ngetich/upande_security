@@ -2,7 +2,7 @@
  "app": "upande_security",
  "charts": [],
  "content": "[{\"id\": \"securityNav0001\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"Security Navigation\", \"col\": 12}}]",
- "creation": "2026-08-21 15:24:49.572784",
+ "creation": "2026-09-02 15:45:40.900742",
  "custom_blocks": [
   {
    "custom_block_name": "Security Navigation",
@@ -20,7 +20,7 @@
  "label": "Security",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-08-22 11:34:10.101818",
+ "modified": "2026-09-11 13:41:36.923424",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security",
@@ -117,6 +117,13 @@
    "type": "DocType"
   },
   {
+   "color": "Teal",
+   "doc_view": "List",
+   "label": "Supplier Badges",
+   "link_to": "Supplier Badge",
+   "type": "DocType"
+  },
+  {
    "color": "Grey",
    "doc_view": "List",
    "label": "Ops Settings",
@@ -136,18 +143,49 @@
    "type": "DocType"
   },
   {
-   "color": "Blue",
    "doc_view": "List",
-   "label": "Appointments",
-   "link_to": "Appointment",
+   "label": "Near Miss Report",
+   "link_to": "Near Miss Report",
    "type": "DocType"
   },
   {
-   "color": "Cyan",
+   "color": "Orange",
    "doc_view": "List",
-   "label": "Vehicles",
-   "link_to": "Vehicle",
+   "label": "Staff Vehicle Stickers",
+   "link_to": "Staff Vehicle Sticker",
    "type": "DocType"
+  },
+  {
+   "color": "Yellow",
+   "doc_view": "List",
+   "label": "Sticker Requests",
+   "link_to": "Staff Vehicle Sticker Request",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Security Block",
+   "link_to": "Security Block",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Security Guard Off Days",
+   "link_to": "Security Guard Off Days",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Security Guard Rotation Plan",
+   "link_to": "Security Guard Rotation Plan",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "",
+   "label": "Shift Schedule",
+   "type": "URL",
+   "url": "/shift-schedule"
   }
  ],
  "title": "Security",

@@ -335,7 +335,7 @@ fixtures = [
     {
         "dt": "Web Page",
         "filters": [
-            ["route", "in", ["security-dashboard", "patrol-map", "visitor-received", "supplier-badge", "request-sticker"]],
+            ["route", "in", ["security-dashboard", "patrol-map", "visitor-received", "supplier-badge", "request-sticker", "shift-schedule"]],
         ],
     },
     {
