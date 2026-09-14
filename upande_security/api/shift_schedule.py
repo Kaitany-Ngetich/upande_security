@@ -17,6 +17,22 @@ from upande_security.api.guard_off_days import add_guard_off_day, remove_guard_o
 # rather than guessed at.
 CORE_FARMS = ["Torongo", "Simotwo", "Kaptumbo", "Kapkolia", "Chepsito"]
 
+# Maps this doctype's own shift_type values to the HRMS Shift Type master
+# record that actually holds the clock times. Day/Night are the original
+# farm-wide 12h split; First/Second/Third are Chepsito's real 8h roster
+# (MICROSA's own September 2026 roster, imported directly - see
+# import_chepsito_september_roster.py). A plain "Day" if/else here used to
+# silently resolve anything that wasn't literally "Day" to Night's hours -
+# harmless while only two values existed, a real bug waiting to happen now
+# that there are five.
+SHIFT_TYPE_MASTER = {
+	"Day": "Day Guard Shift",
+	"Night": "Night Guard Shift",
+	"First": "First Guard Shift",
+	"Second": "Second Guard Shift",
+	"Third": "Third Guard Shift",
+}
+
 
 def _month_bounds(year: int, month: int) -> tuple[str, str, int]:
 	last_day = calendar.monthrange(year, month)[1]
@@ -220,7 +236,7 @@ def toggle_guard_day(guard: str, date: str, mark_off: str | int | bool, farm: st
 
 		shift_type = _usual_shift_type(guard)
 		t = frappe.db.get_value(
-			"Shift Type", "Day Guard Shift" if shift_type == "Day" else "Night Guard Shift",
+			"Shift Type", SHIFT_TYPE_MASTER[shift_type],
 			["start_time", "end_time"], as_dict=True,
 		)
 		remark = _("Covering {0}'s off day").format(guard_doc.full_name)
@@ -293,7 +309,7 @@ def toggle_guard_day(guard: str, date: str, mark_off: str | int | bool, farm: st
 	if not already_on:
 		shift_type = _usual_shift_type(guard)
 		t = frappe.db.get_value(
-			"Shift Type", "Day Guard Shift" if shift_type == "Day" else "Night Guard Shift",
+			"Shift Type", SHIFT_TYPE_MASTER[shift_type],
 			["start_time", "end_time"], as_dict=True,
 		)
 		doc = frappe.new_doc("Security Guard Shift Assignment")

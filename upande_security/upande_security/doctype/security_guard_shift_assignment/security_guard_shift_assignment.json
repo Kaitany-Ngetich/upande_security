@@ -56,7 +56,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Shift Type",
-   "options": "Day\nNight",
+   "options": "Day\nNight\nFirst\nSecond\nThird",
    "read_only_depends_on": "eval:doc.security_guard=='Internal Guard' && !doc.__islocal",
    "reqd": 1
   },
