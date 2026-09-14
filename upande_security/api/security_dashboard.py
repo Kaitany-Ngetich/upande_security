@@ -2542,6 +2542,15 @@ _SHIFT_FARM_PALETTE = [
 ]
 
 
+# Canonical display order for every shift_type this doctype's Security Guard
+# Shift Assignment supports - Day/Night is the original farm-wide 12h split,
+# First/Second/Third is Chepsito's real 8h roster (see shift_schedule.py's
+# own SHIFT_TYPE_MASTER). Coverage-board columns/badges for a given farm are
+# built from whichever of these its own recent history actually uses, in
+# this order, not a hardcoded Day/Night pair.
+SHIFT_TYPE_ORDER = ["Day", "Night", "First", "Second", "Third"]
+
+
 def _shift_farm_colors(farm_names: list[str]) -> dict[str, dict[str, str]]:
     ordered = sorted({name for name in farm_names if name})
     return {
@@ -2790,26 +2799,54 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
             "remarks": r.get("remarks") or "",
         })
 
-    # Today's coverage board: farm -> {Day: guard_name, Night: guard_name}
-    coverage = {f["farm"]: {"Day": None, "Night": None} for f in board_farms}
+    # Today's coverage board: farm -> {shift_type: guard_name}. Not every farm
+    # runs the same shift pattern any more - most are still the original
+    # Day/Night 12h split, but Chepsito's real roster is First/Second/Third
+    # 8h shifts (see upande_security.api.shift_schedule.SHIFT_TYPE_MASTER).
+    # A farm's own shift-type SET is derived from its actual recent usage
+    # (not hardcoded to Day/Night), so a 3-shift farm gets 3 slots here, not
+    # 2 blank ones that make it look uncovered when it's actually fully
+    # staffed. 60 days back is enough to see a farm's real pattern even on a
+    # day it happens to have a gap; a farm with no history at all still
+    # defaults to Day/Night, matching this board's original behaviour.
+    farm_shift_types = {}
+    if board_farms:
+        recent_shift_rows = frappe.db.sql(
+            """
+            SELECT DISTINCT farm, shift_type FROM `tabSecurity Guard Shift Assignment`
+            WHERE farm IN %(farms)s AND start_date >= %(since)s AND shift_type IS NOT NULL
+            """,
+            {"farms": tuple(f["farm"] for f in board_farms), "since": frappe.utils.add_days(today, -60)},
+            as_dict=True,
+        )
+        for r in recent_shift_rows:
+            farm_shift_types.setdefault(r.farm, set()).add(r.shift_type)
+
+    def _ordered_shift_types(farm_name):
+        types = farm_shift_types.get(farm_name) or {"Day", "Night"}
+        return [s for s in SHIFT_TYPE_ORDER if s in types] or ["Day", "Night"]
+
+    coverage = {f["farm"]: {s: None for s in _ordered_shift_types(f["farm"])} for f in board_farms}
     for r in all_rows:
         start = frappe.utils.getdate(r["start_date"]) if r.get("start_date") else None
         end = frappe.utils.getdate(r["end_date"]) if r.get("end_date") else None
         if not (start and start <= today and (not end or end >= today)):
             continue
-        slot = coverage.setdefault(r.get("farm"), {"Day": None, "Night": None})
+        slot = coverage.setdefault(r.get("farm"), {s: None for s in _ordered_shift_types(r.get("farm"))})
+        slot.setdefault(r.get("shift_type"), None)
         slot[r.get("shift_type")] = _shift_guard_name(r, employee_names, security_guard_names)
 
     coverage_board = [
-        {"farm": farm_name, "day_guard": slots.get("Day"), "night_guard": slots.get("Night")}
+        {
+            "farm": farm_name,
+            "shifts": [{"shift_type": st, "guard_name": guard_name} for st, guard_name in slots.items()],
+        }
         for farm_name, slots in coverage.items()
     ]
     coverage_board.sort(key=lambda x: x["farm"] or "")
 
-    filled_slots = sum(
-        1 for c in coverage_board for key in ("day_guard", "night_guard") if c[key]
-    )
-    total_slots = len(coverage_board) * 2
+    filled_slots = sum(1 for c in coverage_board for s in c["shifts"] if s["guard_name"])
+    total_slots = sum(len(c["shifts"]) for c in coverage_board)
 
     # Rotation metric: guards who have covered more than one distinct farm.
     guard_farms = {}
@@ -2836,7 +2873,7 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
             "day_shift_count": day_count,
             "night_shift_count": night_count,
             "farms_covered": sum(
-                1 for c in coverage_board if c["day_guard"] or c["night_guard"]
+                1 for c in coverage_board if any(s["guard_name"] for s in c["shifts"])
             ),
             "farms_total": len(coverage_board),
             "unfilled_slots": total_slots - filled_slots,
@@ -2847,7 +2884,7 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
         "farm_colors": farm_colors,
         "filter_options": {
             "farms": [f["farm"] for f in company_farms],
-            "shift_types": ["Day", "Night"],
+            "shift_types": SHIFT_TYPE_ORDER,
             "statuses": ["Active", "Cancelled"],
             "companies": [
                 c.name
