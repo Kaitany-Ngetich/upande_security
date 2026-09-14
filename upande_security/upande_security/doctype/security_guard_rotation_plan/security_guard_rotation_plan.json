@@ -70,7 +70,7 @@
    "fieldname": "shift_type",
    "fieldtype": "Select",
    "label": "Shift Type",
-   "options": "Day\nNight",
+   "options": "Day\nNight\nFirst\nSecond\nThird",
    "reqd": 1
   },
   {
