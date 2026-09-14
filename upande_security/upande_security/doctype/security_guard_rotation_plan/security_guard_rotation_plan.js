@@ -113,16 +113,23 @@ frappe.ui.form.on("Security Guard Rotation Preview Row", {
 		// actual Shift Assignment for this guard/date right now (same
 		// underlying call as the Shift Schedule grid's own off-day
 		// checkbox), whether this plan is Draft or already Applied.
+		//
+		// A plain frappe.call on purpose, not frm.call - frm.call runs
+		// Document methods through run_doc_method, which syncs the WHOLE
+		// doc (every preview row) back from the server on every response,
+		// visibly repainting the entire table for a single-row edit. This
+		// only ever touches the one row that changed.
 		if (frm.is_new()) return; // nothing real to toggle yet - no saved doc, no guard-scoped rows possible
 		const row = locals[cdt][cdn];
 		const mark_off = row.is_off_day ? 1 : 0;
+		const grid_row = frm.fields_dict.preview_rows.grid.grid_rows_by_docname[cdn];
+		if (grid_row) grid_row.wrapper.css("opacity", 0.5);
 
-		frappe.dom.freeze(__("Updating..."));
-		frm.call({
-			method: "toggle_preview_row_off_day",
-			args: { row_name: cdn, mark_off },
+		frappe.call({
+			method: "upande_security.upande_security.doctype.security_guard_rotation_plan.security_guard_rotation_plan.toggle_preview_row_off_day",
+			args: { plan_name: frm.doc.name, row_name: cdn, mark_off },
 		}).then((r) => {
-			frappe.dom.unfreeze();
+			if (grid_row) grid_row.wrapper.css("opacity", "");
 			const res = r.message;
 			if (!res) return;
 			frappe.model.set_value(cdt, cdn, "status", res.status);
@@ -134,7 +141,7 @@ frappe.ui.form.on("Security Guard Rotation Preview Row", {
 			else msg = __("Off day set - no reliever assigned to this guard.");
 			frappe.show_alert({ message: msg, indicator: res.state === "on" ? "green" : "blue" });
 		}).catch(() => {
-			frappe.dom.unfreeze();
+			if (grid_row) grid_row.wrapper.css("opacity", "");
 			// Revert the checkbox - the write didn't happen.
 			frappe.model.set_value(cdt, cdn, "is_off_day", mark_off ? 0 : 1);
 		});

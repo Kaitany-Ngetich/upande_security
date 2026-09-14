@@ -201,41 +201,6 @@ class SecurityGuardRotationPlan(Document):
 		return {"applied": applied, "failed": failed, "skipped": skipped, "status": self.status}
 
 	@frappe.whitelist()
-	def toggle_preview_row_off_day(self, row_name, mark_off):
-		"""Check/uncheck one preview row's "Off Day" box directly, whether
-		this plan is still Draft or already Applied - reuses the exact same
-		action as the Shift Schedule grid's own off-day checkbox
-		(toggle_guard_day), just triggered from this table instead, and
-		keeping the row's own farm/block for that day rather than the
-		guard's home farm (a rotation can move a guard across farms on
-		different days, unlike the grid's single-farm-per-guard toggle).
-
-		Real effect either way: cancels or creates a real Shift Assignment
-		for external_guard on this row's date, fills/removes the reliever,
-		and updates the guard's Security Guard Off Days list - not just a
-		flag on this table. Safe to call on a Draft plan too: it updates the
-		same Off Days list generate_preview() reads from, so a later
-		Generate Preview click still reflects whatever was picked here.
-
-		Returns the row's own updated {is_off_day, status} plus whatever
-		toggle_guard_day() itself returned (state/covered_by/etc, for the
-		client to show).
-		"""
-		from upande_security.api.shift_schedule import toggle_guard_day
-
-		row = next((r for r in self.preview_rows if r.name == row_name), None)
-		if not row:
-			frappe.throw(_("Preview row {0} not found on this plan.").format(row_name))
-
-		result = toggle_guard_day(guard=self.external_guard, date=row.rotation_date, mark_off=mark_off, farm=row.farm)
-
-		row.is_off_day = 1 if cint(mark_off) else 0
-		row.status = "Skipped" if row.is_off_day else "Applied"
-		self.save()
-
-		return {"is_off_day": row.is_off_day, "status": row.status, **result}
-
-	@frappe.whitelist()
 	def generate_and_apply(self):
 		"""One-click path for mode == "Automatic": generate_preview()
 		immediately followed by apply_rotation(), so an Automatic plan never
@@ -250,3 +215,54 @@ class SecurityGuardRotationPlan(Document):
 		preview_result = self.generate_preview()
 		apply_result = self.apply_rotation()
 		return {"preview": preview_result, "apply": apply_result}
+
+
+@frappe.whitelist()
+def toggle_preview_row_off_day(plan_name, row_name, mark_off):
+	"""Check/uncheck one preview row's "Off Day" box directly, whether that
+	plan is still Draft or already Applied - reuses the exact same action as
+	the Shift Schedule grid's own off-day checkbox (toggle_guard_day), just
+	triggered from this table instead, and keeping the row's own farm/block
+	for that day rather than the guard's home farm (a rotation can move a
+	guard across multiple farms on different days, unlike the grid's
+	single-farm-per-guard toggle).
+
+	Real effect either way: cancels or creates a real Shift Assignment for
+	the guard on this row's date, fills/removes the reliever, and updates
+	the guard's Security Guard Off Days list - not just a flag on this
+	table. Safe to call on a Draft plan too: it updates the same Off Days
+	list generate_preview() reads from, so a later Generate Preview click
+	still reflects whatever was picked here.
+
+	Deliberately a plain whitelisted function, not a Document method -
+	calling a Document method from the client goes through
+	frappe.client.run_doc_method, which syncs the ENTIRE doc (every row)
+	back into the form on every response, visibly repainting the whole
+	preview table for a single-row edit. A plain frappe.call has no such
+	side effect, and frappe.db.set_value below touches only this one row.
+
+	Returns {is_off_day, status} for this row, plus whatever
+	toggle_guard_day() itself returned (state/covered_by/etc, for the
+	client to show).
+	"""
+	from upande_security.api.shift_schedule import toggle_guard_day
+
+	row = frappe.db.get_value(
+		"Security Guard Rotation Preview Row", row_name, ["parent", "rotation_date", "farm"], as_dict=True
+	)
+	if not row or row.parent != plan_name:
+		frappe.throw(_("Preview row {0} not found on plan {1}.").format(row_name, plan_name))
+
+	external_guard = frappe.db.get_value("Security Guard Rotation Plan", plan_name, "external_guard")
+	result = toggle_guard_day(guard=external_guard, date=row.rotation_date, mark_off=mark_off, farm=row.farm)
+
+	is_off_day = 1 if cint(mark_off) else 0
+	status = "Skipped" if is_off_day else "Applied"
+	frappe.db.set_value(
+		"Security Guard Rotation Preview Row", row_name,
+		{"is_off_day": is_off_day, "status": status},
+		update_modified=False,
+	)
+	frappe.db.commit()
+
+	return {"is_off_day": is_off_day, "status": status, **result}

@@ -38,8 +38,7 @@
    "fieldname": "is_off_day",
    "fieldtype": "Check",
    "in_list_view": 1,
-   "label": "Off Day",
-   "description": "Editable even after this plan is Applied - checking/unchecking a row here directly cancels or creates that day's real Shift Assignment (see security_guard_rotation_plan.js's toggle_preview_row_off_day call), same as the Shift Schedule grid's own picker."
+   "label": "Off Day"
   },
   {
    "default": "Pending",
