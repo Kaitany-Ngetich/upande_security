@@ -107,4 +107,36 @@ frappe.ui.form.on("Security Guard Rotation Preview Row", {
 	farm(frm, cdt, cdn) {
 		frappe.model.set_value(cdt, cdn, "block", null);
 	},
+	is_off_day(frm, cdt, cdn) {
+		// Checking/unchecking this box is a real, immediate action - not
+		// just editing a field to save later. It cancels or creates the
+		// actual Shift Assignment for this guard/date right now (same
+		// underlying call as the Shift Schedule grid's own off-day
+		// checkbox), whether this plan is Draft or already Applied.
+		if (frm.is_new()) return; // nothing real to toggle yet - no saved doc, no guard-scoped rows possible
+		const row = locals[cdt][cdn];
+		const mark_off = row.is_off_day ? 1 : 0;
+
+		frappe.dom.freeze(__("Updating..."));
+		frm.call({
+			method: "toggle_preview_row_off_day",
+			args: { row_name: cdn, mark_off },
+		}).then((r) => {
+			frappe.dom.unfreeze();
+			const res = r.message;
+			if (!res) return;
+			frappe.model.set_value(cdt, cdn, "status", res.status);
+
+			let msg;
+			if (res.state === "on") msg = __("Marked back on duty.");
+			else if (res.state === "off_covered") msg = __("Off day set - covered by {0}.", [res.covered_by_name || res.covered_by]);
+			else if (res.state === "off_unfilled") msg = __("Off day set - {0}", [res.reason || __("reliever already covering someone else")]);
+			else msg = __("Off day set - no reliever assigned to this guard.");
+			frappe.show_alert({ message: msg, indicator: res.state === "on" ? "green" : "blue" });
+		}).catch(() => {
+			frappe.dom.unfreeze();
+			// Revert the checkbox - the write didn't happen.
+			frappe.model.set_value(cdt, cdn, "is_off_day", mark_off ? 0 : 1);
+		});
+	},
 });

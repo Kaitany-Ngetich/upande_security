@@ -164,16 +164,26 @@ def get_shift_schedule(year: str | int, month: str | int, farm: str | None = Non
 
 
 @frappe.whitelist()
-def toggle_guard_day(guard: str, date: str, mark_off: str | int | bool) -> dict:
+def toggle_guard_day(guard: str, date: str, mark_off: str | int | bool, farm: str | None = None) -> dict:
 	"""Flip one guard's one day between on/off, handling the reliever
 	fill-in (or its removal) as part of the same call so the grid never
 	shows a half-applied state.
+
+	farm overrides the guard's own home farm for the Shift Assignment(s)
+	this call creates/updates - the Shift Schedule grid never passes it (a
+	guard's own home farm is always right there), but a Rotation Plan can
+	rotate a guard across multiple farms on different days, so
+	toggle_preview_row_off_day() on Security Guard Rotation Plan passes the
+	specific day's own farm instead of falling back to wherever the guard
+	is normally posted.
 	"""
 	mark_off = cint(mark_off)
 	if not frappe.db.exists("Security Guard", guard):
 		frappe.throw(_("Security Guard {0} not found").format(guard))
 
 	guard_doc = frappe.db.get_value("Security Guard", guard, ["farm", "reliever", "full_name"], as_dict=True)
+	if farm:
+		guard_doc.farm = farm
 	date_val = getdate(date)
 
 	if mark_off:

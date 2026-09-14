@@ -4,7 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_days, getdate
+from frappe.utils import add_days, cint, getdate
 
 from upande_security.utils.holidays import is_guard_off
 
@@ -199,6 +199,41 @@ class SecurityGuardRotationPlan(Document):
 
 		self.save()
 		return {"applied": applied, "failed": failed, "skipped": skipped, "status": self.status}
+
+	@frappe.whitelist()
+	def toggle_preview_row_off_day(self, row_name, mark_off):
+		"""Check/uncheck one preview row's "Off Day" box directly, whether
+		this plan is still Draft or already Applied - reuses the exact same
+		action as the Shift Schedule grid's own off-day checkbox
+		(toggle_guard_day), just triggered from this table instead, and
+		keeping the row's own farm/block for that day rather than the
+		guard's home farm (a rotation can move a guard across farms on
+		different days, unlike the grid's single-farm-per-guard toggle).
+
+		Real effect either way: cancels or creates a real Shift Assignment
+		for external_guard on this row's date, fills/removes the reliever,
+		and updates the guard's Security Guard Off Days list - not just a
+		flag on this table. Safe to call on a Draft plan too: it updates the
+		same Off Days list generate_preview() reads from, so a later
+		Generate Preview click still reflects whatever was picked here.
+
+		Returns the row's own updated {is_off_day, status} plus whatever
+		toggle_guard_day() itself returned (state/covered_by/etc, for the
+		client to show).
+		"""
+		from upande_security.api.shift_schedule import toggle_guard_day
+
+		row = next((r for r in self.preview_rows if r.name == row_name), None)
+		if not row:
+			frappe.throw(_("Preview row {0} not found on this plan.").format(row_name))
+
+		result = toggle_guard_day(guard=self.external_guard, date=row.rotation_date, mark_off=mark_off, farm=row.farm)
+
+		row.is_off_day = 1 if cint(mark_off) else 0
+		row.status = "Skipped" if row.is_off_day else "Applied"
+		self.save()
+
+		return {"is_off_day": row.is_off_day, "status": row.status, **result}
 
 	@frappe.whitelist()
 	def generate_and_apply(self):
