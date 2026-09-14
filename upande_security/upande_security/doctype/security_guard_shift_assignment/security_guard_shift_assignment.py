@@ -14,6 +14,19 @@ DERIVED_STATUSES = ("Scheduled", "Active", "Ended")
 # Cancelled shifts release them.
 BLOCKING_STATUSES = ("Scheduled", "Active")
 
+# A single Shift Assignment record models one shift instance — including an
+# overnight one that crosses midnight (e.g. 18:00 -> 06:00) — never a
+# multi-day range. derive_status() below only ever looks at the record's own
+# start/end, so a record spanning a week or a month reads "Active" for that
+# entire span, day and night, regardless of what start_time/end_time say —
+# there's no per-day recurrence concept here at all. Real multi-day coverage
+# already has a purpose-built path that gets this right: Security Guard
+# Rotation Plan generates one single-day record per day (skipping the
+# guard's configured off days), so each day's status is derived correctly on
+# its own. This cap forces that path instead of silently mis-tracking a
+# directly-typed wide range.
+MAX_SHIFT_HOURS = 24
+
 # For an Internal Guard, this whole record is a read-only render of what HR
 # is already planning (per the user: "the internal HR are planning their own
 # rosters so we just render from them") — Security doesn't edit any of it,
@@ -78,6 +91,11 @@ class SecurityGuardShiftAssignment(Document):
 		# even allowed, that's the error a Security Head should see — not an
 		# overlap-conflict message for a record that shouldn't exist anyway.
 		self.validate_internal_guard_shift_is_hr_owned()
+		# Also a structural gate, not a business rule — a record that spans
+		# too many days can't have a meaningful overlap check run against it
+		# either (its own "window" is already wrong), so this runs before
+		# validate_no_overlapping_assignment too.
+		self.validate_date_range_is_single_shift()
 		self.validate_no_overlapping_assignment()
 
 	def set_derived_status(self):
@@ -85,6 +103,39 @@ class SecurityGuardShiftAssignment(Document):
 		derived = derive_status(self.start_date, self.start_time, self.end_date, self.end_time, self.status)
 		if derived:
 			self.status = derived
+
+	def validate_date_range_is_single_shift(self):
+		"""One record, one shift instance. HR-synced Internal Guard shifts and
+		Rotation-Plan-applied External Guard shifts both already save this way
+		on their own (see tasks.sync_shifts_from_hr_roster and
+		SecurityGuardRotationPlan.apply_rotation) — this only ever fires when
+		someone types a multi-day range directly into start_date/end_date.
+		"""
+		start = combine_date_time(self.start_date, self.start_time)
+		end = combine_date_time(self.end_date, self.end_time)
+		if not start or not end:
+			return
+
+		duration_hours = (end - start).total_seconds() / 3600
+		if duration_hours > MAX_SHIFT_HOURS:
+			frappe.throw(
+				_(
+					"This shift runs from {0} to {1} — about {2} days. A single Shift "
+					"Assignment can only cover one shift instance (up to {3} hours, including "
+					"an overnight shift crossing midnight), not a multi-day range — otherwise "
+					"its status shows Active for the whole span, day and night, regardless of "
+					"the actual shift hours. Use + New Rotation Plan For This Guard instead to "
+					"schedule this guard across multiple days — it creates one correctly-timed "
+					"Shift Assignment per day and skips the guard's configured off days "
+					"automatically."
+				).format(
+					format_datetime(start),
+					format_datetime(end),
+					round(duration_hours / 24, 1),
+					MAX_SHIFT_HOURS,
+				),
+				title=_("Shift Spans Too Many Days"),
+			)
 
 	def validate_internal_guard_shift_is_hr_owned(self):
 		"""Internal guards' shifts are entirely HR's — this doctype only ever
