@@ -35,310 +35,157 @@
    {
     "color": "Pink",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Visitor Badges",
     "link_to": "Visitor Badge",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
     "color": "Purple",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Dispatch Checks",
     "link_to": "Gate Dispatch Verification",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
     "color": "Green",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Receiving Checks",
     "link_to": "Gate Receiving Verification",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
     "color": "Green",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Patrols",
     "link_to": "Patrol GPS Log",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
     "color": "Red",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Incidents",
     "link_to": "Incident Report",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
     "color": "Blue",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Patrol Reports",
     "link_to": "Patrol Report",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
     "color": "Orange",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Near Misses",
-    "link_to": null,
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
     "type": "URL",
     "url": "/app/incident-report?nature_of_incident=Near%20Miss"
    },
    {
     "color": "Red",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Watchlist",
     "link_to": "Security Watchlist",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
     "color": "Blue",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Security Guards",
     "link_to": "Security Guard",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
     "color": "Purple",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Shift Assignments",
     "link_to": "Security Guard Shift Assignment",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
     "color": "Grey",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Incident Categories",
     "link_to": "Incident Category",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
     "color": "Cyan",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Guard Devices",
     "link_to": "Guard Device Token",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
     "color": "Teal",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Supplier Badges",
     "link_to": "Supplier Badge",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
     "color": "Grey",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Ops Settings",
     "link_to": "Security Ops Settings",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
-    "color": null,
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Security Asset",
     "link_to": "Security Asset",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
-    "color": null,
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Asset Scan Log",
     "link_to": "Asset Scan Log",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
-    "color": null,
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Near Miss Report",
     "link_to": "Near Miss Report",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
     "color": "Orange",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Staff Vehicle Stickers",
     "link_to": "Staff Vehicle Sticker",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
     "color": "Yellow",
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Sticker Requests",
     "link_to": "Staff Vehicle Sticker Request",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
-    "color": null,
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Security Block",
     "link_to": "Security Block",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
-    "color": null,
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Security Guard Off Days",
     "link_to": "Security Guard Off Days",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
    },
    {
-    "color": null,
     "doc_view": "List",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
     "label": "Security Guard Rotation Plan",
     "link_to": "Security Guard Rotation Plan",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
+    "type": "DocType"
+   },
+   {
+    "color": "Green",
+    "doc_view": "",
+    "label": "Shift Schedule",
+    "type": "URL",
+    "url": "/shift-schedule"
    }
   ],
   "title": "Security",
