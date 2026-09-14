@@ -4,7 +4,9 @@ import calendar
 
 import frappe
 from frappe import _
-from frappe.utils import cint, getdate
+from frappe.utils import add_days, cint, getdate
+
+from upande_security.api.guard_off_days import add_guard_off_day, remove_guard_off_day
 
 # The monthly schedule grid + reliever auto-fill is scoped to the 5 core
 # farm units that actually have a real, sourced reliever roster (backfilled
@@ -78,15 +80,41 @@ def get_shift_schedule(year: str | int, month: str | int, farm: str | None = Non
 	if not guard_ids:
 		return {"guards": [], "days": list(range(1, last_day + 1)), "statuses": {}, "month": month, "year": year}
 
-	rows = frappe.get_all(
-		"Security Guard Shift Assignment",
-		filters={
-			"security_guard": "External Guard",
-			"external_guard": ["in", guard_ids],
-			"start_date": ["between", [start, end]],
-		},
-		fields=["name", "external_guard", "start_date", "shift_type", "covering_for"],
+	# A reliever legitimately covers guards posted on a DIFFERENT one of the 5
+	# core farms - the roster data has real examples of this. Filtering rows
+	# to guard_ids alone (this view's own farm scope) would silently drop a
+	# cover row whenever its reliever's own farm falls outside that scope,
+	# making a covered guard falsely read "off_unfilled" the moment a Head
+	# narrows the grid to one farm. covering_for is the guard actually being
+	# rendered here, so it's the field that must be in guard_ids - the cover
+	# row's own external_guard (the reliever) doesn't have to be.
+	guard_ids_set = tuple(guard_ids)
+	rows = frappe.db.sql(
+		"""
+		SELECT name, external_guard, start_date, shift_type, covering_for
+		FROM `tabSecurity Guard Shift Assignment`
+		WHERE security_guard = 'External Guard'
+		  AND start_date BETWEEN %(start)s AND %(end)s
+		  AND (external_guard IN %(guard_ids)s OR covering_for IN %(guard_ids)s)
+		""",
+		{"start": start, "end": end, "guard_ids": guard_ids_set},
+		as_dict=True,
 	)
+
+	# Security Guard Off Days is autonamed field:external_guard, so its child
+	# rows' own "parent" IS the guard's id directly - no join needed. This is
+	# a separate, guard-owned off-day list (also what Rotation Plan's
+	# generate_preview() skips) - cross-referencing it here so the grid marks
+	# a guard's OFFICIALLY configured off days distinctly from a day that's
+	# merely unstaffed. External Guard only, same as everything else this
+	# endpoint touches - Internal Guards have no Security Guard Off Days
+	# record at all (HR owns their leave/rostering).
+	off_day_rows = frappe.get_all(
+		"Security Guard Off Day",
+		filters={"parent": ["in", guard_ids], "off_date": ["between", [start, end]]},
+		fields=["parent", "off_date"],
+	)
+	configured_off_days = {(r.parent, getdate(r.off_date).day) for r in off_day_rows}
 
 	# Own-shift rows, keyed by (guard, day-of-month).
 	own = {}
@@ -94,27 +122,36 @@ def get_shift_schedule(year: str | int, month: str | int, farm: str | None = Non
 	covers = {}
 	for r in rows:
 		day = getdate(r.start_date).day
+		# A cover row is a genuine, physical shift for its own external_guard
+		# (the reliever) too - if that reliever also happens to be one of
+		# the guards this view is showing, their own cell for that day
+		# should read "on" (they're working, covering someone), not fall
+		# through to "off" for lack of a plain own-duty row.
+		own[(r.external_guard, day)] = r.shift_type
 		if r.covering_for:
 			covers[(r.covering_for, day)] = r.external_guard
-		else:
-			own[(r.external_guard, day)] = r.shift_type
 
 	statuses: dict = {}
 	for g in guards:
 		day_map = {}
 		for day in range(1, last_day + 1):
 			key = (g.name, day)
+			is_off_day = key in configured_off_days
 			if key in own:
-				day_map[day] = {"state": "on", "shift_type": own[key]}
+				day_map[day] = {"state": "on", "shift_type": own[key], "is_off_day": is_off_day}
 			elif key in covers:
 				cover_guard = covers[key]
 				day_map[day] = {
 					"state": "off_covered",
 					"covered_by": cover_guard,
 					"covered_by_name": reliever_names.get(cover_guard) or cover_guard,
+					"is_off_day": is_off_day,
 				}
 			else:
-				day_map[day] = {"state": "off_unfilled" if g.reliever else "off_no_reliever"}
+				day_map[day] = {
+					"state": "off_unfilled" if g.reliever else "off_no_reliever",
+					"is_off_day": is_off_day,
+				}
 		statuses[g.name] = day_map
 
 	return {
@@ -148,6 +185,12 @@ def toggle_guard_day(guard: str, date: str, mark_off: str | int | bool) -> dict:
 		if existing:
 			frappe.delete_doc("Security Guard Shift Assignment", existing, ignore_permissions=True, force=True)
 
+		# Record this as one of the guard's own configured off days - the
+		# same list Rotation Plan's generate_preview() already skips - so a
+		# day marked off here is an "official" off day everywhere else on
+		# this guard, not just a gap in this one month's grid.
+		add_guard_off_day(guard, date_val, remarks=_("Marked off via Shift Schedule"))
+
 		if not guard_doc.reliever:
 			frappe.db.commit()
 			return {"state": "off_no_reliever"}
@@ -171,6 +214,12 @@ def toggle_guard_day(guard: str, date: str, mark_off: str | int | bool) -> dict:
 			["start_time", "end_time"], as_dict=True,
 		)
 		remark = _("Covering {0}'s off day").format(guard_doc.full_name)
+		# Overnight shift (e.g. Night: 18:00 -> 06:00) ends the calendar day
+		# AFTER it starts - otherwise the record's own end sits before its
+		# start on the same day, and derive_status() jumps straight from
+		# Scheduled to Ended without ever reading Active for the actual
+		# overnight window. Mirrors sync_shifts_from_hr_roster()'s same rule.
+		cover_end_date = add_days(date_val, 1) if t.end_time <= t.start_time else date_val
 
 		# If the reliever already has their own baseline shift that day
 		# (e.g. from the original roster import), tag that same row rather
@@ -180,9 +229,12 @@ def toggle_guard_day(guard: str, date: str, mark_off: str | int | bool) -> dict:
 			{"external_guard": guard_doc.reliever, "start_date": date_val, "covering_for": ["is", "not set"]},
 		)
 		if own_row:
+			# Also correct end_date here, in case this baseline row predates
+			# the overnight-rollover fix and still has the old same-day
+			# shape.
 			frappe.db.set_value(
 				"Security Guard Shift Assignment", own_row,
-				{"covering_for": guard, "farm": guard_doc.farm, "remarks": remark},
+				{"covering_for": guard, "farm": guard_doc.farm, "remarks": remark, "end_date": cover_end_date},
 				update_modified=False,
 			)
 		else:
@@ -192,7 +244,7 @@ def toggle_guard_day(guard: str, date: str, mark_off: str | int | bool) -> dict:
 			cover.farm = guard_doc.farm
 			cover.shift_type = shift_type
 			cover.start_date = date_val
-			cover.end_date = date_val
+			cover.end_date = cover_end_date
 			cover.start_time = t.start_time
 			cover.end_time = t.end_time
 			cover.covering_for = guard
@@ -202,11 +254,14 @@ def toggle_guard_day(guard: str, date: str, mark_off: str | int | bool) -> dict:
 		reliever_name = frappe.db.get_value("Security Guard", guard_doc.reliever, "full_name")
 		return {"state": "off_covered", "covered_by": guard_doc.reliever, "covered_by_name": reliever_name}
 
-	# Marking back ON: undo any reliever cover row for this guard/day. Clear
-	# the covering_for tag rather than deleting the row outright - it may be
-	# the reliever's own pre-existing baseline record that got tagged when
-	# the off day was filled, and deleting it would wipe that out along
-	# with the cover.
+	# Marking back ON: this day is no longer one of the guard's configured
+	# off days either - undo the same list add_guard_off_day() made above.
+	remove_guard_off_day(guard, date_val)
+
+	# Undo any reliever cover row for this guard/day. Clear the covering_for
+	# tag rather than deleting the row outright - it may be the reliever's
+	# own pre-existing baseline record that got tagged when the off day was
+	# filled, and deleting it would wipe that out along with the cover.
 	cover_row = frappe.db.get_value(
 		"Security Guard Shift Assignment",
 		{"covering_for": guard, "start_date": date_val},
@@ -237,7 +292,7 @@ def toggle_guard_day(guard: str, date: str, mark_off: str | int | bool) -> dict:
 		doc.farm = guard_doc.farm
 		doc.shift_type = shift_type
 		doc.start_date = date_val
-		doc.end_date = date_val
+		doc.end_date = add_days(date_val, 1) if t.end_time <= t.start_time else date_val
 		doc.start_time = t.start_time
 		doc.end_time = t.end_time
 		doc.insert(ignore_permissions=True)

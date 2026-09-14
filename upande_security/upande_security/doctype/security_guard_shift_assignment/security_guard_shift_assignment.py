@@ -110,7 +110,20 @@ class SecurityGuardShiftAssignment(Document):
 		on their own (see tasks.sync_shifts_from_hr_roster and
 		SecurityGuardRotationPlan.apply_rotation) — this only ever fires when
 		someone types a multi-day range directly into start_date/end_date.
+
+		Only enforced on a NEW record, or on an edit that actually CHANGES
+		one of the date/time fields — never on an already-saved record whose
+		range is untouched. Plenty of legacy records already exist with a
+		too-wide range from before this check existed; a Security Head must
+		still be able to open one and cancel it, fix a remark, etc. without
+		being blocked by a rule about a range they aren't even editing.
 		"""
+		if not self.is_new():
+			before = self.get_doc_before_save()
+			range_fields = ("start_date", "start_time", "end_date", "end_time")
+			if before and all(self.get(f) == before.get(f) for f in range_fields):
+				return
+
 		start = combine_date_time(self.start_date, self.start_time)
 		end = combine_date_time(self.end_date, self.end_time)
 		if not start or not end:
@@ -206,6 +219,14 @@ class SecurityGuardShiftAssignment(Document):
 		# Date + Time are two separate columns now, so the overlap window has
 		# to be compared as combined datetimes (MySQL's TIMESTAMP(date, time))
 		# rather than via frappe.get_all's plain per-column filters.
+		#
+		# Strict < / > on purpose, not <= / >= — two shifts that merely TOUCH
+		# at a boundary (one ends the exact instant the other starts, e.g. a
+		# guard handing over at 06:00 sharp, or a back-to-back rotation where
+		# each day's shift starts right where the last one ended) is a normal
+		# handover, not a double booking. Inclusive comparison would flag
+		# every day after the first as an "overlap" whenever a rotation's End
+		# Time equals the next shift's Start Time.
 		clash = frappe.db.sql(
 			"""
 			SELECT name, farm, start_date, start_time, end_date, end_time
@@ -213,8 +234,8 @@ class SecurityGuardShiftAssignment(Document):
 			WHERE {guard_field} = %(guard_value)s
 			  AND status IN %(statuses)s
 			  AND name != %(name)s
-			  AND TIMESTAMP(start_date, start_time) <= %(self_end)s
-			  AND TIMESTAMP(end_date, end_time) >= %(self_start)s
+			  AND TIMESTAMP(start_date, start_time) < %(self_end)s
+			  AND TIMESTAMP(end_date, end_time) > %(self_start)s
 			LIMIT 1
 			""".format(guard_field=guard_field),
 			{
