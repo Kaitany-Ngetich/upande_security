@@ -125,6 +125,7 @@
   },
   {
    "default": "0",
+   "depends_on": "eval:doc.security_guard==\"External Guard\"",
    "fieldname": "checked_in",
    "fieldtype": "Check",
    "in_list_view": 1,
