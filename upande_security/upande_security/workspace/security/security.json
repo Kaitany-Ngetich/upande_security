@@ -143,12 +143,6 @@
    "type": "DocType"
   },
   {
-   "doc_view": "List",
-   "label": "Near Miss Report",
-   "link_to": "Near Miss Report",
-   "type": "DocType"
-  },
-  {
    "color": "Orange",
    "doc_view": "List",
    "label": "Staff Vehicle Stickers",
