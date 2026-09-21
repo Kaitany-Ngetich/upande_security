@@ -184,7 +184,12 @@ doc_events = {
 		# does this directly, but a host confirming checkout via Desk's own
 		# workflow action button goes through frappe.model.workflow.apply_workflow
 		# instead, which never touched the badge at all before this hook.
-		"on_update": "upande_security.api.visitor_badge_qr.release_badge_on_checkout",
+		# Also pushes a "ready to check in" alert to gate app devices at the
+		# same farm the moment workflow_state reaches Approved by Host.
+		"on_update": [
+			"upande_security.api.visitor_badge_qr.release_badge_on_checkout",
+			"upande_security.api.visitor_approved_alert.notify_gate_guards_on_host_approval",
+		],
 	},
 	# Auto-provision the Company/Farm User Permission rows the hierarchical
 	# access scoping (Patrol Report, Near Miss Report, Patrol GPS Log,
