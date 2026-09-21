@@ -399,8 +399,6 @@ fixtures = [
                     "Appointment-custom_gate_mismatch",
                     "Appointment-custom_meet_with_farm",
                     "Appointment-custom_meet_with_name",
-                    "Appointment-custom_secretary_wa",
-                    "Appointment-custom_secretary_email",
                     "Company-custom_secretary",
                     "Appointment-customer_organization",
                     "Timesheet-custom_entry_gate",

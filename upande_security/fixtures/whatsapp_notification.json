@@ -82,7 +82,7 @@
   "event_frequency": "All",
   "doctype_event": "After Insert",
   "days_in_advance": 0,
-  "disabled": 0,
+  "disabled": 1,
   "template": "visitor_host_alert_v2-en",
   "attach_document_print": 0,
   "custom_attachment": 0,
