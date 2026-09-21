@@ -128,7 +128,7 @@
     "bcc": null,
     "cc": null,
     "condition": null,
-    "receiver_by_document_field": "custom_meet_with_phone",
+    "receiver_by_document_field": "custom_host_whatsapp_no",
     "receiver_by_role": null
    },
    {
