@@ -1877,14 +1877,23 @@ def _contractor_integer(value):
 # ─────────────────────────────────────────────────────────────────
 
 def _resolve_range(period=None, from_date=None, to_date=None):
+    """period values here MUST match the range-pill buttons' own
+    data-range attributes on the Web Page (wireRangePills reads that
+    attribute directly and sends it verbatim as the period param) - this
+    used to check for "last_7_days"/"last_30_days" and had no case for
+    "1y" at all, none of which the frontend has ever actually sent
+    ("7d"/"30d"/"1y"/"today"/"custom" are the only real values), so every
+    range pill except Custom silently collapsed to just today."""
     today = frappe.utils.getdate()
 
     if period == "custom" and from_date and to_date:
         return frappe.utils.getdate(from_date), frappe.utils.getdate(to_date)
-    if period == "last_7_days":
+    if period == "7d":
         return frappe.utils.add_days(today, -6), today
-    if period == "last_30_days":
+    if period == "30d":
         return frappe.utils.add_days(today, -29), today
+    if period == "1y":
+        return frappe.utils.add_days(today, -364), today
     return today, today
 
 
