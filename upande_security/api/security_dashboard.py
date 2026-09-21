@@ -2785,8 +2785,13 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
     # started yet is still part of the plan for its date range, not an
     # absence of one - counting only "Active" undercounts every shift whose
     # start time hasn't arrived yet at the moment this is viewed.
-    day_count = sum(1 for r in rows if r["shift_type"] == "Day" and r["status"] in ("Active", "Scheduled"))
-    night_count = sum(1 for r in rows if r["shift_type"] == "Night" and r["status"] in ("Active", "Scheduled"))
+    # Per-shift-type counts, not just Day/Night - farms running
+    # First/Second/Third (Chepsito today) used to vanish from this summary
+    # entirely, since only "Day"/"Night" rows were ever counted here.
+    shift_type_counts = {}
+    for r in rows:
+        if r["status"] in ("Active", "Scheduled"):
+            shift_type_counts[r["shift_type"]] = shift_type_counts.get(r["shift_type"], 0) + 1
 
     return {
         "success": True,
@@ -2794,8 +2799,9 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
         "range_to": str(range_to),
         "summary": {
             "total_assignments": len(rows),
-            "day_shift_count": day_count,
-            "night_shift_count": night_count,
+            "shift_type_counts": shift_type_counts,
+            "day_shift_count": shift_type_counts.get("Day", 0),
+            "night_shift_count": shift_type_counts.get("Night", 0),
             "farms_covered": sum(
                 1 for c in coverage_board if any(s["guard_name"] for s in c["shifts"])
             ),
