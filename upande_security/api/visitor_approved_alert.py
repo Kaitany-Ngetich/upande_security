@@ -1,21 +1,23 @@
 # Copyright (c) 2026, dev@upande.com and contributors
 # For license information, please see license.txt
 
-"""Notifies gate app devices AT THE SAME FARM the moment a host approves a
-visit (workflow_state -> "Approved by Host"), so gate staff know the
-visitor is coming and can check them in without the visitor having to
-explain who they're there for.
+"""Notifies the guard(s) actually ON DUTY RIGHT NOW at a farm the moment a
+host approves a visit (workflow_state -> "Approved by Host"), so gate staff
+know the visitor is coming and can check them in without the visitor
+having to explain who they're there for.
 
-Strictly farm-scoped, not a broadcast - a guard at one farm's gate must
-never see push notifications for visits happening at a different farm.
-Guard Device Token has no farm field of its own, so a token's farm is
-derived from whichever record it's linked to:
-  - Internal Guard -> Employee.custom_farm
-  - External Guard -> Security Guard.farm
-  - App User       -> no farm source exists (an App User row only exists
-    because _resolve_calling_guard found no Employee/Security Guard record
-    for that login at all - see sos_alert.py's own resolution order), so
-    these are always excluded rather than guessed at or broadcast to.
+Scoped to the specific guard(s), not the whole farm's roster - if Anita is
+the one currently on shift, she's the only one who gets this, not every
+guard who has ever been assigned to that farm. "On duty right now" reads
+Security Guard Shift Assignment's own status field (kept current by
+tasks.refresh_shift_statuses, which runs hourly and is the same
+time-aware status this app's coverage board and missed-checkin checks
+already rely on) rather than re-deriving shift math here.
+
+A farm can have more than one currently-Active shift assignment at once
+(different posts/blocks staffed simultaneously), so this can resolve to
+more than one guard - every one of them currently on duty at that farm
+gets notified, never guards off duty or at a different farm.
 
 Reuses the same Guard Device Token + Expo push pattern sos_alert.py uses
 for nearby-guard SOS alerts, on its own channel/data type so the mobile
@@ -52,30 +54,39 @@ def _send_expo_push(messages):
 		return {"sent": 0, "error": str(e)}
 
 
-def _farm_scoped_tokens(farm):
-	"""Every Guard Device Token whose linked Employee/Security Guard record
-	is stamped to `farm`. App User rows are always excluded - see module
-	docstring."""
-	tokens = frappe.get_all(
-		"Guard Device Token",
-		filters={"expo_push_token": ["is", "set"]},
-		fields=["guard_type", "internal_guard", "external_guard", "expo_push_token"],
+def _on_duty_tokens(farm):
+	"""Expo push tokens for every guard with a currently-Active Security
+	Guard Shift Assignment at `farm` right now. A guard with no registered
+	Guard Device Token (never opened the app / no push permission) is
+	silently skipped, same as every other push path in this app."""
+	shifts = frappe.get_all(
+		"Security Guard Shift Assignment",
+		filters={"farm": farm, "status": "Active"},
+		fields=["security_guard", "internal_guard", "external_guard"],
 		ignore_permissions=True,
 	)
 
-	matched = []
-	for t in tokens:
-		if t.guard_type == "Internal Guard" and t.internal_guard:
-			guard_farm = frappe.db.get_value("Employee", t.internal_guard, "custom_farm")
-		elif t.guard_type == "External Guard" and t.external_guard:
-			guard_farm = frappe.db.get_value("Security Guard", t.external_guard, "farm")
+	tokens = []
+	for s in shifts:
+		if s.security_guard == "Internal Guard" and s.internal_guard:
+			token = frappe.db.get_value(
+				"Guard Device Token",
+				{"guard_type": "Internal Guard", "internal_guard": s.internal_guard},
+				"expo_push_token",
+			)
+		elif s.security_guard == "External Guard" and s.external_guard:
+			token = frappe.db.get_value(
+				"Guard Device Token",
+				{"guard_type": "External Guard", "external_guard": s.external_guard},
+				"expo_push_token",
+			)
 		else:
 			continue
 
-		if guard_farm and guard_farm == farm:
-			matched.append(t.expo_push_token)
+		if token:
+			tokens.append(token)
 
-	return matched
+	return tokens
 
 
 def notify_gate_guards_on_host_approval(doc, method=None):
@@ -90,7 +101,7 @@ def notify_gate_guards_on_host_approval(doc, method=None):
 		# Nothing to scope this to - skip rather than guess or broadcast.
 		return
 
-	push_tokens = _farm_scoped_tokens(doc.custom_meet_with_farm)
+	push_tokens = _on_duty_tokens(doc.custom_meet_with_farm)
 	if not push_tokens:
 		return
 
