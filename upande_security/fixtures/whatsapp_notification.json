@@ -8,7 +8,7 @@
   "notification_name": "Visitor at Reception - Host Alert (WhatsApp)",
   "notification_type": "DocType Event",
   "reference_doctype": "Appointment",
-  "field_name": "custom_meet_with_wa",
+  "field_name": "custom_host_whatsapp_no",
   "event_frequency": "All",
   "doctype_event": "After Insert",
   "days_in_advance": 0,
