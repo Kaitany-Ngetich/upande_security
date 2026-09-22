@@ -8,13 +8,6 @@ from frappe.utils import add_days, cint, getdate
 
 from upande_security.utils.holidays import is_guard_off
 
-# Rows in either of these states are still "not yet committed" — a
-# regeneration is free to wipe and rebuild them. Anything else (Applied,
-# Failed) represents a real outcome from a previous apply_rotation() run and
-# must never be silently discarded by a later generate_preview() call.
-REGENERATABLE_ROW_STATUSES = ("Pending", "Skipped")
-
-
 class SecurityGuardRotationPlan(Document):
 	def validate(self):
 		self.validate_rotation_farms()
@@ -62,15 +55,18 @@ class SecurityGuardRotationPlan(Document):
 		(is_off_day=1, status="Skipped") so the Security Head can SEE the gap
 		instead of it silently vanishing; everything else is status="Pending".
 
-		Idempotency choice: this plan must still be status="Draft", and
-		every existing preview row must still be "Pending" or "Skipped"
-		(see REGENERATABLE_ROW_STATUSES) - i.e. nothing has been committed
-		into a real Shift Assignment yet. Once any row is "Applied" or
-		"Failed" from a previous apply_rotation() run, regeneration is
-		blocked outright rather than attempting to merge old and new rows;
-		the remaining window belongs in a new Rotation Plan instead. This
-		is simpler to get right than a partial-merge and matches how the
-		task described "keep it simple" as an acceptable v1 choice.
+		Idempotency choice: this plan must still be status="Draft", and no
+		existing preview row may be "Applied" - i.e. nothing has been
+		committed into a real Shift Assignment yet. A "Failed" row alone
+		does NOT block this: apply_rotation() only advances status to
+		"Applied" once at least one row actually succeeds, so a run that
+		failed on every row leaves the plan in "Draft" with only "Failed"
+		rows - safe to wipe and regenerate, since nothing real exists to
+		protect. Once any row IS "Applied", regeneration is blocked outright
+		rather than attempting to merge old and new rows; the remaining
+		window belongs in a new Rotation Plan instead. This is simpler to
+		get right than a partial-merge and matches how the task described
+		"keep it simple" as an acceptable v1 choice.
 
 		Returns {"rows": <int total preview rows>, "off_days": <int marked
 		Skipped>}.
@@ -80,10 +76,10 @@ class SecurityGuardRotationPlan(Document):
 				_("This plan is no longer Draft - the preview can't be regenerated once it's been applied or cancelled."),
 				title=_("Plan Not Draft"),
 			)
-		if any(row.status not in REGENERATABLE_ROW_STATUSES for row in self.preview_rows):
+		if any(row.status == "Applied" for row in self.preview_rows):
 			frappe.throw(
 				_(
-					"This plan already has Applied or Failed rows from a previous run - "
+					"This plan already has Applied rows from a previous run - "
 					"start a new Rotation Plan for the remaining window instead of "
 					"regenerating this one."
 				),
@@ -143,9 +139,14 @@ class SecurityGuardRotationPlan(Document):
 		rest of the apply.
 
 		Sets this plan's own status to "Applied" once no "Pending" rows
-		remain - a partial apply with some "Failed" rows still counts as
-		done, just imperfectly; the failure count is returned so the caller
-		can surface it to the Security Head.
+		remain AND at least one row actually succeeded - a partial apply
+		with some "Failed" rows still counts as done, just imperfectly.
+		A run where every row failed leaves the plan in "Draft" instead of
+		"Applied", since nothing real was committed - otherwise a plan
+		that failed 100% of the time would be permanently stuck (Draft-only
+		regeneration would refuse it, but it has nothing worth protecting
+		either). The failure count is returned so the caller can surface it
+		to the Security Head.
 
 		Returns {"applied": <int>, "failed": <int>, "skipped": <int>,
 		"status": <this plan's status after the run>}.
@@ -194,7 +195,7 @@ class SecurityGuardRotationPlan(Document):
 				row.status = "Failed"
 				failed += 1
 
-		if not any(r.status == "Pending" for r in self.preview_rows):
+		if applied > 0 and not any(r.status == "Pending" for r in self.preview_rows):
 			self.status = "Applied"
 
 		self.save()
