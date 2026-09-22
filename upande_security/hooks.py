@@ -167,6 +167,7 @@ after_migrate = [
 
 doc_events = {
 	"Visitor Badge": {
+		"before_insert": "upande_security.api.visitor_badge_qr.auto_assign_badge_number",
 		"after_insert": "upande_security.api.visitor_badge_qr.generate_qr_for_badge",
 	},
 	"Supplier Badge": {

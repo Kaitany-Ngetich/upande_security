@@ -19,6 +19,32 @@ import io
 import frappe
 
 
+def auto_assign_badge_number(doc, method=None):
+	"""Numbering restarts per (company, farm) - Karen Roses-Torongo's
+	badges and Kaitet Ltd.-Endebes's badges are independent sequences, not
+	one global counter (confirmed against real data: every farm currently
+	runs its own clean 1-50).
+
+	Wired via hooks.py doc_events on Visitor Badge.before_insert, which
+	has to run before set_new_name() assembles the record's name from the
+	format:{company}-{farm}-{badge_number} autoname template -
+	before_insert fires first in Frappe's insert() lifecycle (ahead of
+	set_new_name and validate), so this is in time for the name to pick
+	up the assigned number.
+	"""
+	if doc.badge_number:
+		return
+
+	last = frappe.db.sql(
+		"""
+		SELECT MAX(badge_number) FROM `tabVisitor Badge`
+		WHERE company <=> %s AND farm <=> %s
+		""",
+		(doc.company, doc.farm),
+	)[0][0]
+	doc.badge_number = (last or 0) + 1
+
+
 def generate_qr_for_badge(doc, method=None):
 	if doc.qr_image:
 		return
