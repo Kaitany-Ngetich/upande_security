@@ -678,7 +678,9 @@ fixtures = [
                 "in",
                 [
                     "Visitor at Reception - Host Alert (WhatsApp)",
-                    "Visitor at Reception - Secretary Alert (Karen Roses)",
+                    # "Visitor at Reception - Secretary Alert (Karen Roses)" is
+                    # retired - deleted by patches/remove_retired_appointment_
+                    # contact_fields along with the custom_secretary_wa field it read.
                 ],
             ],
         ],
