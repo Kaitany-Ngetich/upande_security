@@ -4,7 +4,7 @@
 """Automatic Company/Farm User Permission provisioning.
 
 The hierarchical guard/Security-Head/System-Manager access scoping across
-this app's doctypes (Patrol Report, Near Miss Report, Patrol GPS Log,
+this app's doctypes (Patrol Report, Patrol GPS Log,
 Incident Report, ...) is implemented with plain Frappe DocPerm + User
 Permission — a Security Head's "read=1, if_owner=0" on a doctype with a
 Farm/Company Link field is only actually scoped to their own farm/company

@@ -193,7 +193,7 @@ doc_events = {
 		],
 	},
 	# Auto-provision the Company/Farm User Permission rows the hierarchical
-	# access scoping (Patrol Report, Near Miss Report, Patrol GPS Log,
+	# access scoping (Patrol Report, Patrol GPS Log,
 	# Incident Report, Security Asset, Visitor Badge, Attendance, ...)
 	# depends on to actually restrict a Security Head/guard to their own
 	# company/farm instead of being silently unrestricted.
