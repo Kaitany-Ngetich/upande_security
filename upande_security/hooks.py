@@ -186,10 +186,14 @@ doc_events = {
 		# workflow action button goes through frappe.model.workflow.apply_workflow
 		# instead, which never touched the badge at all before this hook.
 		# Also pushes a "ready to check in" alert to gate app devices at the
-		# same farm the moment workflow_state reaches Approved by Host.
+		# same farm the moment workflow_state reaches Approved by Host, and
+		# a personal "your visitor's status changed" alert to whoever owns
+		# this Appointment (doc.owner) whenever it lands on any decision
+		# state (see notifications.STATUS_FRAGMENTS).
 		"on_update": [
 			"upande_security.api.visitor_badge_qr.release_badge_on_checkout",
 			"upande_security.api.visitor_approved_alert.notify_gate_guards_on_host_approval",
+			"upande_security.api.notifications.notify_owner_on_status_change",
 		],
 	},
 	# Auto-provision the Company/Farm User Permission rows the hierarchical
