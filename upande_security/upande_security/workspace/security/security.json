@@ -2,7 +2,7 @@
  "app": "upande_security",
  "charts": [],
  "content": "[{\"id\": \"securityNav0001\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"Security Navigation\", \"col\": 12}}]",
- "creation": "2026-09-02 15:45:40.900742",
+ "creation": "2026-09-21 14:30:15.021983",
  "custom_blocks": [
   {
    "custom_block_name": "Security Navigation",
@@ -20,7 +20,7 @@
  "label": "Security",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-09-11 13:41:36.923424",
+ "modified": "2026-09-29 07:46:30.188241",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security",
@@ -73,13 +73,6 @@
    "label": "Patrol Reports",
    "link_to": "Patrol Report",
    "type": "DocType"
-  },
-  {
-   "color": "Orange",
-   "doc_view": "List",
-   "label": "Near Misses",
-   "type": "URL",
-   "url": "/app/incident-report?nature_of_incident=Near%20Miss"
   },
   {
    "color": "Red",
