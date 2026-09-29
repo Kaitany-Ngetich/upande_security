@@ -516,6 +516,7 @@ fixtures = [
                     "Appointment-customer_details-label",
                     "Appointment-customer_details_section-label",
                     "Appointment-customer_email-reqd",
+                    "Appointment-custom_meet_with_farm-in_list_view",
                     "Patrol GPS Log-personel-options",
                     "Patrol GPS Log-main-sort_field",
                 ],
