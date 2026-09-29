@@ -454,15 +454,6 @@ fixtures = [
         ],
     },
     {
-        # Single doctype — its child-table rows (dispatch_sources config,
-        # among others) are real data, not field defaults, so they need an
-        # actual fixture record or a fresh deploy ships with none configured.
-        "dt": "Security Ops Settings",
-        "filters": [
-            ["name", "=", "Security Ops Settings"],
-        ],
-    },
-    {
         # Master data, not per-site business records: mirrors the static
         # options list on Incident Report.nature_of_incident (a plain
         # Select, not a Link to this doctype) so the mobile app's category
