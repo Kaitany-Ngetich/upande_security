@@ -19,9 +19,167 @@
   "dispatch_section",
   "dispatch_sources",
   "command_center_section",
-  "command_center_extra_users"
+  "command_center_extra_users",
+  "feature_flags_section",
+  "feature_visitor_approval_workflow",
+  "feature_column_break_1",
+  "feature_contractor_checkin",
+  "feature_flags_section_2",
+  "feature_sos_alert",
+  "feature_patrol_geofence_alerts",
+  "feature_security_alerts",
+  "feature_column_break_2",
+  "feature_watchlist",
+  "feature_asset_scanning",
+  "feature_flags_section_3",
+  "feature_gate_dispatch",
+  "feature_gate_receiving",
+  "feature_column_break_3",
+  "feature_vehicle_stickers",
+  "feature_visitor_badges",
+  "feature_supplier_badges",
+  "feature_flags_section_4",
+  "feature_command_center",
+  "feature_visitor_sms_otp"
  ],
  "fields": [
+  {
+   "fieldname": "feature_flags_section",
+   "fieldtype": "Section Break",
+   "label": "Feature Flags \u2014 Visitor Workflow",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_visitor_approval_workflow",
+   "fieldtype": "Check",
+   "label": "Require Visitor Approval Workflow",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "feature_column_break_1",
+   "fieldtype": "Column Break",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_contractor_checkin",
+   "fieldtype": "Check",
+   "label": "Contractor Gate Check-in",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "feature_flags_section_2",
+   "fieldtype": "Section Break",
+   "label": "Feature Flags \u2014 Alerts",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_sos_alert",
+   "fieldtype": "Check",
+   "label": "Nearby-Guard SOS Alert",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_patrol_geofence_alerts",
+   "fieldtype": "Check",
+   "label": "Patrol Geofence / Missed Check-in Alerts",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_security_alerts",
+   "fieldtype": "Check",
+   "label": "Unauthorized Access / Unscanned Checkpoint Alerts",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "feature_column_break_2",
+   "fieldtype": "Column Break",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_watchlist",
+   "fieldtype": "Check",
+   "label": "Security Watchlist Matching",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_asset_scanning",
+   "fieldtype": "Check",
+   "label": "Security Asset Scanning",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "feature_flags_section_3",
+   "fieldtype": "Section Break",
+   "label": "Feature Flags \u2014 Gate Verification",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_gate_dispatch",
+   "fieldtype": "Check",
+   "label": "Gate Dispatch Verification",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_gate_receiving",
+   "fieldtype": "Check",
+   "label": "Gate Receiving Verification",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "feature_column_break_3",
+   "fieldtype": "Column Break",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_vehicle_stickers",
+   "fieldtype": "Check",
+   "label": "Vehicle/Staff Stickers",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_visitor_badges",
+   "fieldtype": "Check",
+   "label": "Visitor Badge Printing",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_supplier_badges",
+   "fieldtype": "Check",
+   "label": "Supplier Badges",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "feature_flags_section_4",
+   "fieldtype": "Section Break",
+   "label": "Feature Flags \u2014 Admin",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_command_center",
+   "fieldtype": "Check",
+   "label": "Command Center",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_visitor_sms_otp",
+   "fieldtype": "Check",
+   "label": "Visitor SMS (booking code + checkout thank-you)",
+   "permlevel": 1
+  },
   {
    "fieldname": "fallback_section",
    "fieldtype": "Section Break",
@@ -142,6 +300,12 @@
    "role": "Security Head",
    "share": 1,
    "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "write": 1,
+   "role": "System Manager"
   }
  ],
  "sort_field": "modified",

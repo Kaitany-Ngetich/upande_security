@@ -25,6 +25,8 @@ import urllib.parse
 import frappe
 from frappe import _
 
+from upande_security.api.feature_flags import require_feature
+from upande_security.api.security_alerts import log_unauthorized_access
 from upande_security.utils.notifications import resolve_notification_users
 
 # PO statuses where goods are still genuinely expected to arrive — anything
@@ -113,6 +115,7 @@ def search_receiving_for_gate(reference):
 	"""Guard types/scans the PO number off the delivery paperwork, or the
 	supplier's name if that's all they have. Read-only — never touches the
 	Purchase Order."""
+	require_feature("feature_gate_receiving")
 	reference = (reference or "").strip()
 	if not reference:
 		frappe.response["message"] = {"found": False, "error": "A PO number or supplier name is required."}
@@ -143,6 +146,8 @@ def search_receiving_by_supplier_badge(reference):
 	holder can easily have more than one delivery in flight at once, and
 	the guard needs to pick the right one for the truck actually at the
 	gate, not have one silently guessed for them."""
+	require_feature("feature_gate_receiving")
+	require_feature("feature_supplier_badges")
 	reference = (reference or "").strip()
 	if not reference:
 		frappe.response["message"] = {"found": False, "error": "A badge reference is required."}
@@ -163,9 +168,20 @@ def search_receiving_by_supplier_badge(reference):
 		"Supplier Badge", reference, ["name", "status", "supplier"], as_dict=True
 	)
 	if not badge:
+		log_unauthorized_access(
+			"Invalid Badge Scan",
+			reference,
+			"Supplier Badge scan at gate receiving found no Supplier Badge record for '" + reference + "'.",
+		)
 		frappe.response["message"] = {"found": False, "error": "No Supplier Badge found for that reference."}
 		return
 	if badge.status != "Active" or not badge.supplier:
+		log_unauthorized_access(
+			"Invalid Badge Scan",
+			badge.name,
+			"Supplier Badge " + badge.name + " scanned at gate receiving is not Active/assigned to a supplier (status: "
+			+ (badge.status or "Unassigned") + ").",
+		)
 		frappe.response["message"] = {
 			"found": False,
 			"error": "This badge is not currently assigned to a supplier (status: " + (badge.status or "Unassigned") + ").",
@@ -309,6 +325,29 @@ def _verify_receiving_one(reference, gate_verification_status, vehicle_no=None, 
 	# Rejected one never reaches them, there's nothing incoming to expect.
 	if gate_verification_status == "Verified":
 		_notify_receiving_team(doc, match)
+	elif gate_verification_status == "Rejected":
+		# Best-effort, never raises - see log_unauthorized_access's own
+		# docstring. Farm is resolved best-effort via the PO's own target
+		# Warehouse -> Warehouse.custom_farm (an upande_kaitet custom
+		# field, not native ERPNext) - Purchase Order itself carries no
+		# direct Farm link, so this is a real gap when set_warehouse is
+		# blank or its Warehouse has no farm set (real PO data on this site
+		# shows both cases happen - see _resolve_receiving_recipients'
+		# own docstring on the ~30% figure).
+		company = frappe.db.get_value("Purchase Order", doc.purchase_order, "company")
+		farm = None
+		warehouse = frappe.db.get_value("Purchase Order", doc.purchase_order, "set_warehouse")
+		if warehouse:
+			farm = frappe.db.get_value("Warehouse", warehouse, "custom_farm")
+		detail = (
+			"Gate Receiving Verification " + doc.name + " for Purchase Order " + doc.purchase_order
+			+ " (supplier " + (match.get("supplier_name") or doc.supplier or "") + ") was rejected at the gate."
+		)
+		if doc.po_status:
+			detail = detail + " PO status at verification: " + doc.po_status + "."
+		if remarks:
+			detail = detail + " Remarks: " + remarks
+		log_unauthorized_access("Gate Receiving Rejected", doc.purchase_order, detail, company, farm)
 
 	return {
 		"name": doc.name,
@@ -320,6 +359,7 @@ def _verify_receiving_one(reference, gate_verification_status, vehicle_no=None, 
 
 @frappe.whitelist()
 def verify_receiving_at_gate(reference, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None):
+	require_feature("feature_gate_receiving")
 	reference = (reference or "").strip()
 	gate_verification_status = (gate_verification_status or "").strip()
 	if gate_verification_status not in ("Verified", "Rejected"):
@@ -341,6 +381,7 @@ def verify_receiving_at_gate_bulk(references, gate_verification_status, vehicle_
 	Each PO still gets its OWN Gate Receiving Verification record — the
 	full per-PO audit trail is unchanged, this only collapses the guard's
 	taps, not the underlying data model."""
+	require_feature("feature_gate_receiving")
 	gate_verification_status = (gate_verification_status or "").strip()
 	if gate_verification_status not in ("Verified", "Rejected"):
 		frappe.throw(_("gate_verification_status must be 'Verified' or 'Rejected'."))
@@ -377,6 +418,7 @@ def confirm_receiving_departure(name):
 	takes time, so this is a separate call from verify_receiving_at_gate,
 	not a field set at arrival. name here is the Gate Receiving
 	Verification record's own name, not the Purchase Order's."""
+	require_feature("feature_gate_receiving")
 	if not frappe.db.exists("Gate Receiving Verification", name):
 		frappe.response["message"] = {"error": "Gate Receiving Verification " + str(name) + " not found."}
 		return

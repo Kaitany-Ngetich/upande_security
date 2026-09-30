@@ -20,6 +20,7 @@ _ALERT_TYPES = {
 	"geofence": "receives_geofence_alerts",
 	"escalation": "receives_escalation",
 	"receiving": "receives_receiving_alerts",
+	"security": "receives_security_alerts",
 }
 
 _DEFAULT_ROLES = {
@@ -27,6 +28,7 @@ _DEFAULT_ROLES = {
 	"geofence": ("Security Head", "System Manager"),
 	"escalation": ("Security Head", "System Manager"),
 	"receiving": ("Stock User",),
+	"security": ("Security Head", "System Manager"),
 }
 
 

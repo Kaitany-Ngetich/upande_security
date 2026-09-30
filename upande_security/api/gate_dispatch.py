@@ -22,6 +22,9 @@ of their own document.
 import frappe
 from frappe import _
 
+from upande_security.api.feature_flags import require_feature
+from upande_security.api.security_alerts import log_unauthorized_access
+
 
 def _enabled_dispatch_sources():
 	settings = frappe.get_single("Security Ops Settings")
@@ -205,6 +208,7 @@ def search_dispatch_for_gate(reference):
 	"""Guard types/scans whatever reference is on the physical dispatch
 	note. Checks every enabled Dispatch Source in turn, returns the first
 	match. Read-only — never touches the source document."""
+	require_feature("feature_gate_dispatch")
 	reference = (reference or "").strip()
 	if not reference:
 		frappe.response["message"] = {"found": False, "error": "A dispatch reference is required."}
@@ -269,6 +273,7 @@ def verify_dispatch_at_gate(
 	can legitimately differ (a truck swap, a driver change) from what
 	actually shows up at the gate. Falls back to the source's value only
 	when the guard's field is left blank."""
+	require_feature("feature_gate_dispatch")
 	reference = (reference or "").strip()
 	gate_verification_status = (gate_verification_status or "").strip()
 	if gate_verification_status not in ("Verified", "Rejected"):
@@ -308,6 +313,7 @@ def verify_dispatch_at_gate_bulk(
 	row lands "Not Checked", no shortfall detection for those). Each
 	reference still gets its own Gate Dispatch Verification record - the
 	full per-document audit trail is unchanged."""
+	require_feature("feature_gate_dispatch")
 	gate_verification_status = (gate_verification_status or "").strip()
 	if gate_verification_status not in ("Verified", "Rejected"):
 		frappe.throw(_("gate_verification_status must be 'Verified' or 'Rejected'."))
@@ -473,6 +479,30 @@ def _verify_dispatch_one(
 	doc.remarks = remarks
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
+
+	if doc.gate_verification_status == "Rejected":
+		# Best-effort, never raises - see log_unauthorized_access's own
+		# docstring. A guard actively turning a truck away at the gate is
+		# the clearest "unauthorized access attempt" signal this file has;
+		# is_authorized (computed from the source doc's own status field)
+		# only describes what the paperwork implies, not what actually
+		# happened at the gate, so the guard's own Rejected decision is
+		# what gets logged here, not a Verified-despite-unauthorized override.
+		detail = (
+			"Gate Dispatch Verification " + doc.name + " for " + doc.reference_doctype + " "
+			+ doc.reference_name + " was rejected at the gate."
+		)
+		if doc.source_status:
+			detail = detail + " Source status at verification: " + doc.source_status + "."
+		if remarks:
+			detail = detail + " Remarks: " + remarks
+		log_unauthorized_access(
+			"Gate Dispatch Rejected",
+			doc.reference_name,
+			detail,
+			frappe.db.get_value("Farm", doc.farm, "company") if doc.farm else None,
+			doc.farm,
+		)
 
 	shortfall_incident = _auto_file_shortfall_incident(doc)
 

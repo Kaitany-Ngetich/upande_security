@@ -533,6 +533,11 @@ def check_patrol_geofence_and_gaps():
 
 	Runs every 15 minutes.
 	"""
+	from upande_security.api.feature_flags import is_feature_enabled
+
+	if not is_feature_enabled("feature_patrol_geofence_alerts"):
+		return
+
 	settings = frappe.get_single("Security Ops Settings")
 	# Falls back to the original hardcoded values (30/60) when either
 	# setting is left blank/zero, so an unconfigured site behaves exactly
@@ -631,3 +636,139 @@ def check_patrol_geofence_and_gaps():
 		"geofence_alerts": geofence_flagged,
 		"lone_worker_escalations": escalated,
 	}
+
+
+def check_unscanned_checkpoints():
+	"""For every currently Active shift whose assigned farm has one or more
+	active Security Checkpoints configured: flag any checkpoint this guard
+	hasn't come within radius_m of (via their own Patrol GPS Log pings -
+	same source, same guard_filter idiom as check_patrol_geofence_and_gaps)
+	within missed_checkin_minutes (Security Ops Settings) of the shift's own
+	start.
+
+	Deliberately its own sibling function on the same */15 cron entry as
+	check_patrol_geofence_and_gaps (see hooks.py) rather than folded into
+	it - a separate feature flag (feature_security_alerts, not
+	feature_patrol_geofence_alerts) gates this one, so a site can turn
+	checkpoint alerting off independently of geofence/missed-check-in
+	alerting.
+
+	A shift with no farm assigned, or a farm with no active Security
+	Checkpoints on record, is skipped entirely - there's nothing to check
+	against, same "honest gap, not an error" reasoning as the geofence half
+	of check_patrol_geofence_and_gaps.
+
+	Runs every 15 minutes.
+	"""
+	from upande_security.api.feature_flags import is_feature_enabled
+	from upande_security.api.sos_alert import _haversine_m
+
+	if not is_feature_enabled("feature_security_alerts"):
+		return
+
+	settings = frappe.get_single("Security Ops Settings")
+	missed_checkin_minutes = settings.missed_checkin_minutes or 30
+
+	active_shifts = frappe.get_all(
+		"Security Guard Shift Assignment",
+		filters={"status": "Active"},
+		fields=["name", "security_guard", "internal_guard", "external_guard", "farm", "start_date", "start_time"],
+	)
+
+	farms = list({s.farm for s in active_shifts if s.farm})
+	if not farms:
+		return {"shifts_checked": len(active_shifts), "checkpoint_alerts": 0}
+
+	checkpoints_by_farm = {}
+	for cp in frappe.get_all(
+		"Security Checkpoint",
+		filters={"farm": ["in", farms], "active": 1},
+		fields=["name", "checkpoint_name", "farm", "latitude", "longitude", "radius_m"],
+	):
+		checkpoints_by_farm.setdefault(cp.farm, []).append(cp)
+
+	if not checkpoints_by_farm:
+		return {"shifts_checked": len(active_shifts), "checkpoint_alerts": 0}
+
+	now = frappe.utils.now_datetime()
+	flagged = 0
+
+	for shift in active_shifts:
+		shift_checkpoints = checkpoints_by_farm.get(shift.farm)
+		if not shift_checkpoints or not shift.start_date:
+			continue
+
+		try:
+			shift_start = frappe.utils.get_datetime(shift.start_date) + frappe.utils.get_timedelta(
+				str(shift.start_time or "00:00:00")
+			)
+		except Exception:
+			continue
+
+		deadline = frappe.utils.add_to_date(shift_start, minutes=missed_checkin_minutes)
+		if now < deadline:
+			# Too early in the shift to fairly call a checkpoint "missed" yet.
+			continue
+
+		if shift.security_guard == "Internal Guard":
+			guard_filter = {"personel": "Internal Guard", "internal_guard": shift.internal_guard}
+			guard_label = shift.internal_guard
+		else:
+			guard_filter = {"personel": "External Guard", "external_guard": shift.external_guard}
+			guard_label = shift.external_guard
+
+		if not guard_label:
+			continue
+
+		# Scoped to pings captured since this shift started, so a stale
+		# ping left over from an earlier shift can never wrongly satisfy
+		# "checkpoint reached" for a shift that hasn't actually gone there
+		# yet.
+		guard_filter["captured_at"] = [">=", shift_start]
+		points = frappe.get_all(
+			"Patrol GPS Log",
+			filters=guard_filter,
+			fields=["latitude", "longitude"],
+			limit_page_length=0,
+		)
+
+		for checkpoint in shift_checkpoints:
+			try:
+				cp_lat = float(checkpoint.latitude)
+				cp_lng = float(checkpoint.longitude)
+			except (TypeError, ValueError):
+				continue
+			radius = checkpoint.radius_m or 75
+
+			reached = False
+			for p in points:
+				try:
+					lat = float(p.latitude)
+					lng = float(p.longitude)
+				except (TypeError, ValueError):
+					continue
+				if _haversine_m(lat, lng, cp_lat, cp_lng) <= radius:
+					reached = True
+					break
+
+			if reached:
+				continue
+
+			alert_kind = "Unscanned checkpoint: " + checkpoint.checkpoint_name
+			if _recent_alert_exists(shift.name, alert_kind):
+				continue
+
+			_notify_security_ops(
+				shift.name,
+				alert_kind,
+				"Guard " + guard_label + " (shift " + shift.name + ") has not reached checkpoint '"
+				+ checkpoint.checkpoint_name + "' (" + shift.farm + ") within "
+				+ str(missed_checkin_minutes) + " minutes of shift start.",
+				"security",
+			)
+			flagged += 1
+
+	if flagged:
+		frappe.db.commit()
+
+	return {"shifts_checked": len(active_shifts), "checkpoint_alerts": flagged}

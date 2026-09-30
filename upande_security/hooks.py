@@ -194,6 +194,13 @@ doc_events = {
 			"upande_security.api.visitor_badge_qr.release_badge_on_checkout",
 			"upande_security.api.visitor_approved_alert.notify_gate_guards_on_host_approval",
 			"upande_security.api.notifications.notify_owner_on_status_change",
+			# Desk-path parity only for the visitor OTP/thank-you SMS - the
+			# mobile check-in/check-out Server Scripts call
+			# send_checkin_otp/send_checkout_thankyou directly instead, since
+			# they write straight to the DB without a workflow_state-driven
+			# doc.save() this hook could ever see. See visitor_sms.py's own
+			# docstring.
+			"upande_security.api.visitor_sms.on_appointment_update",
 		],
 	},
 	# Auto-provision the Company/Farm User Permission rows the hierarchical
@@ -228,6 +235,12 @@ scheduler_events = {
             # quiet (no GPS ping in 30 min) and, separately, one whose last
             # ping falls outside their assigned farm's boundary.
             "upande_security.tasks.check_patrol_geofence_and_gaps",
+            # Sibling check, same cadence: flag any Active shift that hasn't
+            # come within range of one of its farm's configured Security
+            # Checkpoints in time - gated by its own feature flag
+            # (feature_security_alerts), independent of the geofence/missed
+            # check-in alerting above.
+            "upande_security.tasks.check_unscanned_checkpoints",
         ],
     },
     "hourly": [

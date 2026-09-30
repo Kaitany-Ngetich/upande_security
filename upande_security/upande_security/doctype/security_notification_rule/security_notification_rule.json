@@ -10,6 +10,7 @@
   "receives_geofence_alerts",
   "receives_escalation",
   "receives_receiving_alerts",
+  "receives_security_alerts",
   "column_break_2",
   "report_subscription"
  ],
@@ -52,6 +53,13 @@
    "fieldname": "receives_receiving_alerts",
    "fieldtype": "Check",
    "label": "Receiving Alerts",
+   "in_list_view": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "receives_security_alerts",
+   "fieldtype": "Check",
+   "label": "Unauthorized Access / Checkpoint Alerts",
    "in_list_view": 1
   },
   {

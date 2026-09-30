@@ -27,6 +27,8 @@ import urllib.request
 
 import frappe
 
+from upande_security.api.feature_flags import require_feature
+
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 EARTH_RADIUS_M = 6371000.0
 
@@ -67,6 +69,7 @@ def register_push_token(expo_push_token, platform=None, lat=None, lng=None):
 	device to reach this guard on. Upserts — a guard reinstalling the app or
 	switching phones replaces their old token rather than accumulating
 	stale ones."""
+	require_feature("feature_sos_alert")
 	guard_type, guard_id, _ = _resolve_calling_guard()
 	if not guard_id:
 		frappe.response["message"] = {"error": "No Employee or Security Guard record linked to this login"}
@@ -115,6 +118,7 @@ def ping_location(lat, lng):
 	for guard_type == "App User" rows, since there's no Patrol GPS Log for
 	non-patrolling app users. Call this every few minutes from the mobile
 	app for any logged-in user who isn't actively on a tracked patrol."""
+	require_feature("feature_sos_alert")
 	guard_type, guard_id, _ = _resolve_calling_guard()
 	if not guard_id:
 		frappe.response["message"] = {"error": "No Employee, Security Guard, or User record linked to this login"}
@@ -295,6 +299,7 @@ def trigger_nearby_guard_alert(latitude, longitude, incident_name=None):
 	called the guard has already dialed and filed the incident; this is
 	strictly an additional channel, not the primary one.
 	"""
+	require_feature("feature_sos_alert")
 	guard_type, guard_id, guard_name = _resolve_calling_guard()
 	guard_name = guard_name or "A guard"
 
