@@ -40,7 +40,14 @@
   "feature_supplier_badges",
   "feature_flags_section_4",
   "feature_command_center",
-  "feature_visitor_sms_otp"
+  "feature_visitor_sms_otp",
+  "feature_flags_section_5",
+  "feature_staff_checkin",
+  "feature_vehicle_gate_tracking",
+  "feature_taxi_driver_checkout",
+  "feature_column_break_5",
+  "feature_gate_temp_exit",
+  "feature_host_receipt_confirmation"
  ],
  "fields": [
   {
@@ -178,6 +185,52 @@
    "fieldname": "feature_visitor_sms_otp",
    "fieldtype": "Check",
    "label": "Visitor SMS (booking code + checkout thank-you)",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "feature_flags_section_5",
+   "fieldtype": "Section Break",
+   "label": "Feature Flags — Gate Modules",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_staff_checkin",
+   "fieldtype": "Check",
+   "label": "Staff Gate Attendance",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_vehicle_gate_tracking",
+   "fieldtype": "Check",
+   "label": "Company Vehicle/Tractor Gate Tracking",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_taxi_driver_checkout",
+   "fieldtype": "Check",
+   "label": "Taxi Driver Checkout",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "feature_column_break_5",
+   "fieldtype": "Column Break",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_gate_temp_exit",
+   "fieldtype": "Check",
+   "label": "Temporary Exit / Re-entry",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_host_receipt_confirmation",
+   "fieldtype": "Check",
+   "label": "Host Receipt Confirmation (badge scan)",
    "permlevel": 1
   },
   {
