@@ -1882,8 +1882,19 @@ def _resolve_range(period=None, from_date=None, to_date=None):
     attribute directly and sends it verbatim as the period param) - this
     used to check for "last_7_days"/"last_30_days" and had no case for
     "1y" at all, none of which the frontend has ever actually sent
-    ("7d"/"30d"/"1y"/"today"/"custom" are the only real values), so every
-    range pill except Custom silently collapsed to just today."""
+    ("7d"/"30d"/"90d"/"1y"/"today"/"custom" are the only real values), so
+    every range pill except Custom silently collapsed to just today.
+
+    Found again 2026-09-30: the frontend's own rangePeriod() helper was
+    STILL translating pill values through a stale map ('7d' ->
+    'last_7_days' etc, with '90d' additionally mapped to the wrong key,
+    'last_30_days') before sending them here - meaning this function's own
+    fix above never actually took effect for any real user click, only for
+    a direct API call using the right literal values. rangePeriod() now
+    sends state.range verbatim instead of translating it, so this function
+    genuinely receives "7d"/"30d"/"90d"/"1y"/"today"/"custom" - and "90d"
+    itself needed an actual case here for the first time, since nothing
+    server-side ever supported it even before that frontend bug."""
     today = frappe.utils.getdate()
 
     if period == "custom" and from_date and to_date:
@@ -1892,6 +1903,8 @@ def _resolve_range(period=None, from_date=None, to_date=None):
         return frappe.utils.add_days(today, -6), today
     if period == "30d":
         return frappe.utils.add_days(today, -29), today
+    if period == "90d":
+        return frappe.utils.add_days(today, -89), today
     if period == "1y":
         return frappe.utils.add_days(today, -364), today
     return today, today
