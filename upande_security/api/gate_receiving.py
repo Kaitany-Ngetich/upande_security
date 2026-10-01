@@ -175,16 +175,16 @@ def search_receiving_by_supplier_badge(reference):
 		)
 		frappe.response["message"] = {"found": False, "error": "No Supplier Badge found for that reference."}
 		return
-	if badge.status != "Active" or not badge.supplier:
+	if badge.status != "Issued" or not badge.supplier:
 		log_unauthorized_access(
 			"Invalid Badge Scan",
 			badge.name,
-			"Supplier Badge " + badge.name + " scanned at gate receiving is not Active/assigned to a supplier (status: "
-			+ (badge.status or "Unassigned") + ").",
+			"Supplier Badge " + badge.name + " scanned at gate receiving is not Issued/assigned to a supplier (status: "
+			+ (badge.status or "Available") + ").",
 		)
 		frappe.response["message"] = {
 			"found": False,
-			"error": "This badge is not currently assigned to a supplier (status: " + (badge.status or "Unassigned") + ").",
+			"error": "This badge is not currently assigned to a supplier (status: " + (badge.status or "Available") + ").",
 		}
 		return
 

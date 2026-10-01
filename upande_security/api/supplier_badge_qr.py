@@ -1,20 +1,20 @@
 # Copyright (c) 2026, dev@upande.com and contributors
 # For license information, please see license.txt
 
-"""Supplier Badge — a durable physical badge assigned to one supplier at a
-time (never per-visit, unlike Visitor Badge), scanned at the gate to pull
-up that supplier's currently open Purchase Orders instead of the guard
-typing a PO number.
+"""Supplier Badge — a reusable physical badge pool, same model as Visitor
+Badge (badge_number + company identify the physical card; current_
+appointment is a point-in-time snapshot of whoever currently holds it),
+scanned at the gate to pull up that supplier's currently open Purchase
+Orders instead of the guard typing a PO number.
 
-Deliberately its own doctype rather than a checkbox on Visitor Badge:
-Visitor Badge auto-releases back to Available the moment its linked
-Appointment reaches Visitor Checked Out (see release_badge_on_checkout in
-visitor_badge_qr.py) - that exact behavior, applied here, would silently
-un-assign a supplier from their badge after every single delivery, which is
-the "changing badges now and then" problem this feature exists to avoid.
-Reassigning a Supplier Badge to a different supplier is instead a
-deliberate admin action in Desk (see auto_sync_status below), never an
-automatic side effect of a gate scan.
+Deliberately its own doctype rather than a checkbox on Visitor Badge
+since it carries supplier-specific lookup behavior (search_receiving_by_
+supplier_badge / Purchase Order pull-up), but the status field itself
+(Available/Issued/Lost) and its lifecycle are intentionally identical to
+Visitor Badge: Issue Supplier Badge assigns it, Contractor Gate Checkout
+releases it back to Available for the next supplier (see
+release_badge_on_checkout's equivalent in visitor_badge_qr.py) - never a
+long-term per-supplier assignment.
 """
 
 import io
@@ -78,21 +78,26 @@ def auto_sync_status(doc, method=None):
 	"""Keeps status consistent with whether this badge is actually checked
 	out to a visit right now, so Issue Supplier Badge / Contractor Gate
 	Checkout don't also have to fight this hook to make their own status
-	writes stick. Only moves between Unassigned <-> Active automatically;
-	Suspended/Lost are deliberate states someone set on purpose and are
-	never overwritten here.
+	writes stick. Only moves between Available <-> Issued automatically;
+	Lost is a deliberate state someone set on purpose and is never
+	overwritten here.
+
+	Status vocabulary (Available/Issued/Lost) and lifecycle deliberately
+	match Visitor Badge exactly, not a supplier-specific scheme - same
+	three values, same checkout-releases-it-to-the-pool behavior (see
+	Contractor Gate Checkout).
 
 	Driven by current_appointment, not supplier (2026-10-01): this badge is
 	no longer durably assigned to one supplier long-term (see the module
 	docstring above for why that changed) - supplier is now just a
 	snapshot of whoever currently holds it, cleared on every checkout just
 	like Visitor Badge never stores visitor identity at all. Deriving
-	status from supplier instead would force it back to Unassigned on
+	status from supplier instead would force it back to Available on
 	every reissue to a contractor visit with no linked Supplier record,
-	fighting the explicit status="Active" the issue flow just set."""
-	if doc.status in ("Suspended", "Lost"):
+	fighting the explicit status="Issued" the issue flow just set."""
+	if doc.status == "Lost":
 		return
-	if doc.current_appointment and doc.status != "Active":
-		doc.status = "Active"
-	elif not doc.current_appointment and doc.status != "Unassigned":
-		doc.status = "Unassigned"
+	if doc.current_appointment and doc.status != "Issued":
+		doc.status = "Issued"
+	elif not doc.current_appointment and doc.status != "Available":
+		doc.status = "Available"
