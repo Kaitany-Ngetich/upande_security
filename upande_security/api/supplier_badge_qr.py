@@ -75,14 +75,24 @@ def _render_qr_png(data):
 
 
 def auto_sync_status(doc, method=None):
-	"""Keeps status consistent with whether a supplier is actually assigned,
-	so reassigning is just "set/clear supplier" in Desk - nobody has to
-	separately remember to also flip the Select field. Only moves between
-	Unassigned <-> Active automatically; Suspended/Lost are deliberate
-	states someone set on purpose and are never overwritten here."""
+	"""Keeps status consistent with whether this badge is actually checked
+	out to a visit right now, so Issue Supplier Badge / Contractor Gate
+	Checkout don't also have to fight this hook to make their own status
+	writes stick. Only moves between Unassigned <-> Active automatically;
+	Suspended/Lost are deliberate states someone set on purpose and are
+	never overwritten here.
+
+	Driven by current_appointment, not supplier (2026-10-01): this badge is
+	no longer durably assigned to one supplier long-term (see the module
+	docstring above for why that changed) - supplier is now just a
+	snapshot of whoever currently holds it, cleared on every checkout just
+	like Visitor Badge never stores visitor identity at all. Deriving
+	status from supplier instead would force it back to Unassigned on
+	every reissue to a contractor visit with no linked Supplier record,
+	fighting the explicit status="Active" the issue flow just set."""
 	if doc.status in ("Suspended", "Lost"):
 		return
-	if doc.supplier and doc.status != "Active":
+	if doc.current_appointment and doc.status != "Active":
 		doc.status = "Active"
-	elif not doc.supplier and doc.status != "Unassigned":
+	elif not doc.current_appointment and doc.status != "Unassigned":
 		doc.status = "Unassigned"
