@@ -21,6 +21,7 @@ _ALERT_TYPES = {
 	"escalation": "receives_escalation",
 	"receiving": "receives_receiving_alerts",
 	"security": "receives_security_alerts",
+	"vehicle_overdue": "receives_vehicle_overdue_alerts",
 }
 
 _DEFAULT_ROLES = {
@@ -29,6 +30,7 @@ _DEFAULT_ROLES = {
 	"escalation": ("Security Head", "System Manager"),
 	"receiving": ("Stock User",),
 	"security": ("Security Head", "System Manager"),
+	"vehicle_overdue": ("Security Head", "System Manager"),
 }
 
 

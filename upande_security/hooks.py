@@ -241,6 +241,11 @@ scheduler_events = {
             # (feature_security_alerts), independent of the geofence/missed
             # check-in alerting above.
             "upande_security.tasks.check_unscanned_checkpoints",
+            # Sibling check, same cadence: flag any company vehicle whose
+            # most recent Gate Vehicle Verification is an Exit with no
+            # matching Entry anywhere since, past vehicle_overdue_minutes -
+            # gated by feature_vehicle_gate_tracking.
+            "upande_security.tasks.check_vehicle_overdue",
         ],
     },
     "hourly": [

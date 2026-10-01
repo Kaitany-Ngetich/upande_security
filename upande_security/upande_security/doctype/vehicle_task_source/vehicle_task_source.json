@@ -1,0 +1,86 @@
+{
+ "actions": [],
+ "creation": "2026-10-01 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "source_doctype",
+  "enabled",
+  "column_break_1",
+  "reference_field",
+  "vehicle_field",
+  "description_field",
+  "column_break_2",
+  "farm_field",
+  "status_field",
+  "authorized_status_values"
+ ],
+ "fields": [
+  {
+   "fieldname": "source_doctype",
+   "fieldtype": "Data",
+   "label": "Source DocType",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reference_field",
+   "fieldtype": "Data",
+   "label": "Reference Field",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "vehicle_field",
+   "fieldtype": "Data",
+   "label": "Vehicle Field"
+  },
+  {
+   "fieldname": "description_field",
+   "fieldtype": "Data",
+   "label": "Description Field"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "farm_field",
+   "fieldtype": "Data",
+   "label": "Farm Field"
+  },
+  {
+   "fieldname": "status_field",
+   "fieldtype": "Data",
+   "label": "Status Field"
+  },
+  {
+   "fieldname": "authorized_status_values",
+   "fieldtype": "Data",
+   "label": "Authorized Status Values"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Vehicle Task Source",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

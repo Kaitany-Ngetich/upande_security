@@ -20,7 +20,7 @@
    "fieldname": "attempt_type",
    "fieldtype": "Select",
    "label": "Attempt Type",
-   "options": "Gate Dispatch Rejected\nGate Receiving Rejected\nInvalid Badge Scan",
+   "options": "Gate Dispatch Rejected\nGate Receiving Rejected\nGate Vehicle Rejected\nInvalid Badge Scan",
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1

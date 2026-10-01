@@ -11,6 +11,7 @@
   "receives_escalation",
   "receives_receiving_alerts",
   "receives_security_alerts",
+  "receives_vehicle_overdue_alerts",
   "column_break_2",
   "report_subscription"
  ],
@@ -60,6 +61,13 @@
    "fieldname": "receives_security_alerts",
    "fieldtype": "Check",
    "label": "Unauthorized Access / Checkpoint Alerts",
+   "in_list_view": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "receives_vehicle_overdue_alerts",
+   "fieldtype": "Check",
+   "label": "Vehicle Overdue (Exit with no matching Entry)",
    "in_list_view": 1
   },
   {

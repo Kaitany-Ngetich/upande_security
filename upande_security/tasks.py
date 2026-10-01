@@ -772,3 +772,101 @@ def check_unscanned_checkpoints():
 		frappe.db.commit()
 
 	return {"shifts_checked": len(active_shifts), "checkpoint_alerts": flagged}
+
+
+def _recent_vehicle_alert_exists(leg_name):
+	"""One overdue alert per open LEG per hour — this task runs every 15
+	minutes (see hooks.py), and a vehicle still not back should keep
+	getting flagged, just not four times an hour. Keyed on the Gate
+	Vehicle Verification leg's own name, not the vehicle task reference -
+	a vehicle can only have one truly open leg at a time in the normal
+	case, but keying this way keeps each leg's alert history independent
+	regardless. Mirrors _recent_alert_exists's own dedup window exactly."""
+	cutoff = frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-55)
+	return frappe.db.exists(
+		"Notification Log",
+		{
+			"document_type": "Gate Vehicle Verification",
+			"document_name": leg_name,
+			"subject": ["like", "Vehicle overdue:%"],
+			"creation": [">=", cutoff],
+		},
+	)
+
+
+VEHICLE_OVERDUE_MINUTES = 180
+
+
+def check_vehicle_overdue():
+	"""A Gate Vehicle Verification LEG with an exit recorded but no entry
+	yet (gate_entry_time blank), whose gate_exit_time is older than
+	VEHICLE_OVERDUE_MINUTES, is flagged as overdue - the vehicle may still
+	genuinely be in transit, or it may have been diverted, broken down, or
+	simply never scanned in at the other end. Each farm's gate only ever
+	sees its own half of a trip (see api/gate_vehicle.py's own docstring on
+	why), so this is the one place that looks across every farm at once to
+	notice a leg that never closed.
+
+	A closed leg (gate_entry_time set) is never flagged regardless of how
+	long it took - this only looks at currently-open legs, and a vehicle
+	can have any number of closed legs in its history without affecting
+	this check.
+
+	Not configurable per-instance (unlike missed_checkin_minutes) -
+	deliberately a plain constant here, not a Security Ops Settings field.
+
+	Runs every 15 minutes, same cadence as the patrol geofence/checkpoint
+	checks this mirrors.
+	"""
+	from upande_security.api.feature_flags import is_feature_enabled
+
+	if not is_feature_enabled("feature_vehicle_gate_tracking"):
+		return
+
+	cutoff = frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-VEHICLE_OVERDUE_MINUTES)
+
+	overdue_rows = frappe.db.sql(
+		"""
+		SELECT name, reference_doctype, reference_name, from_farm, vehicle_no,
+		       gate_exit_time, gate_exit_verified_by
+		FROM `tabGate Vehicle Verification`
+		WHERE gate_entry_time IS NULL
+		  AND gate_exit_status = 'Verified'
+		  AND gate_exit_time < %(cutoff)s
+		""",
+		{"cutoff": cutoff},
+		as_dict=True,
+	)
+
+	flagged = 0
+	for row in overdue_rows:
+		if _recent_vehicle_alert_exists(row.name):
+			continue
+
+		message = (
+			"Vehicle " + (row.vehicle_no or row.reference_name) + " (" + row.reference_doctype + " "
+			+ row.reference_name + ") exited at " + (row.from_farm or "an unknown farm") + " at "
+			+ str(row.gate_exit_time) + " and has not been checked in anywhere since - over "
+			+ str(VEHICLE_OVERDUE_MINUTES) + " minutes ago. Verified leaving by "
+			+ (row.gate_exit_verified_by or "unknown") + "."
+		)
+
+		for recipient in resolve_notification_users("vehicle_overdue"):
+			notification = frappe.new_doc("Notification Log")
+			notification.for_user = recipient
+			notification.subject = "Vehicle overdue: " + row.reference_name
+			notification.email_content = message.replace("\n", "<br>")
+			notification.document_type = "Gate Vehicle Verification"
+			notification.document_name = row.name
+			notification.type = "Alert"
+			try:
+				notification.insert(ignore_permissions=True)
+			except Exception as e:
+				frappe.log_error("check_vehicle_overdue notify", str(e))
+
+		flagged += 1
+
+	if flagged:
+		frappe.db.commit()
+
+	return {"overdue_vehicles_checked": len(overdue_rows), "alerts_sent": flagged}

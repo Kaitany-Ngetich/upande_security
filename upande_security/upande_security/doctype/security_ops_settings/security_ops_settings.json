@@ -18,6 +18,8 @@
   "farm_gates",
   "dispatch_section",
   "dispatch_sources",
+  "vehicle_task_section",
+  "vehicle_task_sources",
   "command_center_section",
   "command_center_extra_users",
   "feature_flags_section",
@@ -312,6 +314,17 @@
    "label": "Dispatch Sources"
   },
   {
+   "fieldname": "vehicle_task_section",
+   "fieldtype": "Section Break",
+   "label": "Gate Vehicle Verification Sources"
+  },
+  {
+   "fieldname": "vehicle_task_sources",
+   "fieldtype": "Table",
+   "options": "Vehicle Task Source",
+   "label": "Vehicle Task Sources"
+  },
+  {
    "fieldname": "command_center_section",
    "fieldtype": "Section Break",
    "label": "Mobile Command Center Access"
@@ -320,8 +333,7 @@
    "fieldname": "command_center_extra_users",
    "fieldtype": "Table",
    "options": "Security Command Center User",
-   "label": "Additional Users (beyond Security Head / System Manager)",
-   "description": "Security Head and System Manager always get full Command Center access in the mobile app. List anyone else here who needs it without changing their role."
+   "label": "Additional Users (beyond Security Head / System Manager)"
   }
  ],
  "index_web_pages_for_search": 1,

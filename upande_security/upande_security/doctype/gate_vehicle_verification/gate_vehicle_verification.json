@@ -1,0 +1,198 @@
+{
+ "actions": [],
+ "creation": "2026-10-01 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "reference_doctype",
+  "reference_name",
+  "vehicle_no",
+  "task_description",
+  "column_break_1",
+  "from_farm",
+  "to_farm",
+  "source_status",
+  "section_break_exit",
+  "gate_exit_time",
+  "gate_exit_verified_by",
+  "gate_exit_status",
+  "section_break_entry",
+  "gate_entry_time",
+  "gate_entry_verified_by",
+  "gate_entry_status",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Data",
+   "label": "Vehicle Task Source",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "options": "reference_doctype",
+   "label": "Vehicle Task Reference",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "vehicle_no",
+   "fieldtype": "Data",
+   "label": "Vehicle Plate / Serial No",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "task_description",
+   "fieldtype": "Small Text",
+   "label": "Task Description",
+   "read_only": 1,
+   "description": "Snapshot of Vehicle Task Source's configured Description Field at the time this leg was created - what the task actually is (e.g. \"Fertilizer delivery - Kapkolia to Kaptumbo\"), not just its plate/reference."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "from_farm",
+   "fieldtype": "Link",
+   "options": "Farm",
+   "label": "From Farm",
+   "read_only": 1,
+   "in_list_view": 1,
+   "description": "Resolved from the exiting guard's own company/farm, not the vehicle task's own static farm field - see api/gate_vehicle.py's own docstring."
+  },
+  {
+   "fieldname": "to_farm",
+   "fieldtype": "Link",
+   "options": "Farm",
+   "label": "To Farm",
+   "read_only": 1,
+   "in_list_view": 1,
+   "description": "Blank until the entry half of this leg is recorded - resolved from the ENTERING guard's own farm, which may be a different farm than whatever was expected."
+  },
+  {
+   "fieldname": "source_status",
+   "fieldtype": "Data",
+   "label": "Source Status At Exit",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_exit",
+   "fieldtype": "Section Break",
+   "label": "Gate Exit (departure)"
+  },
+  {
+   "fieldname": "gate_exit_time",
+   "fieldtype": "Datetime",
+   "label": "Gate Exit Time",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "gate_exit_verified_by",
+   "fieldtype": "Link",
+   "options": "User",
+   "label": "Exit Verified By",
+   "read_only": 1
+  },
+  {
+   "default": "Verified",
+   "fieldname": "gate_exit_status",
+   "fieldtype": "Select",
+   "options": "Verified\nRejected",
+   "label": "Exit Status",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "section_break_entry",
+   "fieldtype": "Section Break",
+   "label": "Gate Entry (arrival)"
+  },
+  {
+   "fieldname": "gate_entry_time",
+   "fieldtype": "Datetime",
+   "label": "Gate Entry Time",
+   "read_only": 1,
+   "in_list_view": 1,
+   "description": "Blank = this leg is still open (vehicle has exited but hasn't been scanned in anywhere yet)."
+  },
+  {
+   "fieldname": "gate_entry_verified_by",
+   "fieldtype": "Link",
+   "options": "User",
+   "label": "Entry Verified By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "gate_entry_status",
+   "fieldtype": "Select",
+   "options": "\nVerified\nRejected",
+   "label": "Entry Status",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks",
+   "description": "Shared by both halves of this leg - each guard's note is appended with who/when, not overwritten."
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Gate Vehicle Verification",
+ "naming_rule": "By fieldname",
+ "autoname": "hash",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "if_owner": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Gate Guard",
+   "share": 1,
+   "write": 0
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
