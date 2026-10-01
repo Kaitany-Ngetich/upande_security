@@ -76,28 +76,33 @@ def _render_qr_png(data):
 
 def auto_sync_status(doc, method=None):
 	"""Keeps status consistent with whether this badge is actually checked
-	out to a visit right now, so Issue Supplier Badge / Contractor Gate
-	Checkout don't also have to fight this hook to make their own status
-	writes stick. Only moves between Available <-> Issued automatically;
-	Lost is a deliberate state someone set on purpose and is never
-	overwritten here.
+	out right now, so Issue Supplier Badge / Contractor Gate Checkout /
+	issue_supplier_badge_for_receiving / confirm_receiving_departure don't
+	also have to fight this hook to make their own status writes stick.
+	Only moves between Available <-> Issued automatically; Lost is a
+	deliberate state someone set on purpose and is never overwritten here.
 
 	Status vocabulary (Available/Issued/Lost) and lifecycle deliberately
 	match Visitor Badge exactly, not a supplier-specific scheme - same
-	three values, same checkout-releases-it-to-the-pool behavior (see
-	Contractor Gate Checkout).
+	three values, same checkout-releases-it-to-the-pool behavior.
 
-	Driven by current_appointment, not supplier (2026-10-01): this badge is
-	no longer durably assigned to one supplier long-term (see the module
-	docstring above for why that changed) - supplier is now just a
-	snapshot of whoever currently holds it, cleared on every checkout just
-	like Visitor Badge never stores visitor identity at all. Deriving
-	status from supplier instead would force it back to Available on
-	every reissue to a contractor visit with no linked Supplier record,
+	Two independent holder fields, never both set at once: current_
+	appointment (Contractor gate check-in/checkout visits) and current_
+	receiving (Gate Receiving Verification - goods deliveries against a
+	Purchase Order, no Appointment involved at all). Either one present
+	means Issued.
+
+	Driven by these holder fields, not supplier (2026-10-01): this badge is
+	no longer durably assigned to one supplier long-term - supplier is now
+	just a snapshot of whoever currently holds it, cleared on every
+	release just like Visitor Badge never stores visitor identity at all.
+	Deriving status from supplier instead would force it back to Available
+	on every reissue to a visit/delivery with no linked Supplier record,
 	fighting the explicit status="Issued" the issue flow just set."""
 	if doc.status == "Lost":
 		return
-	if doc.current_appointment and doc.status != "Issued":
+	held = bool(doc.current_appointment or doc.current_receiving)
+	if held and doc.status != "Issued":
 		doc.status = "Issued"
-	elif not doc.current_appointment and doc.status != "Available":
+	elif not held and doc.status != "Available":
 		doc.status = "Available"

@@ -20,6 +20,7 @@
   "gate_verified_by",
   "column_break_2",
   "gate_departure_time",
+  "supplier_badge",
   "remarks"
  ],
  "fields": [
@@ -114,6 +115,13 @@
    "fieldname": "gate_departure_time",
    "fieldtype": "Datetime",
    "label": "Gate Departure Time"
+  },
+  {
+   "fieldname": "supplier_badge",
+   "fieldtype": "Link",
+   "options": "Supplier Badge",
+   "label": "Supplier Badge",
+   "read_only": 1
   },
   {
    "fieldname": "remarks",

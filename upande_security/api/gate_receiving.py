@@ -354,6 +354,15 @@ def _verify_receiving_one(reference, gate_verification_status, vehicle_no=None, 
 		"purchase_order": doc.purchase_order,
 		"gate_verification_status": doc.gate_verification_status,
 		"is_authorized": match.get("is_authorized"),
+		"supplier": doc.supplier,
+		"supplier_name": match.get("supplier_name"),
+		# Whether this supplier already has a badge in circulation - drives
+		# the mobile "Issue a badge for next time" prompt after a Verified
+		# decision. Always true for a bulk (badge-scan-originated) verify,
+		# since reaching that path already required an Issued badge.
+		"has_badge": bool(
+			frappe.db.exists("Supplier Badge", {"supplier": doc.supplier, "status": "Issued"})
+		),
 	}
 
 
@@ -419,12 +428,123 @@ def confirm_receiving_departure(name):
 	not a field set at arrival. name here is the Gate Receiving
 	Verification record's own name, not the Purchase Order's."""
 	require_feature("feature_gate_receiving")
-	if not frappe.db.exists("Gate Receiving Verification", name):
+	grv = frappe.db.get_value(
+		"Gate Receiving Verification", name, ["name", "supplier_badge"], as_dict=True
+	)
+	if not grv:
 		frappe.response["message"] = {"error": "Gate Receiving Verification " + str(name) + " not found."}
 		return
 
 	frappe.db.set_value(
 		"Gate Receiving Verification", name, "gate_departure_time", frappe.utils.now_datetime()
 	)
+
+	# Release any badge issued for this delivery back into the pool, same
+	# mechanic as Contractor Gate Checkout releasing a Supplier Badge on
+	# the contractor side - reusable across many different suppliers, not
+	# permanently tied to this one.
+	if grv.supplier_badge:
+		frappe.db.set_value(
+			"Supplier Badge",
+			grv.supplier_badge,
+			{"status": "Available", "current_receiving": None, "supplier": None},
+		)
+
 	frappe.db.commit()
 	frappe.response["message"] = {"name": name, "gate_departure_time": str(frappe.utils.now_datetime())}
+
+
+@frappe.whitelist()
+def issue_supplier_badge_for_receiving(name, badge_number):
+	"""Issues/assigns a Supplier Badge to the supplier behind an already-
+	verified Gate Receiving Verification record, so a future delivery from
+	the same supplier can be found by scanning the badge instead of typing
+	the PO/name again (see search_receiving_by_supplier_badge). Mirrors
+	Issue Supplier Badge's contractor-side logic exactly, but keyed to a
+	Gate Receiving Verification record instead of an Appointment - there is
+	no Appointment anywhere in this flow.
+
+	Released back to Available by confirm_receiving_departure above,
+	exactly like Contractor Gate Checkout releases the contractor-side
+	one."""
+	require_feature("feature_gate_receiving")
+	require_feature("feature_supplier_badges")
+	name = (name or "").strip()
+	if not name:
+		frappe.response["message"] = {"error": "name is required"}
+		return
+
+	try:
+		badge_number = int(badge_number)
+	except Exception:
+		frappe.response["message"] = {"error": "badge_number must be a number"}
+		return
+
+	grv = frappe.db.get_value(
+		"Gate Receiving Verification",
+		name,
+		["name", "supplier", "purchase_order", "supplier_badge"],
+		as_dict=True,
+	)
+	if not grv:
+		frappe.response["message"] = {"error": "Gate Receiving Verification " + name + " not found"}
+		return
+	if grv.supplier_badge:
+		frappe.response["message"] = {
+			"error": "A badge is already issued for this delivery (" + grv.supplier_badge + ")"
+		}
+		return
+
+	company = frappe.db.get_value("Purchase Order", grv.purchase_order, "company")
+	if not company:
+		frappe.response["message"] = {
+			"error": "Could not determine the company for this Purchase Order"
+		}
+		return
+
+	badge = frappe.db.get_value(
+		"Supplier Badge",
+		{"company": company, "badge_number": badge_number},
+		["name", "status", "current_receiving"],
+		as_dict=True,
+	)
+	if not badge:
+		frappe.response["message"] = {
+			"error": "Badge " + str(badge_number) + " does not exist for " + company
+		}
+		return
+	if badge.status == "Issued" and badge.current_receiving != name:
+		frappe.response["message"] = {
+			"error": "Badge " + str(badge_number) + " (" + company + ") is already issued elsewhere"
+		}
+		return
+
+	# Same optimistic-concurrency protection as issue_supplier_badge /
+	# issue_visitor_badge - load + save, not a raw set_value.
+	badge_doc = frappe.get_doc("Supplier Badge", badge.name)
+	badge_doc.status = "Issued"
+	badge_doc.current_receiving = name
+	badge_doc.current_appointment = None
+	badge_doc.supplier = grv.supplier
+	try:
+		badge_doc.save(ignore_permissions=True)
+	except frappe.TimestampMismatchError:
+		frappe.response["message"] = {
+			"error": "Badge "
+			+ str(badge_number)
+			+ " ("
+			+ company
+			+ ") was just issued elsewhere - rescan or pick a different badge."
+		}
+		return
+
+	frappe.db.set_value("Gate Receiving Verification", name, "supplier_badge", badge.name)
+	frappe.db.commit()
+
+	supplier_name = frappe.db.get_value("Supplier", grv.supplier, "supplier_name") or grv.supplier
+	frappe.response["message"] = {
+		"badge_number": badge_number,
+		"company": company,
+		"supplier": grv.supplier,
+		"supplier_name": supplier_name,
+	}
