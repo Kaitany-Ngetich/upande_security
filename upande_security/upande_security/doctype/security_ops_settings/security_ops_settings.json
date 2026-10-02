@@ -19,6 +19,7 @@
   "coverage_fresh_hours",
   "coverage_stale_hours",
   "coverage_influence_radius_m",
+  "coverage_boundary_tolerance_m",
   "notification_recipients_section",
   "notification_rules",
   "gates_section",
@@ -37,6 +38,7 @@
   "feature_sos_alert",
   "feature_patrol_geofence_alerts",
   "feature_patrol_coverage_grid",
+  "feature_patrol_boundary_filter",
   "feature_security_alerts",
   "feature_column_break_2",
   "feature_watchlist",
@@ -110,6 +112,13 @@
    "fieldname": "feature_patrol_coverage_grid",
    "fieldtype": "Check",
    "label": "Patrol Coverage Grid (Patrol Map)",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_patrol_boundary_filter",
+   "fieldtype": "Check",
+   "label": "Hide Patrol Points Outside Farm Boundary (Patrol Map)",
    "permlevel": 1
   },
   {
@@ -333,6 +342,12 @@
    "fieldname": "coverage_influence_radius_m",
    "fieldtype": "Int",
    "label": "Patrol Influence Radius (meters)"
+  },
+  {
+   "default": "5",
+   "fieldname": "coverage_boundary_tolerance_m",
+   "fieldtype": "Int",
+   "label": "Boundary Tolerance (meters)"
   },
   {
    "fieldname": "notification_recipients_section",

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import frappe
-from shapely.geometry import Point
+from shapely.geometry import LineString, Point
 from frappe import _
 from frappe.utils import get_datetime
 
@@ -2358,19 +2358,26 @@ def fetchPatrolData(date=None, farm=None):
     guard_farms = _guard_farm_lookup(selected_date)
     farm = (farm or "").strip()
 
-    # Rows with no farm at all (neither stamped nor resolvable via a shift)
-    # are matched to the selected farm by location instead - within ~110 m
-    # of its boundary, so a guard walking the fence line keeps an unbroken
-    # path.
-    farm_area = None
+    # With a farm selected, two location rules apply:
+    # - boundary_area (Hide Patrol Points Outside Farm Boundary flag on):
+    #   keep only points within Boundary Tolerance of the farm's boundary,
+    #   whatever farm they're tagged with. A path that leaves and comes back
+    #   is split at the gap (see "breaks") rather than drawn straight across.
+    # - otherwise rows with no farm at all are matched by location, within
+    #   ~110 m of the boundary, and tagged rows by their farm.
+    farm_area = boundary_area = None
     if farm:
         try:
             from shapely.prepared import prep
-            from upande_security.api.patrol_coverage import _load_farm_polygon
+            from upande_security.api.patrol_coverage import _load_farm_polygon, boundary_filter_area
             poly = _load_farm_polygon(farm)
-            farm_area = prep(poly.buffer(0.001)) if poly is not None else None
+            if poly is not None:
+                farm_area = prep(poly.buffer(0.001))
+                boundary_area = boundary_filter_area(farm, poly)
         except Exception:
-            farm_area = None
+            farm_area = boundary_area = None
+    pending_break = set()
+    identities = {}
 
     groups = {}
     for p in points:
@@ -2390,21 +2397,41 @@ def fetchPatrolData(date=None, farm=None):
         raw_guard_id = p.get("internal_guard") or p.get("external_guard") or ""
         guard_farm = str(p.get("farm") or "").strip() or guard_farms.get(raw_guard_id) or ""
 
-        if farm and guard_farm != farm:
+        ident_key = (p.get("internal_guard"), p.get("external_guard"), p.get("owner"))
+        if ident_key not in identities:
+            identities[ident_key] = _patrol_guard_identity(p)
+        guard_id, guard_name = identities[ident_key]
+        key = f"{guard_id}::{patrol_id}"
+
+        if farm and boundary_area is not None:
+            if not boundary_area.contains(Point(lng, lat)):
+                if key in groups:
+                    pending_break.add(key)
+                continue
+            guard_farm = farm
+        elif farm and guard_farm != farm:
             if guard_farm or farm_area is None or not farm_area.contains(Point(lng, lat)):
                 continue
             guard_farm = farm
 
-        guard_id, guard_name = _patrol_guard_identity(p)
-        key = f"{guard_id}::{patrol_id}"
-
         if key not in groups:
             groups[key] = {
                 "guard_id": guard_id, "guard_name": guard_name, "farm": guard_farm,
-                "patrol_tag": patrol_id, "points": [], "timestamps": [],
+                "patrol_tag": patrol_id, "points": [], "timestamps": [], "breaks": [],
             }
 
-        groups[key]["points"].append([lat, lng])
+        pts_so_far = groups[key]["points"]
+        if key in pending_break:
+            pending_break.discard(key)
+            groups[key]["breaks"].append(len(pts_so_far))
+        elif boundary_area is not None and pts_so_far:
+            # Two in-farm points can still be joined by a line that cuts
+            # outside - a gap in GPS while the guard stepped out, or a bend
+            # in the boundary. Split there too rather than draw it.
+            prev_lat, prev_lng = pts_so_far[-1]
+            if not boundary_area.contains(LineString([(prev_lng, prev_lat), (lng, lat)])):
+                groups[key]["breaks"].append(len(pts_so_far))
+        pts_so_far.append([lat, lng])
         groups[key]["timestamps"].append(p.get("captured_at"))
 
     now = frappe.utils.now_datetime()
@@ -2415,7 +2442,8 @@ def fetchPatrolData(date=None, farm=None):
 
     for key, g in groups.items():
         pts, ts = g["points"], g["timestamps"]
-        distance_km = _path_distance_km(pts)
+        bounds = [0] + g["breaks"] + [len(pts)]
+        distance_km = sum(_path_distance_km(pts[a:b]) for a, b in zip(bounds, bounds[1:]))
         first_fix, last_fix = (ts[0], ts[-1]) if ts else (None, None)
 
         duration_min = 0
@@ -2443,6 +2471,7 @@ def fetchPatrolData(date=None, farm=None):
             "patrol_tag": g["patrol_tag"],
             "points": pts,
             "timestamps": [str(t) for t in ts],
+            "breaks": g["breaks"],
             "point_count": len(pts),
             "distance_km": round(distance_km, 2),
             "duration_min": duration_min,

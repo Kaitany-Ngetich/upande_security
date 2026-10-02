@@ -29,6 +29,8 @@ class SecurityOpsSettings(Document):
 		):
 			if value and not 10 <= value <= 500:
 				frappe.throw("{0} must be between 10 and 500 meters.".format(label))
+		if self.coverage_boundary_tolerance_m and not 0 <= self.coverage_boundary_tolerance_m <= 500:
+			frappe.throw("Boundary Tolerance must be between 0 and 500 meters.")
 		if (
 			self.coverage_fresh_hours
 			and self.coverage_stale_hours

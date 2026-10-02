@@ -85,6 +85,25 @@ def _load_farm_polygon(farm):
 	return None if poly.is_empty else poly
 
 
+def boundary_filter_area(farm, poly=None):
+	"""The selected farm's boundary grown by Boundary Tolerance, prepared for
+	fast point tests - or None when the Hide Patrol Points Outside Farm
+	Boundary flag is off or the farm has no usable boundary. Shared by the
+	coverage grid and fetchPatrolData so paths and coverage always agree."""
+	if not is_feature_enabled("feature_patrol_boundary_filter"):
+		return None
+	if poly is None:
+		try:
+			poly = _load_farm_polygon(farm)
+		except Exception:
+			return None
+	if poly is None:
+		return None
+	tol = frappe.db.get_single_value("Security Ops Settings", "coverage_boundary_tolerance_m")
+	tol = 5 if tol is None else max(0, int(tol))
+	return prep(poly.buffer(tol / 111320.0) if tol else poly)
+
+
 def _build_cells(poly, width_m, height_m):
 	"""Rectangular cells (width east-west, height north-south) in a local equirectangular projection (fine at farm
 	scale), anchored to the boundary's south-west corner. Returns
@@ -131,10 +150,6 @@ def _as_of(date):
 	return frappe.utils.get_datetime(str(day) + " 23:59:59")
 
 
-def _guard_key(p):
-	return p.get("internal_guard") or p.get("external_guard") or p.get("patrol") or ""
-
-
 @frappe.whitelist()
 def get_patrol_coverage_grid(farm, date=None):
 	"""Coverage is a continuous surface, not a per-cell value: every pixel
@@ -152,6 +167,10 @@ def get_patrol_coverage_grid(farm, date=None):
 		return {"enabled": False}
 	if not frappe.has_permission("Patrol GPS Log", ptype="read"):
 		frappe.throw(_("You do not have permission to view Patrol GPS Logs."), frappe.PermissionError)
+	# Points are fetched by time and location below, not through get_list, so
+	# per-farm User Permissions are enforced here on the farm itself.
+	if not frappe.has_permission("Farm", ptype="read", doc=farm):
+		frappe.throw(_("You do not have permission to view {0}.").format(farm), frappe.PermissionError)
 
 	cell_width_m, cell_height_m, fresh_hours, stale_hours, radius_m = _coverage_settings()
 	base = {
@@ -183,13 +202,21 @@ def get_patrol_coverage_grid(farm, date=None):
 
 	as_of = _as_of(date)
 	since = frappe.utils.add_to_date(as_of, hours=-stale_hours)
-	points = frappe.get_list(
-		"Patrol GPS Log",
-		filters={"captured_at": ["between", [since, as_of]]},
-		fields=["captured_at", "latitude", "longitude", "gps_accuracy",
-			"internal_guard", "external_guard", "patrol"],
-		order_by="captured_at asc",
-		limit_page_length=0,
+	# Read through the captured_at_coverage covering index (see
+	# patrol_gps_log.on_doctype_update): ~0.1 s for a 2-day window on ~500k
+	# rows, versus 20-80 s when MariaDB picks a full scan or has to fetch
+	# rows scattered across a table bigger than the buffer pool.
+	force = ""
+	if frappe.db.db_type == "mariadb":
+		for index in ("captured_at_coverage", "captured_at_index"):
+			if frappe.db.has_index("tabPatrol GPS Log", index):
+				force = " force index (" + index + ")"
+				break
+	points = frappe.db.sql(
+		"select captured_at, latitude, longitude, gps_accuracy"
+		" from `tabPatrol GPS Log`" + force + " where captured_at between %s and %s",
+		(since, as_of),
+		as_dict=True,
 	)
 
 	# Local meters from the grid's south-west corner: cell (i, j) spans
@@ -212,6 +239,7 @@ def get_patrol_coverage_grid(farm, date=None):
 	rpx = int(math.ceil(radius_m / px_m))
 	minx, miny, maxx, maxy = poly.bounds
 	pad_x, pad_y = radius_m / mx, radius_m / my
+	area = boundary_filter_area(farm, poly)
 	direct = {}
 	for p in points:
 		lat = _patrol_float(p.get("latitude"))
@@ -219,6 +247,8 @@ def get_patrol_coverage_grid(farm, date=None):
 		if lat is None or lng is None:
 			continue
 		if not (minx - pad_x <= lng <= maxx + pad_x and miny - pad_y <= lat <= maxy + pad_y):
+			continue
+		if area is not None and not area.contains(Point(lng, lat)):
 			continue
 		acc = _patrol_float(p.get("gps_accuracy"))
 		if acc is not None and acc > MAX_ACCURACY_M:
@@ -231,9 +261,8 @@ def get_patrol_coverage_grid(farm, date=None):
 		key = (int(x // W), int(y // H))
 		home = cells.get(key)
 		if home and (home["full"] or home["geom"].intersects(Point(lng, lat))):
-			d = direct.setdefault(key, {"last": None, "pings": 0, "guards": set()})
+			d = direct.setdefault(key, {"last": None, "pings": 0})
 			d["pings"] += 1
-			d["guards"].add(_guard_key(p))
 			if d["last"] is None or ts > d["last"]:
 				d["last"] = ts
 
@@ -285,7 +314,6 @@ def get_patrol_coverage_grid(farm, date=None):
 			"best_hours": round(best, 2) if best is not None and best < stale_hours else None,
 			"last_seen": str(d["last"]) if d else None,
 			"pings": d["pings"] if d else 0,
-			"guards": len(d["guards"] - {""}) if d else 0,
 		})
 
 	return {

@@ -26,6 +26,7 @@ FEATURE_FIELDS = [
 	"feature_sos_alert",
 	"feature_patrol_geofence_alerts",
 	"feature_patrol_coverage_grid",
+	"feature_patrol_boundary_filter",
 	"feature_security_alerts",
 	"feature_watchlist",
 	"feature_asset_scanning",
