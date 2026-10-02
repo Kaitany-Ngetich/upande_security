@@ -18,7 +18,27 @@ class SecurityOpsSettings(Document):
 					self.escalation_minutes, self.missed_checkin_minutes
 				)
 			)
+		self.validate_coverage_grid()
 		self.auto_mark_single_gate_farms_as_main()
+
+	def validate_coverage_grid(self):
+		for label, value in (
+			("Grid Cell Width", self.coverage_grid_cell_width_m),
+			("Grid Cell Height", self.coverage_grid_cell_height_m),
+			("Patrol Influence Radius", self.coverage_influence_radius_m),
+		):
+			if value and not 10 <= value <= 500:
+				frappe.throw("{0} must be between 10 and 500 meters.".format(label))
+		if (
+			self.coverage_fresh_hours
+			and self.coverage_stale_hours
+			and self.coverage_stale_hours <= self.coverage_fresh_hours
+		):
+			frappe.throw(
+				"Not Patrolled After ({0} h) must be longer than Fully Patrolled Within ({1} h).".format(
+					self.coverage_stale_hours, self.coverage_fresh_hours
+				)
+			)
 
 	def auto_mark_single_gate_farms_as_main(self):
 		"""A farm with exactly one active gate has nothing to disambiguate -

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import frappe
+from shapely.geometry import Point
 from frappe import _
 from frappe.utils import get_datetime
 
@@ -2357,6 +2358,20 @@ def fetchPatrolData(date=None, farm=None):
     guard_farms = _guard_farm_lookup(selected_date)
     farm = (farm or "").strip()
 
+    # Rows with no farm at all (neither stamped nor resolvable via a shift)
+    # are matched to the selected farm by location instead - within ~110 m
+    # of its boundary, so a guard walking the fence line keeps an unbroken
+    # path.
+    farm_area = None
+    if farm:
+        try:
+            from shapely.prepared import prep
+            from upande_security.api.patrol_coverage import _load_farm_polygon
+            poly = _load_farm_polygon(farm)
+            farm_area = prep(poly.buffer(0.001)) if poly is not None else None
+        except Exception:
+            farm_area = None
+
     groups = {}
     for p in points:
         lat = _patrol_float(p.get("latitude"))
@@ -2376,7 +2391,9 @@ def fetchPatrolData(date=None, farm=None):
         guard_farm = str(p.get("farm") or "").strip() or guard_farms.get(raw_guard_id) or ""
 
         if farm and guard_farm != farm:
-            continue
+            if guard_farm or farm_area is None or not farm_area.contains(Point(lng, lat)):
+                continue
+            guard_farm = farm
 
         guard_id, guard_name = _patrol_guard_identity(p)
         key = f"{guard_id}::{patrol_id}"
