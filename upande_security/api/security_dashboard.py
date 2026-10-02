@@ -641,7 +641,7 @@ def get_patrols_dashboard(
             "modified",
         ],
         order_by="captured_at desc",
-        page_length=5000,
+        page_length=0,
     )
 
     patrol_groups: dict[str, dict[str, Any]] = {}
@@ -2154,24 +2154,35 @@ def _fetch_patrols_tab(range_from, range_to):
             frappe.PermissionError,
         )
 
-    day_start = f"{range_from} 00:00:00"
-    day_end = f"{range_to} 23:59:59"
-
-    points = frappe.get_list(
-        doctype,
-        filters={"captured_at": ["between", [day_start, day_end]]},
-        fields=[
-            "name", "patrol", "personel", "internal_guard",
-            "external_guard", "captured_at", "latitude", "longitude", "owner",
-        ],
-        order_by="captured_at asc",
-        page_length=5000,
-    )
+    # Fetched one day at a time: for any window longer than about a day
+    # MariaDB plans a full table scan + filesort instead of using the
+    # captured_at index (~60 s per call at ~470k rows), while a single-day
+    # range always uses the index. Kept on get_list so User Permissions
+    # still apply.
+    points = []
+    day = frappe.utils.getdate(range_from)
+    last_day = frappe.utils.getdate(range_to)
+    while day <= last_day:
+        points.extend(frappe.get_list(
+            doctype,
+            filters={"captured_at": ["between", [f"{day} 00:00:00", f"{day} 23:59:59"]]},
+            fields=[
+                "name", "patrol", "personel", "internal_guard",
+                "external_guard", "captured_at", "latitude", "longitude", "owner",
+            ],
+            order_by="captured_at asc",
+            page_length=0,
+        ))
+        day = frappe.utils.add_days(day, 1)
 
     groups = {}
+    identities = {}
     for p in points:
         patrol_id = str(p.get("patrol") or "Unassigned").strip() or "Unassigned"
-        guard_id, guard_name = _patrol_guard_identity(p)
+        ident_key = (p.get("internal_guard"), p.get("external_guard"), p.get("owner"))
+        if ident_key not in identities:
+            identities[ident_key] = _patrol_guard_identity(p)
+        guard_id, guard_name = identities[ident_key]
         key = f"{guard_id}::{patrol_id}"
         if key not in groups:
             groups[key] = {"guard": guard_name, "patrol": patrol_id, "points": [], "timestamps": []}
@@ -2337,7 +2348,7 @@ def fetchPatrolData(date=None, farm=None):
             "gps_accuracy", "owner",
         ],
         order_by="captured_at asc",
-        page_length=5000,
+        page_length=0,
     )
 
     # A phone's location service typically starts with a coarse network/
