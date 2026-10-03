@@ -22,6 +22,10 @@
   "coverage_boundary_tolerance_m",
   "notification_recipients_section",
   "notification_rules",
+  "visitor_sms_section",
+  "visitor_otp_sms_template",
+  "visitor_sms_column_break",
+  "visitor_thankyou_sms_template",
   "gates_section",
   "farm_gates",
   "dispatch_section",
@@ -359,6 +363,27 @@
    "fieldtype": "Table",
    "options": "Security Notification Rule",
    "label": "Notification Rules"
+  },
+  {
+   "fieldname": "visitor_sms_section",
+   "fieldtype": "Section Break",
+   "label": "Visitor SMS Messages"
+  },
+  {
+   "default": "Welcome to {company}! Your visit code is {code}.",
+   "fieldname": "visitor_otp_sms_template",
+   "fieldtype": "Small Text",
+   "label": "Visitor Code SMS"
+  },
+  {
+   "fieldname": "visitor_sms_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Thanks for visiting {company}, welcome again!",
+   "fieldname": "visitor_thankyou_sms_template",
+   "fieldtype": "Small Text",
+   "label": "Checkout Thank-You SMS"
   },
   {
    "fieldname": "gates_section",
