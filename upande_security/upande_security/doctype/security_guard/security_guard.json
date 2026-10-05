@@ -5,7 +5,6 @@
  "allow_rename": 1,
  "autoname": "SG-.######",
  "creation": "2026-07-17 13:18:19.147345",
- "description": "DocType for managing Security Guard records",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
@@ -191,15 +190,13 @@
   {
    "fieldname": "post",
    "fieldtype": "Data",
-   "label": "Post",
-   "description": "Their usual gate/station (e.g. Gate C, Patrol, Main gate) or \"Reliever\" if they're the designated backup for a group of guards."
+   "label": "Post"
   },
   {
    "fieldname": "reliever",
    "fieldtype": "Link",
    "label": "Reliever",
-   "options": "Security Guard",
-   "description": "Who covers this guard's off days on the monthly schedule - auto-fills their shift when this guard is marked off."
+   "options": "Security Guard"
   },
   {
    "fieldname": "section_identification",

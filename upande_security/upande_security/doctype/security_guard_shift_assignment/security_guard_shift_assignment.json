@@ -149,8 +149,7 @@
    "fieldtype": "Link",
    "label": "Covering For",
    "options": "Security Guard",
-   "read_only": 1,
-   "description": "Set automatically when this shift was auto-filled by a reliever standing in for another guard's off day on the monthly schedule."
+   "read_only": 1
   },
   {
    "depends_on": "eval:doc.security_guard==\"Internal Guard\"",
@@ -185,7 +184,6 @@
    "label": "Off-Days"
   },
   {
-   "description": "Off days configured here belong to the guard, not this shift — they're reused across all of this guard's Shift Assignment / Rotation Plan records. Rotation planning skips these dates automatically.",
    "fieldname": "off_days_html",
    "fieldtype": "HTML",
    "label": "Guard's Off Days"

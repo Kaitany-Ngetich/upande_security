@@ -52,8 +52,7 @@
    "fieldname": "task_description",
    "fieldtype": "Small Text",
    "label": "Task Description",
-   "read_only": 1,
-   "description": "Snapshot of Vehicle Task Source's configured Description Field at the time this leg was created - what the task actually is (e.g. \"Fertilizer delivery - Kapkolia to Kaptumbo\"), not just its plate/reference."
+   "read_only": 1
   },
   {
    "fieldname": "column_break_1",
@@ -65,8 +64,7 @@
    "options": "Farm",
    "label": "From Farm",
    "read_only": 1,
-   "in_list_view": 1,
-   "description": "Resolved from the exiting guard's own company/farm, not the vehicle task's own static farm field - see api/gate_vehicle.py's own docstring."
+   "in_list_view": 1
   },
   {
    "fieldname": "to_farm",
@@ -74,8 +72,7 @@
    "options": "Farm",
    "label": "To Farm",
    "read_only": 1,
-   "in_list_view": 1,
-   "description": "Blank until the entry half of this leg is recorded - resolved from the ENTERING guard's own farm, which may be a different farm than whatever was expected."
+   "in_list_view": 1
   },
   {
    "fieldname": "source_status",
@@ -121,8 +118,7 @@
    "fieldtype": "Datetime",
    "label": "Gate Entry Time",
    "read_only": 1,
-   "in_list_view": 1,
-   "description": "Blank = this leg is still open (vehicle has exited but hasn't been scanned in anywhere yet)."
+   "in_list_view": 1
   },
   {
    "fieldname": "gate_entry_verified_by",
@@ -142,8 +138,7 @@
   {
    "fieldname": "remarks",
    "fieldtype": "Small Text",
-   "label": "Remarks",
-   "description": "Shared by both halves of this leg - each guard's note is appended with who/when, not overwritten."
+   "label": "Remarks"
   }
  ],
  "links": [],

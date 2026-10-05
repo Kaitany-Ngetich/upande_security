@@ -17,7 +17,6 @@
    "reqd": 1
   },
   {
-   "description": "Optional — leave blank if this farm doesn't need a specific block for this rotation.",
    "fieldname": "block",
    "fieldtype": "Link",
    "in_list_view": 1,
