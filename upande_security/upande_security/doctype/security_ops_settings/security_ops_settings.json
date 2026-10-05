@@ -26,6 +26,11 @@
   "visitor_otp_sms_template",
   "visitor_sms_column_break",
   "visitor_thankyou_sms_template",
+  "appointment_notify_section",
+  "appointment_notification_recipients",
+  "appointment_whatsapp_column",
+  "appointment_whatsapp_template",
+  "appointment_whatsapp_account",
   "gates_section",
   "farm_gates",
   "dispatch_section",
@@ -57,6 +62,7 @@
   "feature_flags_section_4",
   "feature_command_center",
   "feature_visitor_sms_otp",
+  "feature_appointment_extra_recipients",
   "feature_flags_section_5",
   "feature_staff_checkin",
   "feature_vehicle_gate_tracking",
@@ -215,6 +221,13 @@
    "fieldname": "feature_visitor_sms_otp",
    "fieldtype": "Check",
    "label": "Visitor SMS (booking code + checkout thank-you)",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_appointment_extra_recipients",
+   "fieldtype": "Check",
+   "label": "Extra Appointment Notification Recipients",
    "permlevel": 1
   },
   {
@@ -384,6 +397,36 @@
    "fieldname": "visitor_thankyou_sms_template",
    "fieldtype": "Small Text",
    "label": "Checkout Thank-You SMS"
+  },
+  {
+   "fieldname": "appointment_notify_section",
+   "fieldtype": "Section Break",
+   "label": "Appointment Notification Recipients",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "appointment_notification_recipients",
+   "fieldtype": "Table",
+   "options": "Appointment Notification Recipient",
+   "label": "Also Notify On New Appointments",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "appointment_whatsapp_column",
+   "fieldtype": "Column Break",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "appointment_whatsapp_template",
+   "fieldtype": "Data",
+   "label": "WhatsApp Template",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "appointment_whatsapp_account",
+   "fieldtype": "Data",
+   "label": "WhatsApp Account",
+   "permlevel": 1
   },
   {
    "fieldname": "gates_section",

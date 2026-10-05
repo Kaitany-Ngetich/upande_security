@@ -179,6 +179,10 @@ doc_events = {
 		"validate": "upande_security.api.staff_vehicle_sticker_qr.auto_sync_status",
 	},
 	"Appointment": {
+		# Copies the farm's configured extra recipients (Security Ops
+		# Settings) on every newly registered appointment, alongside the
+		# host's own "Visitor at Reception" Notification.
+		"after_insert": "upande_security.api.appointment_recipients.notify_extra_recipients",
 		# Releases the visitor's badge back to Available the moment
 		# workflow_state reaches Visitor Checked Out, no matter which path
 		# got it there - the mobile check_out_visitor Server Script already

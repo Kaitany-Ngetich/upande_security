@@ -37,6 +37,7 @@ FEATURE_FIELDS = [
 	"feature_supplier_badges",
 	"feature_command_center",
 	"feature_visitor_sms_otp",
+	"feature_appointment_extra_recipients",
 	"feature_staff_checkin",
 	"feature_vehicle_gate_tracking",
 	"feature_taxi_driver_checkout",

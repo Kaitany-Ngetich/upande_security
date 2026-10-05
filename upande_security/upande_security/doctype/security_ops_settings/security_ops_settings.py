@@ -19,6 +19,7 @@ class SecurityOpsSettings(Document):
 				)
 			)
 		self.validate_coverage_grid()
+		self.fill_appointment_recipient_contacts()
 		self.auto_mark_single_gate_farms_as_main()
 
 	def validate_coverage_grid(self):
@@ -41,6 +42,30 @@ class SecurityOpsSettings(Document):
 					self.coverage_stale_hours, self.coverage_fresh_hours
 				)
 			)
+
+	def fill_appointment_recipient_contacts(self):
+		"""Resolve each recipient's email/WhatsApp off their Employee record.
+		Done here rather than in the child controller because Frappe never
+		calls a child table's own validate() - the row would save with the
+		contact columns blank even though delivery resolves them later."""
+		from upande_security.upande_security.doctype.appointment_notification_recipient.appointment_notification_recipient import (
+			employee_contact,
+		)
+
+		for row in self.appointment_notification_recipients or []:
+			if row.employee:
+				email, phone = employee_contact(row.employee)
+				if not row.email:
+					row.email = email
+				if not row.whatsapp_no:
+					row.whatsapp_no = phone
+			if not row.email and not row.whatsapp_no:
+				frappe.throw(
+					"Appointment notification recipient row {0}: no email or phone number "
+					"on {1}'s Employee record - add one there, or type it in the row.".format(
+						row.idx, row.employee or "this row"
+					)
+				)
 
 	def auto_mark_single_gate_farms_as_main(self):
 		"""A farm with exactly one active gate has nothing to disambiguate -
