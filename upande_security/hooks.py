@@ -263,10 +263,6 @@ scheduler_events = {
         # Security never re-plans what HR already scheduled and never
         # rosters a guard HR has them down as off.
         "upande_security.tasks.sync_shifts_from_hr_roster",
-        # Warns Security Heads/System Managers about contractor compliance
-        # documents (insurance, safety certs, permits) expiring within 14
-        # days or already expired.
-        "upande_security.tasks.check_contractor_document_expiry",
     ],
 }
 
@@ -454,7 +450,6 @@ fixtures = [
                     "Supplier-custom_access_end_date",
                     "Supplier-custom_approval_date",
                     "Supplier-custom_approved_by",
-                    "Supplier-custom_compliance_documents",
                     "Timesheet-custom_asset",
                     "Delivery Note-security_check_tab",
                     "Delivery Note-security_check_html",
