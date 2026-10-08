@@ -67,9 +67,11 @@
   "feature_staff_checkin",
   "feature_vehicle_gate_tracking",
   "feature_taxi_driver_checkout",
+  "feature_passenger_names",
   "feature_column_break_5",
   "feature_gate_temp_exit",
-  "feature_host_receipt_confirmation"
+  "feature_host_receipt_confirmation",
+  "feature_carried_items"
  ],
  "fields": [
   {
@@ -258,6 +260,13 @@
    "permlevel": 1
   },
   {
+   "default": "1",
+   "fieldname": "feature_passenger_names",
+   "fieldtype": "Check",
+   "label": "Passenger Names (Vehicle / Motorcycle)",
+   "permlevel": 1
+  },
+  {
    "fieldname": "feature_column_break_5",
    "fieldtype": "Column Break",
    "permlevel": 1
@@ -274,6 +283,13 @@
    "fieldname": "feature_host_receipt_confirmation",
    "fieldtype": "Check",
    "label": "Host Receipt Confirmation (badge scan)",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_carried_items",
+   "fieldtype": "Check",
+   "label": "Carried Items (with exit check)",
    "permlevel": 1
   },
   {
@@ -476,7 +492,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-08 00:00:00.000000",
+ "modified": "2026-10-08 23:45:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",

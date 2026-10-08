@@ -1,0 +1,84 @@
+{
+ "actions": [],
+ "creation": "2026-10-08 23:45:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "carried_by",
+  "item",
+  "qty",
+  "serial_notes",
+  "column_break_exit",
+  "exit_status",
+  "exit_time",
+  "exit_checked_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "carried_by",
+   "fieldtype": "Data",
+   "label": "Carried By",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "item",
+   "fieldtype": "Data",
+   "label": "Item",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "qty",
+   "fieldtype": "Int",
+   "label": "Qty",
+   "non_negative": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "serial_notes",
+   "fieldtype": "Data",
+   "label": "Serial No. / Notes",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_exit",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Inside",
+   "fieldname": "exit_status",
+   "fieldtype": "Select",
+   "label": "Exit Status",
+   "options": "Inside\nLeft with owner\nNot seen leaving",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "exit_time",
+   "fieldtype": "Datetime",
+   "label": "Exit Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "exit_checked_by",
+   "fieldtype": "Link",
+   "label": "Exit Checked By",
+   "options": "User",
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-08 23:45:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Appointment Carried Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

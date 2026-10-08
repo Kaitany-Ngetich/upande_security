@@ -43,6 +43,8 @@ FEATURE_FIELDS = [
 	"feature_taxi_driver_checkout",
 	"feature_gate_temp_exit",
 	"feature_host_receipt_confirmation",
+	"feature_passenger_names",
+	"feature_carried_items",
 ]
 
 
