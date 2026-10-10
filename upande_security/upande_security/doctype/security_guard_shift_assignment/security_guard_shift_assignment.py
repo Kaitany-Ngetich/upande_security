@@ -4,7 +4,14 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import format_datetime, get_datetime, get_link_to_form, get_timedelta, now_datetime
+from frappe.utils import (
+	add_days,
+	format_datetime,
+	get_datetime,
+	get_link_to_form,
+	get_timedelta,
+	now_datetime,
+)
 
 # Statuses derived from the clock. "Cancelled" is deliberately excluded — it is
 # a human decision and the automation must never overwrite it.
@@ -75,6 +82,15 @@ def derive_status(start_date, start_time, end_date, end_time, current_status=Non
 	end = combine_date_time(end_date, end_time)
 	if not start or not end:
 		return None
+
+	# A night shift is stored as 22:00 -> 06:00 on the SAME date: the clock wraps
+	# past midnight but end_date does not follow it. Read literally the shift ends
+	# eight hours before it starts, so it is already "Ended" the moment it is
+	# created and can never be Active. Rolling the end forward one day is the only
+	# reading of a window that would otherwise be negative, and it is what this
+	# doctype has always claimed to model (see the note above on overnight shifts).
+	if end <= start:
+		end = add_days(end, 1)
 
 	now = now_datetime()
 	if now < start:

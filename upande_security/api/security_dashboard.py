@@ -9,6 +9,7 @@ from frappe.utils import get_datetime
 
 from upande_security.upande_security.doctype.security_guard_shift_assignment.security_guard_shift_assignment import (
     combine_date_time,
+    derive_status,
 )
 
 
@@ -899,6 +900,8 @@ def get_incidents_dashboard(
     assigned_to=None,
     search=None,
     limit=500,
+    farm=None,
+    company=None,
 ):
     """
     Return permission-aware Incident Report data for the
@@ -984,6 +987,12 @@ def get_incidents_dashboard(
         filters.append(
             ["location", "=", location]
         )
+
+    # Dashboard scope. A farm is the narrower of the two, so it wins outright.
+    if farm:
+        filters.append(["farm", "=", farm])
+    elif company:
+        filters.append(["farm", "in", _farms_of_company(company)])
 
     if assigned_to:
         filters.append(
@@ -1950,9 +1959,9 @@ def fetchSecurityDasboardData(
     range_from, range_to = _resolve_range(period, from_date, to_date)
 
     if tab == "incidents":
-        return _fetch_incidents_tab(range_from, range_to)
+        return _fetch_incidents_tab(range_from, range_to, farm=farm, company=company)
     if tab == "patrols":
-        return _fetch_patrols_tab(range_from, range_to)
+        return _fetch_patrols_tab(range_from, range_to, farm=farm, company=company)
     if tab == "shifts":
         return _fetch_shifts_tab(
             range_from, range_to, farm=farm, shift_type=shift_type, status=status, company=company
@@ -1960,9 +1969,25 @@ def fetchSecurityDasboardData(
     frappe.throw(_("Unknown dashboard tab: {0}").format(tab))
 
 
-def _fetch_incidents_tab(range_from, range_to):
+def _farms_of_company(company):
+    """Farm names under a company.
+
+    Incident Report and Patrol GPS Log record a farm but never a company, so a
+    company-level scope has to be expanded into its farms. Returns a sentinel
+    rather than an empty list when a company has no farms, so the caller filters
+    everything out instead of silently filtering nothing.
+    """
+    names = [
+        f["name"]
+        for f in frappe.get_all("Farm", filters={"company": company}, fields=["name"])
+    ]
+    return names or ["__no_match__"]
+
+
+def _fetch_incidents_tab(range_from, range_to, farm=None, company=None):
     data = get_incidents_dashboard(
-        date_from=str(range_from), date_to=str(range_to), limit=2000
+        date_from=str(range_from), date_to=str(range_to), limit=2000,
+        farm=farm, company=company,
     )
     rows = data.get("rows", [])
     summary = data.get("summary", {})
@@ -2145,7 +2170,7 @@ def _patrol_guard_identity(row):
 	return "Unassigned", _("Unassigned")
 
 
-def _fetch_patrols_tab(range_from, range_to):
+def _fetch_patrols_tab(range_from, range_to, farm=None, company=None):
     doctype = "Patrol GPS Log"
 
     if not frappe.has_permission(doctype, ptype="read"):
@@ -2159,13 +2184,23 @@ def _fetch_patrols_tab(range_from, range_to):
     # captured_at index (~60 s per call at ~470k rows), while a single-day
     # range always uses the index. Kept on get_list so User Permissions
     # still apply.
+    # Dashboard scope, applied to every day's query. A farm is the narrower of
+    # the two, so it wins outright.
+    scope = {}
+    if farm:
+        scope["farm"] = farm
+    elif company:
+        scope["farm"] = ["in", _farms_of_company(company)]
+
     points = []
     day = frappe.utils.getdate(range_from)
     last_day = frappe.utils.getdate(range_to)
     while day <= last_day:
+        day_filters = dict(scope)
+        day_filters["captured_at"] = ["between", [f"{day} 00:00:00", f"{day} 23:59:59"]]
         points.extend(frappe.get_list(
             doctype,
-            filters={"captured_at": ["between", [f"{day} 00:00:00", f"{day} 23:59:59"]]},
+            filters=day_filters,
             fields=[
                 "name", "patrol", "personel", "internal_guard",
                 "external_guard", "captured_at", "latitude", "longitude", "owner",
@@ -2697,8 +2732,6 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
         range_filters.append(["farm", "in", farm_scope])
     if shift_type:
         range_filters.append(["shift_type", "=", shift_type])
-    if status:
-        range_filters.append(["status", "=", status])
 
     range_rows = frappe.get_list(
         doctype,
@@ -2706,12 +2739,29 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
         fields=[
             "name", "security_guard", "internal_guard", "external_guard",
             "farm", "block", "shift_type", "start_date", "start_time",
-            "end_date", "end_time", "status",
+            "end_date", "end_time", "status", "checked_in",
             "assigned_by", "remarks", "modified",
         ],
         order_by="start_date desc",
         page_length=1000,
     )
+
+    # The stored status only moves when the hourly sweep runs, so a shift that
+    # began at 06:00 keeps reading "Scheduled" until the sweep next fires - and
+    # forever, if the scheduler is stopped. Derive it from the clock on the way
+    # out instead: the board is then right to the second no matter what the
+    # scheduler is doing, and the stored column stays the sweep's business.
+    for r in range_rows:
+        r["status"] = derive_status(
+            r.get("start_date"), r.get("start_time"),
+            r.get("end_date"), r.get("end_time"), r.get("status"),
+        ) or r.get("status")
+
+    # Applied here rather than in SQL, so picking "Active" selects the shifts
+    # that are actually running now, not the ones the last sweep happened to
+    # leave marked Active.
+    if status:
+        range_rows = [r for r in range_rows if r.get("status") == status]
 
     # All-time rows (unfiltered by date, but still scoped to farm/company) drive
     # the rotation metric and today's coverage board, since a shift can span
@@ -2858,10 +2908,36 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
     # Per-shift-type counts, not just Day/Night - farms running
     # First/Second/Third (Chepsito today) used to vanish from this summary
     # entirely, since only "Day"/"Night" rows were ever counted here.
+    #
+    # Each shift type also reports how many of those guards have checked in, so
+    # the dashboard can read "6/10" instead of just "10 shifts". Counted over the
+    # same Active + Scheduled set as the total, so the two halves of that ratio
+    # always describe the same guards.
+    # Read off the query result rather than the rows sent to the browser:
+    # checked_in belongs to the Shift Assignment doctype, and only the counts
+    # derived from it need to leave the server.
     shift_type_counts = {}
-    for r in rows:
-        if r["status"] in ("Active", "Scheduled"):
-            shift_type_counts[r["shift_type"]] = shift_type_counts.get(r["shift_type"], 0) + 1
+    shift_type_checked_in = {}
+    for r in range_rows:
+        if r.get("status") in ("Active", "Scheduled"):
+            st = r.get("shift_type")
+            shift_type_counts[st] = shift_type_counts.get(st, 0) + 1
+            if r.get("checked_in"):
+                shift_type_checked_in[st] = shift_type_checked_in.get(st, 0) + 1
+
+    # Ordered for display: the known shift types first, then anything this site
+    # uses that SHIFT_TYPE_ORDER has never heard of, rather than dropping it.
+    ordered_types = [t for t in SHIFT_TYPE_ORDER if t in shift_type_counts]
+    ordered_types += sorted(t for t in shift_type_counts if t not in SHIFT_TYPE_ORDER)
+    shift_type_summary = [
+        {
+            "shift_type": t,
+            "total": shift_type_counts[t],
+            "checked_in": shift_type_checked_in.get(t, 0),
+            "not_checked_in": shift_type_counts[t] - shift_type_checked_in.get(t, 0),
+        }
+        for t in ordered_types
+    ]
 
     return {
         "success": True,
@@ -2870,8 +2946,14 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
         "summary": {
             "total_assignments": len(rows),
             "shift_type_counts": shift_type_counts,
+            "shift_type_checked_in": shift_type_checked_in,
+            "shift_type_summary": shift_type_summary,
             "day_shift_count": shift_type_counts.get("Day", 0),
             "night_shift_count": shift_type_counts.get("Night", 0),
+            "day_checked_in": shift_type_checked_in.get("Day", 0),
+            "night_checked_in": shift_type_checked_in.get("Night", 0),
+            "checked_in_total": sum(shift_type_checked_in.values()),
+            "on_duty_total": sum(shift_type_counts.values()),
             "farms_covered": sum(
                 1 for c in coverage_board if any(s["guard_name"] for s in c["shifts"])
             ),
