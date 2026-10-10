@@ -6,7 +6,6 @@
  "engine": "InnoDB",
  "field_order": [
   "employee",
-  "employee_name",
   "farm",
   "column_break_1",
   "email",
@@ -22,19 +21,13 @@
    "in_list_view": 1
   },
   {
-   "fetch_from": "employee.employee_name",
-   "fieldname": "employee_name",
-   "fieldtype": "Data",
-   "label": "Name",
-   "read_only": 1,
-   "in_list_view": 1
-  },
-  {
    "fieldname": "farm",
    "fieldtype": "Link",
    "options": "Farm",
    "label": "Farm",
-   "in_list_view": 1
+   "in_list_view": 1,
+   "fetch_from": "employee.custom_farm",
+   "fetch_if_empty": 1
   },
   {
    "fieldname": "column_break_1",

@@ -68,7 +68,7 @@ def resolve_recipients(doc):
 			emails.append(email)
 		if number and number not in seen_num:
 			seen_num.add(number)
-			whatsapp.append((row.employee_name or row.employee or email or number, number))
+			whatsapp.append((row.employee or email or number, number))
 
 	return {"emails": emails, "whatsapp": whatsapp}
 
@@ -138,30 +138,25 @@ def _send_whatsapp(doc, farm, people):
 	"""Copy the host's WhatsApp alert to each configured recipient.
 
 	WhatsApp Business only delivers pre-approved templates for messages a
-	business starts, so this deliberately reuses the host's approved
-	template and its parameter values - every recipient sees exactly what
-	the host saw. Security Ops Settings can override the template/account
-	for a site that wants a separate one.
+	business starts, so this reuses the host's own approved template and its
+	parameter values - every recipient sees exactly what the host saw. There
+	is deliberately nothing to configure: a second template and account
+	setting would only ever be set to the same values as the host alert, and
+	could silently drift out of step with it.
 	"""
 	host_cfg = _host_whatsapp_config()
-	template = (frappe.db.get_single_value("Security Ops Settings", "appointment_whatsapp_template") or "").strip()
-	account = (frappe.db.get_single_value("Security Ops Settings", "appointment_whatsapp_account") or "").strip()
-	param_fields = ["custom_meet_with_name", "customer_name", "custom_visit_purpose"]
-	if host_cfg:
-		host_template, host_account, host_fields = host_cfg
-		template = template or host_template
-		account = account or host_account
-		# The host alert's own field list, minus any trailing non-body
-		# entries (the fixture carries `name` after the three body params).
-		body = [f for f in host_fields if f != "name"]
-		if body:
-			param_fields = body
-	if not template:
+	if not host_cfg:
 		frappe.logger("upande_security").info(
-			"appointment %s: no WhatsApp template (none configured and no host alert), skipped %d recipient(s)"
+			"appointment %s: no host WhatsApp alert to copy, skipped %d recipient(s)"
 			% (doc.name, len(people))
 		)
 		return
+	template, account, host_fields = host_cfg
+	# The host alert's own field list, minus any trailing non-body entries
+	# (the fixture carries `name` after the three body params).
+	param_fields = [f for f in host_fields if f != "name"] or [
+		"custom_meet_with_name", "customer_name", "custom_visit_purpose"
+	]
 	if not frappe.db.exists("DocType", "WhatsApp Message"):
 		frappe.logger("upande_security").info(
 			"appointment %s: frappe_whatsapp not installed, skipped %d WhatsApp recipient(s)"
@@ -191,12 +186,36 @@ def _send_whatsapp(doc, farm, people):
 
 
 def notify_extra_recipients(doc, method=None):
-	"""Appointment after_insert hook. Best-effort by design - an appointment
-	must still be registered even if mail is misconfigured or a recipient
-	address is bad."""
+	"""Appointment after_insert hook.
+
+	Only enqueues - it must never do the sending itself. Email and WhatsApp
+	both make outbound network calls, and this runs inside the guard's own
+	booking request, after the Appointment is already committed. Anything
+	slow here stalls that request until the gateway gives up, so the guard
+	sees a 502 for a visit that did in fact register, which is exactly the
+	failure this indirection exists to prevent.
+	"""
 	try:
 		if not is_feature_enabled("feature_appointment_extra_recipients"):
 			return
+		frappe.enqueue(
+			"upande_security.api.appointment_recipients.deliver_extra_recipient_alerts",
+			queue="short",
+			enqueue_after_commit=True,
+			appointment=doc.name,
+		)
+	except Exception as e:
+		frappe.log_error("appointment_recipients.notify_extra_recipients " + str(doc.name), str(e))
+
+
+def deliver_extra_recipient_alerts(appointment):
+	"""The actual sending, run by a background worker - see
+	notify_extra_recipients for why it is not inline."""
+	try:
+		doc = frappe.get_doc("Appointment", appointment)
+	except frappe.DoesNotExistError:
+		return
+	try:
 		targets = resolve_recipients(doc)
 		farm = _appointment_farm(doc)
 		if targets["whatsapp"]:
@@ -206,9 +225,6 @@ def notify_extra_recipients(doc, method=None):
 		subject = "New appointment: " + (doc.get("customer_name") or doc.name)
 		if farm:
 			subject += " (" + farm + ")"
-		# Queued, not now=True: the guard's registration request should not
-		# wait on an SMTP round-trip, and a queued mail is retried by
-		# Frappe's own scheduler instead of failing here.
 		frappe.sendmail(
 			recipients=targets["emails"],
 			subject=subject,
@@ -217,4 +233,4 @@ def notify_extra_recipients(doc, method=None):
 			reference_name=doc.name,
 		)
 	except Exception as e:
-		frappe.log_error("appointment_recipients.notify_extra_recipients " + str(doc.name), str(e))
+		frappe.log_error("appointment_recipients.deliver " + str(appointment), str(e))
