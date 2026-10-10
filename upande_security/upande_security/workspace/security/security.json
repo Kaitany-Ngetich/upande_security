@@ -20,7 +20,7 @@
  "label": "Security",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-09-29 07:46:30.188241",
+ "modified": "2026-10-09 17:28:59.315896",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security",
@@ -168,11 +168,35 @@
    "type": "DocType"
   },
   {
+   "doc_view": "List",
+   "label": "Staff Gate Movement",
+   "link_to": "Staff Gate Movement",
+   "type": "DocType"
+  },
+  {
    "color": "Green",
    "doc_view": "",
    "label": "Shift Schedule",
    "type": "URL",
    "url": "/shift-schedule"
+  },
+  {
+   "doc_view": "List",
+   "label": "Gate Vehicle Verification",
+   "link_to": "Gate Vehicle Verification",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Unauthorized Access Attempt",
+   "link_to": "Unauthorized Access Attempt",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Security Checkpoint",
+   "link_to": "Security Checkpoint",
+   "type": "DocType"
   }
  ],
  "title": "Security",

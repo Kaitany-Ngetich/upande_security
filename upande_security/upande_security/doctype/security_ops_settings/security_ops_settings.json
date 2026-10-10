@@ -28,9 +28,6 @@
   "visitor_thankyou_sms_template",
   "appointment_notify_section",
   "appointment_notification_recipients",
-  "appointment_whatsapp_column",
-  "appointment_whatsapp_template",
-  "appointment_whatsapp_account",
   "gates_section",
   "farm_gates",
   "dispatch_section",
@@ -71,6 +68,8 @@
   "feature_column_break_5",
   "feature_gate_temp_exit",
   "feature_host_receipt_confirmation",
+  "staff_gate_mode_section",
+  "staff_gate_modes",
   "feature_carried_items"
  ],
  "fields": [
@@ -286,6 +285,19 @@
    "permlevel": 1
   },
   {
+   "fieldname": "staff_gate_mode_section",
+   "fieldtype": "Section Break",
+   "label": "Staff Gate Mode (per Company)",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "staff_gate_modes",
+   "fieldtype": "Table",
+   "options": "Staff Gate Mode",
+   "label": "Staff Gate Mode by Company",
+   "permlevel": 1
+  },
+  {
    "default": "1",
    "fieldname": "feature_carried_items",
    "fieldtype": "Check",
@@ -425,23 +437,6 @@
    "fieldtype": "Table",
    "options": "Appointment Notification Recipient",
    "label": "Also Notify On New Appointments",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "appointment_whatsapp_column",
-   "fieldtype": "Column Break",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "appointment_whatsapp_template",
-   "fieldtype": "Data",
-   "label": "WhatsApp Template",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "appointment_whatsapp_account",
-   "fieldtype": "Data",
-   "label": "WhatsApp Account",
    "permlevel": 1
   },
   {

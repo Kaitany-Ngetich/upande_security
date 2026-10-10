@@ -439,6 +439,8 @@ fixtures = [
                     "Timesheet-custom_gate_mismatch",
                     "Timesheet-custom_security_tab",
                     "Attendance-custom_gate_app_entry",
+                    "Attendance-custom_entry_gate",
+                    "Attendance-custom_exit_gate",
                     "Attendance-custom_temp_exit_time",
                     "Attendance-custom_temp_exit_log",
                     "Attendance-custom_farm",

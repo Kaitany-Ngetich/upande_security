@@ -59,6 +59,11 @@ class SecurityOpsSettings(Document):
 					row.email = email
 				if not row.whatsapp_no:
 					row.whatsapp_no = phone
+				# Defaults to the farm this person actually works at, which is
+				# nearly always the one whose appointments they want. Still
+				# editable, and still blank-means-every-farm if cleared.
+				if not row.farm:
+					row.farm = frappe.db.get_value("Employee", row.employee, "custom_farm")
 			if not row.email and not row.whatsapp_no:
 				frappe.throw(
 					"Appointment notification recipient row {0}: no email or phone number "
