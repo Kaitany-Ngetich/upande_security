@@ -281,10 +281,39 @@ scheduler_events = {
 
 # Overriding Methods
 # ------------------------------
+
+# Bare-path aliases for the gate app.
 #
-# override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "upande_security.event.get_events"
-# }
+# The gate app posts to short paths like `/api/method/get_employee`, which
+# Frappe resolves only via an API-type Server Script. These endpoints have
+# moved into app code (api/lookups.py); this map is what keeps the old URLs
+# working for every APK already installed at a gate, with no rebuild and no
+# OTA — `frappe.handler.execute_cmd` consults it before the Server Script
+# map and before `get_attr`:
+#
+#     def execute_cmd(cmd, from_async=False):
+#         cmd = frappe.override_whitelisted_method(cmd)   # <- first
+#         server_script = get_server_script_map().get("_api", {}).get(cmd)
+#
+# The alias therefore WINS over the Server Script of the same name, which is
+# why those records are deliberately left in place for now: deleting one
+# line here rolls that single endpoint back to its old implementation on the
+# next reload, with no deploy. Dropping the records is a separate, later
+# decision.
+#
+# Anything added here MUST stay once an endpoint's Server Script is deleted.
+# A build in the field can outlive several releases, and these paths are its
+# only way in — upande_scp dropped a batch of scripts after an audit found
+# "no in-repo caller" (true of the repo, false of the handset app) and every
+# handset lost its spray list. test_bare_paths.py pins this map so a future
+# deletion fails a test instead of a gate.
+override_whitelisted_methods = {
+	"list_incident_categories": "upande_security.api.lookups.list_incident_categories",
+	"search_employees": "upande_security.api.lookups.search_employees",
+	"get_employee": "upande_security.api.lookups.get_employee",
+	"search_customers": "upande_security.api.lookups.search_customers",
+}
+
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
