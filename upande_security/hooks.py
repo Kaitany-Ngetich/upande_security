@@ -322,33 +322,62 @@ override_whitelisted_methods = {
 	"search_customers": "upande_security.api.security_api.search_customers",
 	"get_security_head_contact": "upande_security.api.security_api.get_security_head_contact",
 	"get_security_ops_settings": "upande_security.api.security_api.get_security_ops_settings",
+	"update_security_ops_settings": "upande_security.api.security_api.update_security_ops_settings",
 	# -- SECTION 2  visitors
 	"approved_appointments": "upande_security.api.security_api.approved_appointments",
 	"search_visitor_appointment": "upande_security.api.security_api.search_visitor_appointment",
 	"get_appointment": "upande_security.api.security_api.get_appointment",
 	"get_visitor_history": "upande_security.api.security_api.get_visitor_history",
 	"pending_approvals": "upande_security.api.security_api.pending_approvals",
+	"check_in_visitor": "upande_security.api.security_api.check_in_visitor",
+	"check_out_visitor": "upande_security.api.security_api.check_out_visitor",
+	"create_walk_in": "upande_security.api.security_api.create_walk_in",
+	"create_walk_in_notify": "upande_security.api.security_api.create_walk_in_notify",
+	"book_customer_appointment": "upande_security.api.security_api.book_customer_appointment",
+	"gate_temp_exit": "upande_security.api.security_api.gate_temp_exit",
+	"notify_host": "upande_security.api.security_api.notify_host",
 	# -- SECTION 3  contractors
 	"getContractorContract": "upande_security.api.security_api.getContractorContract",
 	"contractor_gate_checkout": "upande_security.api.security_api.contractor_gate_checkout",
+	"contractor_gate_checkin": "upande_security.api.security_api.contractor_gate_checkin",
+	"create_contractor_notify": "upande_security.api.security_api.create_contractor_notify",
 	# -- SECTION 4  badges
 	"list_supplier_badges": "upande_security.api.security_api.list_supplier_badges",
+	"issue_visitor_badge": "upande_security.api.security_api.issue_visitor_badge",
+	"update_supplier_badge": "upande_security.api.security_api.update_supplier_badge",
 	# -- SECTION 5  staff gate
 	"get_today_attendance": "upande_security.api.security_api.get_today_attendance",
 	"list_checked_in_staff": "upande_security.api.security_api.list_checked_in_staff",
 	"list_today_staff_attendance": "upande_security.api.security_api.list_today_staff_attendance",
+	"create_staff_attendance": "upande_security.api.security_api.create_staff_attendance",
+	"submit_staff_attendance": "upande_security.api.security_api.submit_staff_attendance",
+	"staff_gate_checkout": "upande_security.api.security_api.staff_gate_checkout",
+	# -- SECTION 6  patrols
+	"submit_patrol_points": "upande_security.api.security_api.submit_patrol_points",
+	"file_patrol_report": "upande_security.api.security_api.file_patrol_report",
 	# -- SECTION 7  incidents
 	"list_incident_categories": "upande_security.api.security_api.list_incident_categories",
 	"list_incidents": "upande_security.api.security_api.list_incidents",
 	"my_incidents": "upande_security.api.security_api.my_incidents",
+	"create_incident": "upande_security.api.security_api.create_incident",
+	"update_incident": "upande_security.api.security_api.update_incident",
 	# -- SECTION 8  shifts
 	"check_in_shift": "upande_security.api.security_api.check_in_shift",
 	"my_current_shift": "upande_security.api.security_api.my_current_shift",
+	"update_shift_assignment": "upande_security.api.security_api.update_shift_assignment",
 	# -- SECTION 9  assets
 	"my_assets_at_farm": "upande_security.api.security_api.my_assets_at_farm",
-	# -- SECTION 10 vehicle stickers
+	"scan_asset": "upande_security.api.security_api.scan_asset",
+	"report_asset_missing": "upande_security.api.security_api.report_asset_missing",
+	# -- SECTION 10  vehicle stickers
 	"list_sticker_requests": "upande_security.api.security_api.list_sticker_requests",
 	"reject_staff_sticker_request": "upande_security.api.security_api.reject_staff_sticker_request",
+	"approve_staff_sticker_request": "upande_security.api.security_api.approve_staff_sticker_request",
+	"search_staff_vehicle_sticker": "upande_security.api.security_api.search_staff_vehicle_sticker",
+	# -- SECTION 11  dashboards & reports
+	"daily_summary": "upande_security.api.security_api.daily_summary",
+	"gate_activity": "upande_security.api.security_api.gate_activity",
+	"security_report": "upande_security.api.security_api.security_report",
 }
 
 #
