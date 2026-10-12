@@ -307,11 +307,30 @@ scheduler_events = {
 # "no in-repo caller" (true of the repo, false of the handset app) and every
 # handset lost its spray list. test_bare_paths.py pins this map so a future
 # deletion fails a test instead of a gate.
+# Keep this grouped by the section banners in api/security_api.py, in the
+# same order, so the two files read as one list.
 override_whitelisted_methods = {
-	"list_incident_categories": "upande_security.api.lookups.list_incident_categories",
-	"search_employees": "upande_security.api.lookups.search_employees",
-	"get_employee": "upande_security.api.lookups.get_employee",
-	"search_customers": "upande_security.api.lookups.search_customers",
+	# -- SECTION 1  session & lookups
+	"get_session_info": "upande_security.api.security_api.get_session_info",
+	"get_employee": "upande_security.api.security_api.get_employee",
+	"search_employees": "upande_security.api.security_api.search_employees",
+	"search_staff": "upande_security.api.security_api.search_staff",
+	"search_customers": "upande_security.api.security_api.search_customers",
+	# -- SECTION 2  visitors
+	"pending_approvals": "upande_security.api.security_api.pending_approvals",
+	# -- SECTION 3  contractors
+	"contractor_gate_checkout": "upande_security.api.security_api.contractor_gate_checkout",
+	# -- SECTION 5  staff gate
+	"list_today_staff_attendance": "upande_security.api.security_api.list_today_staff_attendance",
+	# -- SECTION 7  incidents
+	"list_incident_categories": "upande_security.api.security_api.list_incident_categories",
+	"my_incidents": "upande_security.api.security_api.my_incidents",
+	# -- SECTION 8  shifts
+	"check_in_shift": "upande_security.api.security_api.check_in_shift",
+	# -- SECTION 9  assets
+	"my_assets_at_farm": "upande_security.api.security_api.my_assets_at_farm",
+	# -- SECTION 10 vehicle stickers
+	"reject_staff_sticker_request": "upande_security.api.security_api.reject_staff_sticker_request",
 }
 
 #
