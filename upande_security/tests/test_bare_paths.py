@@ -88,6 +88,38 @@ GATE_APP_BARE_PATHS = (
 	"update_supplier_badge",
 )
 
+#: Bare paths NOT called by the gate app: the Desk web pages, client scripts,
+#: and endpoints with no in-repo caller at all. They are aliased for the same
+#: reason — an alias is now the only thing making each path resolve, since the
+#: Server Scripts are gone. The ones with no known caller are the riskiest to
+#: drop: "no caller in this repo" is exactly the reasoning that cost upande_scp
+#: its handsets, and search_vehicle_tickets proved a stale build was still
+#: calling a forgotten endpoint on 2026-10-10.
+OTHER_BARE_PATHS = (
+	"check_out_taxi_driver",
+	"confirm_host_received",
+	"confirm_host_received_by_appointment",
+	"confirm_host_received_by_number",
+	"createPatrolEntry",
+	"fetchPatrolData",
+	"fetchSecurityDasboardData",
+	"getVisitorAppointment",
+	"getVisitorHistory",
+	"get_incident_report",
+	"get_patrol_report",
+	"get_supplier_badge_info",
+	"get_visitor_badge_info",
+	"get_visitor_badge_info_by_number",
+	"issue_supplier_badge",
+	"list_active_gates_for_farm",
+	"list_patrol_reports",
+	"list_staff_movements",
+	"my_patrol_reports",
+	"security_analytics_summary",
+	"submit_staff_sticker_request",
+	"update_workplace_injury",
+)
+
 #: Called by `api.ts` (getContractorPersonnelHistory) but implemented nowhere -
 #: not in this repo's Server Script fixture, and not on kaitetv16 either. It
 #: 404s today and did so before this migration; it is excluded so this test
@@ -124,6 +156,15 @@ class TestGateAppBarePaths(unittest.TestCase):
 			"these bare paths 404 for every handset in the field: " + str(unreachable),
 		)
 
+	def test_every_other_bare_path_resolves(self):
+		unreachable = [n for n in OTHER_BARE_PATHS if not _resolves(n)]
+		self.assertEqual(
+			unreachable,
+			[],
+			"these bare paths 404 for web pages, client scripts or whatever "
+			"still calls them: " + str(unreachable),
+		)
+
 	def test_every_alias_target_is_importable(self):
 		broken = []
 		for bare, dotted in hooks.override_whitelisted_methods.items():
@@ -157,6 +198,6 @@ class TestGateAppBarePaths(unittest.TestCase):
 		# Guards against a typo in hooks.py silently aliasing a name nothing
 		# posts to, which would look fine while the real endpoint still runs
 		# the old Server Script.
-		known = set(GATE_APP_BARE_PATHS) | set(KNOWN_UNIMPLEMENTED)
+		known = set(GATE_APP_BARE_PATHS) | set(OTHER_BARE_PATHS) | set(KNOWN_UNIMPLEMENTED)
 		stray = sorted(set(hooks.override_whitelisted_methods) - known)
 		self.assertEqual(stray, [], "aliased but never called by the app: " + str(stray))

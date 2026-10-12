@@ -943,6 +943,159 @@ def get_visitor_history(query=None):
 
 
 @frappe.whitelist()
+def getVisitorHistory(query=None):
+	"""Older visitor-history lookup, matching on phone OR a partial name.
+
+	Distinct from get_visitor_history (same section), which supersedes it and
+	keys on custom_id_number ONLY. This one's `customer_name like %q%` can
+	match a different person entirely, which is exactly why the newer
+	endpoint exists. Kept as-is: this is a port, not the place to change
+	matching rules, and the camelCase bare path may still be called by a
+	build we cannot inspect.
+
+	Deliberately has NO try/except, matching the original: an exception here
+	propagates rather than soft-failing. Adding one would change the status
+	code an old client sees.
+	"""
+	query = (query or "").strip()
+
+	if not query:
+		return {"found": False}
+
+	matches = frappe.get_all(
+		"Appointment",
+		filters=[
+			["custom_visitor_type", "in", ["Visitor", ""]],
+			["custom_check_in_time", "is", "set"],
+		],
+		or_filters=[
+			["customer_phone_number", "=", query],
+			["customer_name", "like", "%" + query + "%"],
+		],
+		fields=[
+			"name",
+			"customer_name",
+			"customer_phone_number",
+			"custom_meet_with",
+			"customer_details",
+			"custom_mode_of_transport",
+			"custom_vehicles_number_plate",
+			"custom_vehicles_colour",
+			"scheduled_time",
+			"custom_check_in_time",
+		],
+		order_by="custom_check_in_time desc",
+		limit_page_length=1,
+	)
+
+	if not matches:
+		return {"found": False}
+
+	m = matches[0]
+	host_name = None
+	if m.custom_meet_with:
+		host_name = frappe.db.get_value("Employee", m.custom_meet_with, "employee_name")
+
+	return {
+		"found": True,
+		"visitor_name": m.customer_name,
+		"phone_number": m.customer_phone_number,
+		"host_id": m.custom_meet_with,
+		"host_name": host_name,
+		"purpose": m.customer_details,
+		"transport_mode": m.custom_mode_of_transport,
+		"vehicle_reg_no": m.custom_vehicles_number_plate,
+		"vehicle_color": m.custom_vehicles_colour,
+		"last_visit_date": m.custom_check_in_time or m.scheduled_time,
+	}
+
+
+@frappe.whitelist()
+def getVisitorAppointment(query=None):
+	"""Older gate appointment search, superseded by
+	search_visitor_appointment.
+
+	Differences from the newer one, all preserved: it searches ALL open
+	appointments rather than only today's, matches `name`, `customer_name`
+	and `customer_phone_number` with LIKE, reports `id_no` as the
+	appointment name (not an ID number), and hardcodes `organization` to the
+	literal string "Visitor". It carries no `matched_by`, so a caller cannot
+	tell a unique hit from a partial name collision.
+
+	frappe.throw on a missing query sits INSIDE the try, so it soft-fails
+	into the error shape below rather than raising - same as the original.
+	Note that shape: the full skeleton plus `status` and `message`, never a
+	bare {"error": ...}, because the client reads `has_appointment`
+	unconditionally.
+	"""
+	try:
+		if not query:
+			frappe.throw("Search criteria is required")
+
+		appointments = frappe.get_all(
+			"Appointment",
+			filters={"status": ["not in", ["Cancelled", "Closed"]]},
+			or_filters=[
+				["name", "like", "%" + query + "%"],
+				["customer_name", "like", "%" + query + "%"],
+				["customer_phone_number", "like", "%" + query + "%"],
+			],
+			fields=[
+				"name",
+				"customer_name",
+				"customer_phone_number",
+				"customer_details",
+				"status",
+				"scheduled_time",
+				"custom_meet_with",
+				"custom_reporting_status",
+				"custom_mode_of_transport",
+				"custom_vehicles_number_plate",
+				"custom_vehicles_colour",
+			],
+			limit=1,
+		)
+
+		result = {"has_appointment": False, "status": "No Appointment Found"}
+
+		if appointments:
+			appt = appointments[0]
+
+			host_id = appt.get("custom_meet_with")
+			host_display_name = host_id
+			if host_id:
+				employee_name = frappe.db.get_value("Employee", host_id, "employee_name")
+				if employee_name:
+					host_display_name = employee_name
+
+			result = {
+				"has_appointment": True,
+				"name": appt.get("name"),
+				"visitor_name": appt.get("customer_name"),
+				# Yes, id_no is the appointment name. The old Flutter model
+				# expected it there; not a typo.
+				"id_no": appt.get("name"),
+				"phone_number": appt.get("customer_phone_number"),
+				"organization": "Visitor",
+				"host_name": host_display_name,
+				# Raw datetime, left for the client to format.
+				"scheduled_time": appt.get("scheduled_time"),
+				"purpose": appt.get("customer_details") or "General Visit",
+				"transport_mode": appt.get("custom_mode_of_transport") or "On Foot",
+				"vehicle_reg_no": appt.get("custom_vehicles_number_plate") or "",
+				"vehicle_color": appt.get("custom_vehicles_colour") or "",
+				"status": appt.get("custom_reporting_status") or appt.get("status"),
+			}
+
+		return result
+
+	except Exception as e:
+		# Title-only log_error, as the original had it.
+		frappe.log_error("Gate Check-in Search Error")
+		return {"has_appointment": False, "status": "Error", "message": str(e)}
+
+
+@frappe.whitelist()
 def search_visitor_appointment(query=None):
 	"""Find today's appointment for a visitor at the gate.
 
@@ -1975,6 +2128,290 @@ def notify_host(name=None):
 		return {"error": str(e)}
 
 
+@frappe.whitelist(allow_guest=True)
+def confirm_host_received(company=None, farm=None, badge_number=None):
+	"""Host confirms receipt of a visitor by scanning the badge QR code.
+
+	allow_guest=True is load-bearing: reached anonymously via the QR code; a
+	403 logs the mobile user out. Because the caller is unauthenticated this
+	verb is keyed by company+farm+badge_number and never trusts an
+	appointment name (see confirm_host_received_by_appointment for the
+	logged-in variant). Gated by feature_host_receipt_confirmation.
+
+	Idempotent: if custom_host_received_time is already set it is NOT
+	overwritten; the existing time is returned with already_confirmed=True.
+	Writes via raw frappe.db.set_value (no doc hooks).
+	"""
+	try:
+		if frappe.db.get_single_value("Security Ops Settings", "feature_host_receipt_confirmation") == 0:
+			raise Exception("This feature is not enabled on this instance.")
+
+		company = str(company or "").strip()
+		farm = str(farm or "").strip()
+		badge_number_raw = str(badge_number) if badge_number is not None else ""
+
+		if not company:
+			return {"error": "company is required"}
+		elif not farm:
+			return {"error": "farm is required"}
+		elif not badge_number_raw:
+			return {"error": "badge_number is required"}
+		else:
+			try:
+				badge_number = int(badge_number_raw)
+			except Exception:
+				badge_number = None
+
+			if badge_number is None:
+				return {"error": "badge_number must be a number"}
+			else:
+				current_appointment = frappe.db.get_value(
+					"Visitor Badge",
+					{"company": company, "farm": farm, "badge_number": badge_number},
+					"current_appointment",
+				)
+				if not current_appointment:
+					return {
+						"error": "Badge "
+						+ str(badge_number)
+						+ " ("
+						+ company
+						+ " / "
+						+ farm
+						+ ") is not currently assigned to any visitor."
+					}
+				else:
+					appt = frappe.db.get_value(
+						"Appointment",
+						current_appointment,
+						["name", "custom_host_received_time"],
+						as_dict=True,
+					)
+					if not appt:
+						return {
+							"error": "Badge "
+							+ str(badge_number)
+							+ " points to a visit that no longer exists."
+						}
+					elif appt.custom_host_received_time:
+						return {
+							"already_confirmed": True,
+							"confirmed_at": str(appt.custom_host_received_time),
+						}
+					else:
+						now = frappe.utils.now_datetime()
+						frappe.db.set_value(
+							"Appointment", appt.name, "custom_host_received_time", now
+						)
+						frappe.db.commit()
+						return {
+							"already_confirmed": False,
+							"confirmed_at": str(now),
+						}
+	except Exception as e:
+		frappe.log_error("confirm_host_received", str(e))
+		return {"error": str(e)}
+@frappe.whitelist()
+def confirm_host_received_by_appointment(name=None):
+	"""Desk-side counterpart of confirm_host_received, behind the "Confirm
+	Receipt" button on the Appointment form, for hosts already logged in and
+	looking at the record (no badge scan).
+
+	Not allow_guest on purpose: the guest verb never trusts an appointment
+	name from an unauthenticated caller, this one can because it requires a
+	session. Gated by feature_host_receipt_confirmation. Requires that a
+	visitor badge was issued (custom_visitor_badge set). Idempotent, same as
+	the guest verb. Writes via raw frappe.db.set_value.
+	"""
+	try:
+		if frappe.db.get_single_value("Security Ops Settings", "feature_host_receipt_confirmation") == 0:
+			raise Exception("This feature is not enabled on this instance.")
+
+		name = str(name or "").strip()
+
+		if not name:
+			return {"error": "name is required"}
+		else:
+			appt = frappe.db.get_value(
+				"Appointment",
+				name,
+				["name", "custom_host_received_time", "custom_visitor_badge"],
+				as_dict=True,
+			)
+			if not appt:
+				return {"error": "Appointment " + name + " not found"}
+			elif not appt.custom_visitor_badge:
+				return {
+					"error": "No visitor badge has been issued for this visit yet"
+				}
+			elif appt.custom_host_received_time:
+				return {
+					"already_confirmed": True,
+					"confirmed_at": str(appt.custom_host_received_time),
+				}
+			else:
+				now = frappe.utils.now_datetime()
+				frappe.db.set_value("Appointment", name, "custom_host_received_time", now)
+				frappe.db.commit()
+				return {
+					"already_confirmed": False,
+					"confirmed_at": str(now),
+				}
+	except Exception as e:
+		frappe.log_error("confirm_host_received_by_appointment", str(e))
+		return {"error": str(e)}
+@frappe.whitelist()
+def confirm_host_received_by_number(badge_number=None):
+	"""Desk counterpart of confirm_host_received keyed by the plain badge
+	number only; company (and farm) come from the caller's own Employee
+	record, as in get_visitor_badge_info_by_number. Not allow_guest.
+
+	Gated by feature_host_receipt_confirmation. With no custom_farm on the
+	Employee, scans all farms of the company and takes the first badge that
+	is assigned. Idempotent; writes via raw frappe.db.set_value. Unlike the
+	lookup verb, an unassigned badge here is NOT logged as an unauthorized
+	access attempt.
+	"""
+	try:
+		if frappe.db.get_single_value("Security Ops Settings", "feature_host_receipt_confirmation") == 0:
+			raise Exception("This feature is not enabled on this instance.")
+
+		badge_number_raw = str(badge_number) if badge_number is not None else ""
+
+		if not badge_number_raw:
+			return {"error": "badge_number is required"}
+		else:
+			try:
+				badge_number = int(badge_number_raw)
+			except Exception:
+				badge_number = None
+
+			if badge_number is None:
+				return {"error": "badge_number must be a number"}
+			else:
+				current_user = frappe.session.user
+				employee = frappe.db.get_value(
+					"Employee", {"user_id": current_user}, ["company", "custom_farm"], as_dict=True
+				)
+				company = employee.company if employee else ""
+				farm = employee.custom_farm if employee else ""
+
+				if not company:
+					return {
+						"error": "No Employee record linked to this login — cannot determine your company."
+					}
+				else:
+					current_appointment = None
+					if farm:
+						current_appointment = frappe.db.get_value(
+							"Visitor Badge",
+							{"company": company, "farm": farm, "badge_number": badge_number},
+							"current_appointment",
+						)
+					else:
+						candidates = frappe.db.get_all(
+							"Visitor Badge",
+							filters={"company": company, "badge_number": badge_number},
+							fields=["current_appointment"],
+						)
+						for c in candidates:
+							if c.current_appointment:
+								current_appointment = c.current_appointment
+								break
+
+					if not current_appointment:
+						return {
+							"error": "Badge "
+							+ str(badge_number)
+							+ " ("
+							+ company
+							+ (" / " + farm if farm else "")
+							+ ") is not currently assigned to any visitor."
+						}
+					else:
+						appt = frappe.db.get_value(
+							"Appointment",
+							current_appointment,
+							["name", "custom_host_received_time"],
+							as_dict=True,
+						)
+						if not appt:
+							return {
+								"error": "Badge "
+								+ str(badge_number)
+								+ " points to a visit that no longer exists."
+							}
+						elif appt.custom_host_received_time:
+							return {
+								"already_confirmed": True,
+								"confirmed_at": str(appt.custom_host_received_time),
+							}
+						else:
+							now = frappe.utils.now_datetime()
+							frappe.db.set_value(
+								"Appointment", appt.name, "custom_host_received_time", now
+							)
+							frappe.db.commit()
+							return {
+								"already_confirmed": False,
+								"confirmed_at": str(now),
+							}
+	except Exception as e:
+		frappe.log_error("confirm_host_received_by_number", str(e))
+		return {"error": str(e)}
+@frappe.whitelist()
+def check_out_taxi_driver(name=None):
+	"""Mark the taxi driver of an Appointment as departed. Gated by
+	feature_taxi_driver_checkout.
+
+	Touches ONLY custom_taxi_driver_check_out_time: the visitor's own
+	check-in/out state (workflow_state, custom_check_out_time, status) is
+	deliberately untouched so the visitor can still be checked out separately
+	whenever they actually leave. Only valid when custom_mode_of_transport is
+	"Taxi", and refuses a second departure. Writes via raw frappe.db.set_value.
+	"""
+	try:
+		if frappe.db.get_single_value("Security Ops Settings", "feature_taxi_driver_checkout") == 0:
+			raise Exception("This feature is not enabled on this instance.")
+
+		name = str(name or "").strip()
+
+		if not name:
+			return {"error": "name is required"}
+		else:
+			existing = frappe.db.get_value(
+				"Appointment",
+				name,
+				["name", "custom_mode_of_transport", "custom_taxi_driver_check_out_time"],
+				as_dict=True,
+			)
+			if not existing:
+				return {"error": "Appointment " + name + " not found"}
+			elif existing.custom_mode_of_transport != "Taxi":
+				return {
+					"error": "This appointment is not marked as arriving by Taxi"
+				}
+			elif existing.custom_taxi_driver_check_out_time:
+				return {
+					"error": "Driver already marked as departed at "
+					+ str(existing.custom_taxi_driver_check_out_time)
+				}
+			else:
+				now = frappe.utils.now_datetime()
+				frappe.db.set_value(
+					"Appointment", name, "custom_taxi_driver_check_out_time", now
+				)
+				frappe.db.commit()
+				return {
+					"name": name,
+					"custom_taxi_driver_check_out_time": str(now),
+				}
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error("check_out_taxi_driver", str(e))
+		return {"error": str(e)}
+
+
 # =============================================================================
 # SECTION 3   CONTRACTORS
 # =============================================================================
@@ -2943,6 +3380,380 @@ def update_supplier_badge(name=None, supplier=None, company=None, status=None):
 		return {"error": str(e)}
 
 
+@frappe.whitelist(allow_guest=True)
+def get_visitor_badge_info(company=None, farm=None, badge_number=None):
+	"""QR-scan lookup of the visit currently holding a Visitor Badge.
+
+	allow_guest=True is load-bearing: the scanner is a visitor/host with no
+	login, and a 403 here makes the mobile client treat it as a dead session
+	and log the user out. Keyed by company+farm+badge_number because an
+	anonymous caller has no login to resolve a company from.
+
+	No feature flag (unlike confirm_host_received). Errors are returned at
+	HTTP 200 as {"error": ...}, never raised. A scan of an unassigned badge
+	also logs an Invalid Badge Scan via log_unauthorized_access; a failure of
+	that logging is deliberately swallowed so it can never mask the response.
+	"""
+	try:
+		company = str(company or "").strip()
+		farm = str(farm or "").strip()
+		badge_number_raw = str(badge_number) if badge_number is not None else ""
+
+		if not company:
+			return {"error": "company is required"}
+		elif not farm:
+			return {"error": "farm is required"}
+		elif not badge_number_raw:
+			return {"error": "badge_number is required"}
+		else:
+			try:
+				badge_number = int(badge_number_raw)
+			except Exception:
+				badge_number = None
+
+			if badge_number is None:
+				return {"error": "badge_number must be a number"}
+			else:
+				badge = frappe.db.get_value(
+					"Visitor Badge",
+					{"company": company, "farm": farm, "badge_number": badge_number},
+					["current_appointment", "status"],
+					as_dict=True,
+				)
+				if not badge or not badge.current_appointment:
+					try:
+						frappe.call(
+							"upande_security.api.security_alerts.log_unauthorized_access",
+							attempt_type="Invalid Badge Scan",
+							reference=str(badge_number),
+							detail="Badge " + str(badge_number) + " (" + company + " / " + farm + ") scanned but not currently assigned to any visitor.",
+							company=company,
+							farm=farm,
+						)
+					except Exception:
+						pass
+					return {
+						"error": "Badge "
+						+ str(badge_number)
+						+ " ("
+						+ company
+						+ " / "
+						+ farm
+						+ ") is not currently assigned to any visitor."
+					}
+				else:
+					appt = frappe.db.get_value(
+						"Appointment",
+						badge.current_appointment,
+						["name", "customer_name", "custom_meet_with", "custom_host_received_time", "customer_details"],
+						as_dict=True,
+					)
+					if not appt:
+						return {
+							"error": "Badge "
+							+ str(badge_number)
+							+ " points to a visit that no longer exists."
+						}
+					else:
+						host_name = (
+							frappe.db.get_value("Employee", appt.custom_meet_with, "employee_name")
+							or appt.custom_meet_with
+							or ""
+						)
+						return {
+							"badge_number": badge_number,
+							"company": company,
+							"farm": farm,
+							"visitor_name": appt.customer_name or "",
+							"host_name": host_name,
+							"purpose": appt.customer_details or "",
+							"already_confirmed": bool(appt.custom_host_received_time),
+							"confirmed_at": str(appt.custom_host_received_time)
+							if appt.custom_host_received_time
+							else None,
+						}
+	except Exception as e:
+		frappe.log_error("get_visitor_badge_info", str(e))
+		return {"error": str(e)}
+@frappe.whitelist()
+def get_visitor_badge_info_by_number(badge_number=None):
+	"""Desk counterpart of get_visitor_badge_info for a logged-in host who
+	types only the number printed on the card.
+
+	Deliberately NOT allow_guest: a Guest caller is rejected outright. The
+	company (and farm) are resolved from the caller's own Employee record
+	(Employee.user_id == session user). If the host has a company but no
+	custom_farm (group-level role), the lookup spans every farm under the
+	company and takes the first badge that is actually assigned to a visit.
+	That path uses frappe.db.get_all (not frappe.get_all), as the original did.
+
+	No feature flag. Unassigned lookups log an Invalid Badge Scan; logging
+	failures are swallowed.
+	"""
+	try:
+		badge_number_raw = str(badge_number) if badge_number is not None else ""
+
+		if not badge_number_raw:
+			return {"error": "badge_number is required"}
+		else:
+			try:
+				badge_number = int(badge_number_raw)
+			except Exception:
+				badge_number = None
+
+			if badge_number is None:
+				return {"error": "badge_number must be a number"}
+			else:
+				current_user = frappe.session.user
+				employee = frappe.db.get_value(
+					"Employee", {"user_id": current_user}, ["company", "custom_farm"], as_dict=True
+				)
+				company = employee.company if employee else ""
+				farm = employee.custom_farm if employee else ""
+
+				if not company:
+					return {
+						"error": "No Employee record linked to this login — cannot determine your company."
+					}
+				else:
+					badge = None
+					if farm:
+						badge = frappe.db.get_value(
+							"Visitor Badge",
+							{"company": company, "farm": farm, "badge_number": badge_number},
+							["current_appointment", "status", "farm"],
+							as_dict=True,
+						)
+					else:
+						candidates = frappe.db.get_all(
+							"Visitor Badge",
+							filters={"company": company, "badge_number": badge_number},
+							fields=["current_appointment", "status", "farm"],
+						)
+						for c in candidates:
+							if c.current_appointment:
+								badge = c
+								break
+
+					if not badge or not badge.current_appointment:
+						try:
+							frappe.call(
+								"upande_security.api.security_alerts.log_unauthorized_access",
+								attempt_type="Invalid Badge Scan",
+								reference=str(badge_number),
+								detail="Badge " + str(badge_number) + " (" + company + (" / " + farm if farm else "") + ") looked up but not currently assigned to any visitor.",
+								company=company,
+								farm=farm,
+							)
+						except Exception:
+							pass
+						return {
+							"error": "Badge "
+							+ str(badge_number)
+							+ " ("
+							+ company
+							+ (" / " + farm if farm else "")
+							+ ") is not currently assigned to any visitor."
+						}
+					else:
+						appt = frappe.db.get_value(
+							"Appointment",
+							badge.current_appointment,
+							[
+								"name",
+								"customer_name",
+								"custom_meet_with",
+								"custom_host_received_time",
+								"customer_details",
+							],
+							as_dict=True,
+						)
+						if not appt:
+							return {
+								"error": "Badge "
+								+ str(badge_number)
+								+ " points to a visit that no longer exists."
+							}
+						else:
+							host_name = (
+								frappe.db.get_value("Employee", appt.custom_meet_with, "employee_name")
+								or appt.custom_meet_with
+								or ""
+							)
+							return {
+								"badge_number": badge_number,
+								"company": company,
+								"farm": badge.farm or farm,
+								"visitor_name": appt.customer_name or "",
+								"host_name": host_name,
+								"purpose": appt.customer_details or "",
+								"already_confirmed": bool(appt.custom_host_received_time),
+								"confirmed_at": str(appt.custom_host_received_time)
+								if appt.custom_host_received_time
+								else None,
+							}
+	except Exception as e:
+		frappe.log_error("get_visitor_badge_info_by_number", str(e))
+		return {"error": str(e)}
+@frappe.whitelist(allow_guest=True)
+def get_supplier_badge_info(badge=None):
+	"""QR-scan lookup of a Supplier Badge, keyed by the Supplier Badge doc
+	name (the "badge" param) rather than company+number.
+
+	allow_guest=True is load-bearing: anonymous QR scan; a 403 logs the
+	mobile user out. No feature flag. Read-only. "supplier_name" falls back to
+	the Supplier link value when supplier_name is empty.
+	"""
+	try:
+		badge_name = str(badge or "").strip()
+
+		if not badge_name:
+			return {"error": "badge is required"}
+		else:
+			badge = frappe.db.get_value(
+				"Supplier Badge",
+				badge_name,
+				["name", "company", "supplier", "badge_number", "status"],
+				as_dict=True,
+			)
+			if not badge:
+				return {"error": "No Supplier Badge found for that reference."}
+			else:
+				supplier_name = ""
+				if badge.supplier:
+					supplier_name = frappe.db.get_value("Supplier", badge.supplier, "supplier_name") or badge.supplier
+
+				return {
+					"badge_number": badge.badge_number,
+					"company": badge.company,
+					"supplier_name": supplier_name,
+					"status": badge.status,
+				}
+	except Exception as e:
+		frappe.log_error("get_supplier_badge_info", str(e))
+		return {"error": str(e)}
+@frappe.whitelist()
+def issue_supplier_badge(name=None, badge_number=None):
+	"""Assign a physical Supplier Badge (by number) to a contractor/supplier
+	Appointment. Gated by feature_supplier_badges.
+
+	Badge pool company resolution order matches issue_visitor_badge: Employee
+	linked to this login, then Security Guard matched by the User's full name,
+	then the Appointment's own custom_company (stamped at contractor check-in).
+
+	The badge is a reusable physical object: "supplier" is a snapshot of the
+	current holder, not a permanent assignment. The badge is loaded and saved
+	as a doc (not a raw set_value) for optimistic concurrency, so two guards
+	issuing the same number simultaneously cannot both succeed; the loser gets
+	a TimestampMismatchError, returned as an error. NOTE: that branch returns
+	without rollback or commit, exactly as the original did.
+
+	A badge already Issued to this same appointment is re-issuable (idempotent).
+	"""
+	try:
+		if frappe.db.get_single_value("Security Ops Settings", "feature_supplier_badges") == 0:
+			raise Exception("This feature is not enabled on this instance.")
+
+		name = str(name or "").strip()
+		badge_number_raw = str(badge_number) if badge_number is not None else ""
+
+		if not name:
+			return {"error": "name is required"}
+		elif not badge_number_raw:
+			return {"error": "badge_number is required"}
+		else:
+			appt = frappe.db.get_value(
+				"Appointment",
+				name,
+				["name", "custom_supplier_badge", "custom_contractor_ref", "custom_company"],
+				as_dict=True,
+			)
+			if not appt:
+				return {"error": "Appointment " + name + " not found"}
+			else:
+				try:
+					badge_number = int(badge_number_raw)
+				except Exception:
+					badge_number = None
+
+				if badge_number is None:
+					return {"error": "badge_number must be a number"}
+				else:
+					current_user = frappe.session.user
+					company = ""
+					employee = frappe.db.get_value(
+						"Employee", {"user_id": current_user}, "company"
+					)
+					if employee:
+						company = employee
+					else:
+						user_full = frappe.db.get_value("User", current_user, "full_name") or ""
+						if user_full:
+							guard_company = frappe.db.get_value(
+								"Security Guard", {"full_name": user_full}, "company"
+							)
+							if guard_company:
+								company = guard_company
+
+					if not company:
+						company = appt.custom_company or ""
+
+					if not company:
+						return {
+							"error": "Could not determine which company badge pool to use "
+							"- no Employee or Security Guard record linked to this user, "
+							"and this visit has no custom_company fallback either"
+						}
+					else:
+						badge = frappe.db.get_value(
+							"Supplier Badge",
+							{"company": company, "badge_number": badge_number},
+							["name", "status", "current_appointment"],
+							as_dict=True,
+						)
+						if not badge:
+							return {
+								"error": "Badge " + str(badge_number) + " does not exist for " + company
+							}
+						elif badge.status == "Issued" and badge.current_appointment != name:
+							return {
+								"error": "Badge "
+								+ str(badge_number)
+								+ " ("
+								+ company
+								+ ") is already issued to another visit ("
+								+ str(badge.current_appointment)
+								+ ")"
+							}
+						else:
+							badge_doc = frappe.get_doc("Supplier Badge", badge.name)
+							badge_doc.status = "Issued"
+							badge_doc.current_appointment = name
+							badge_doc.supplier = appt.custom_contractor_ref or badge_doc.supplier
+							try:
+								badge_doc.save(ignore_permissions=True)
+							except frappe.TimestampMismatchError:
+								return {
+									"error": "Badge "
+									+ str(badge_number)
+									+ " ("
+									+ company
+									+ ") was just issued to another visit - rescan or pick a different badge."
+								}
+							else:
+								frappe.db.set_value("Appointment", name, "custom_supplier_badge", badge.name)
+								frappe.db.commit()
+								return {
+									"badge_number": badge_number,
+									"company": company,
+									"supplier": badge_doc.supplier or "",
+								}
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error("issue_supplier_badge", str(e))
+		return {"error": str(e)}
+
+
 # =============================================================================
 # SECTION 5   STAFF GATE
 # =============================================================================
@@ -3541,6 +4352,183 @@ def staff_gate_checkout(attendance_name=None, exit_gate=None):
 		return {"error": str(e)}
 
 
+@frappe.whitelist()
+def list_staff_movements(from_date=None, to_date=None):
+	"""Staff Gate Movement list for a date range, newest first.
+
+	Gated by the feature_staff_checkin flag in Security Ops Settings. The
+	disabled case is raised INSIDE the try on purpose, so it is caught, logged
+	via log_error and returned as {"error": "This feature is not enabled on this
+	instance."} at HTTP 200 -- not a thrown HTTP error. Only an explicit 0
+	disables it (an unset/None value counts as enabled).
+
+	to_date defaults to today, from_date to to_date - 30 days.
+
+	Scoping is the same as the gate app: System Manager sees everything, a
+	Security Head sees their User Permission grants, anyone else is pinned to
+	their own company/farm. UNLIKE list_patrol_reports, company and farm are NOT
+	OR-ed: if any company scope exists it wins and farm scope is ignored (elif).
+	With no scope at all the filter is name = "__no_match__" (show nothing).
+	Load bearing.
+
+	time_in/time_out are clock times, so each is joined with the row's own
+	movement_date into a full "YYYY-MM-DD HH:MM:SS" string for the client.
+	Unpaginated (limit_page_length=0). Read-only.
+	"""
+	try:
+		if frappe.db.get_single_value("Security Ops Settings", "feature_staff_checkin") == 0:
+			raise Exception("This feature is not enabled on this instance.")
+
+		to_date = (to_date or "").strip() or frappe.utils.today()
+		from_date = (from_date or "").strip()
+		if not from_date:
+			from_date = frappe.utils.add_days(to_date, -30)
+
+		current_user = frappe.session.user
+		role_rows = frappe.db.sql(
+			"SELECT role FROM `tabHas Role` WHERE parent = %s", (current_user,)
+		)
+		roles = []
+		for row in role_rows:
+			if row and row[0]:
+				roles.append(row[0])
+
+		is_system_manager = "System Manager" in roles
+		is_security_head = "Security Head" in roles
+
+		scope_companies = []
+		scope_farms = []
+
+		if not is_system_manager:
+			if is_security_head:
+				perm_rows = frappe.db.sql(
+					"SELECT allow, for_value FROM `tabUser Permission` "
+					"WHERE user = %s AND allow IN ('Company', 'Farm')",
+					(current_user,),
+					as_dict=True,
+				)
+				for p in perm_rows:
+					if p.allow == "Company" and p.for_value:
+						scope_companies.append(p.for_value)
+					elif p.allow == "Farm" and p.for_value:
+						scope_farms.append(p.for_value)
+			else:
+				employee = frappe.db.get_value(
+					"Employee", {"user_id": current_user}, ["company", "custom_farm"], as_dict=True
+				)
+				if employee:
+					if employee.company:
+						scope_companies.append(employee.company)
+					if employee.custom_farm:
+						scope_farms.append(employee.custom_farm)
+				else:
+					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
+					if user_full:
+						guard = frappe.db.get_value(
+							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+						)
+						if guard:
+							if guard.company:
+								scope_companies.append(guard.company)
+							if guard.farm:
+								scope_farms.append(guard.farm)
+
+		rows = []
+
+		mv_filters = [
+			["movement_date", ">=", from_date],
+			["movement_date", "<=", to_date],
+		]
+		if not is_system_manager:
+			if scope_companies:
+				mv_filters.append(["company", "in", scope_companies])
+			elif scope_farms:
+				mv_filters.append(["farm", "in", scope_farms])
+			else:
+				mv_filters.append(["name", "=", "__no_match__"])
+
+		for m in frappe.get_all(
+			"Staff Gate Movement",
+			filters=mv_filters,
+			fields=[
+				"name",
+				"employee",
+				"employee_name",
+				"company",
+				"farm",
+				"movement_date",
+				"time_in",
+				"time_out",
+				"vehicle_plate",
+				"entry_gate",
+				"exit_gate",
+			],
+			order_by="movement_date desc, time_in desc",
+			limit_page_length=0,
+		):
+			day = str(m["movement_date"] or "")
+			in_stamp = None
+			if m["time_in"]:
+				in_stamp = day + " " + str(m["time_in"])
+			out_stamp = None
+			if m["time_out"]:
+				out_stamp = day + " " + str(m["time_out"])
+			rows.append(
+				{
+					"name": m["name"],
+					"employee": m["employee"],
+					"employee_name": m["employee_name"],
+					"company": m["company"],
+					"farm": m["farm"],
+					"date": day,
+					"in_time": in_stamp,
+					"out_time": out_stamp,
+					"plate": m["vehicle_plate"],
+					"entry_gate": m["entry_gate"],
+					"exit_gate": m["exit_gate"],
+				}
+			)
+
+		return {"staff": rows}
+	except Exception as e:
+		frappe.log_error("list_staff_movements", str(e))
+		return {"error": str(e)}
+@frappe.whitelist()
+def list_active_gates_for_farm(farm=None):
+	"""Active gate names configured for a farm, in configured order.
+
+	Security Gate Config is a child table of Security Ops Settings with an empty
+	permissions array (it relies on the parent's DocPerm when viewed through
+	that form), so querying it as a real user fails with "Insufficient
+	Permission" -- Administrator bypasses permission checks, which is why this
+	slipped through local testing. Gate names for a farm are not sensitive, so
+	ignore_permissions=True is deliberate, not lazy.
+
+	Missing farm returns {"gates": []}; an error returns {"gates": [], "error": ...}
+	(the empty list is part of the contract so a gate-picker can still render).
+	Read-only.
+	"""
+	try:
+		if not farm:
+			return {"gates": []}
+
+		rows = frappe.get_all(
+			"Security Gate Config",
+			filters={"parent": "Security Ops Settings", "farm": farm, "active": 1},
+			fields=["gate_name"],
+			order_by="idx asc",
+			ignore_permissions=True,
+		)
+		names = []
+		for row in rows:
+			if row.gate_name:
+				names.append(row.gate_name)
+		return {"gates": names}
+	except Exception as e:
+		frappe.log_error("list_active_gates_for_farm", str(e))
+		return {"gates": [], "error": str(e)}
+
+
 # =============================================================================
 # SECTION 6   PATROLS
 # =============================================================================
@@ -3906,6 +4894,366 @@ def file_patrol_report(
 		frappe.db.rollback()
 		frappe.log_error("file_patrol_report", str(e))
 		return {"error": str(e)}
+
+
+@frappe.whitelist()
+def get_patrol_report(name=None):
+	"""Single Patrol Report fetch with an ownership/scope check.
+
+	Hierarchy mirrors get_incident_report: System Manager sees everything, the
+	filer (owner) always sees their own, a Security Head sees whatever their own
+	User Permission rows grant (Company and/or Farm), anyone else only their own
+	company/farm.
+
+	Patrol Report has no `company` column (only `farm`), so a Company-level grant
+	is checked by resolving the report's farm to its company through Farm.
+
+	Errors are returned at HTTP 200 as {"error": ...} (the mobile client's
+	call<T> wrapper promotes them to thrown Errors); never raise.
+	Read-only.
+	"""
+	try:
+		name = str(name or "").strip()
+
+		if not name:
+			return {"error": "name is required"}
+
+		r = frappe.db.get_value(
+			"Patrol Report",
+			name,
+			[
+				"name",
+				"patrol",
+				"report_type",
+				"farm",
+				"personel",
+				"internal_guard",
+				"external_guard",
+				"shift_assignment",
+				"started_at",
+				"ended_at",
+				"points_logged",
+				"filed_at",
+				"observations",
+				"severity",
+				"nature_of_incident",
+				"incident_report",
+				"attachment_1",
+				"attachment_2",
+				"attachment_3",
+				"attachment_4",
+				"status",
+				"reviewed_by",
+				"reviewed_on",
+				"supervisor_remarks",
+				"owner",
+			],
+			as_dict=True,
+		)
+		if not r:
+			return {"error": "Patrol Report " + name + " not found"}
+
+		current_user = frappe.session.user
+		role_rows = frappe.db.sql(
+			"SELECT role FROM `tabHas Role` WHERE parent = %s", (current_user,)
+		)
+		roles = []
+		for row in role_rows:
+			if row and row[0]:
+				roles.append(row[0])
+
+		is_system_manager = "System Manager" in roles
+		is_security_head = "Security Head" in roles
+
+		allowed = is_system_manager or r.owner == current_user
+
+		if not allowed:
+			report_company = None
+			if r.farm:
+				report_company = frappe.db.get_value("Farm", r.farm, "company")
+
+			scope_companies = []
+			scope_farms = []
+			if is_security_head:
+				perm_rows = frappe.db.sql(
+					"SELECT allow, for_value FROM `tabUser Permission` "
+					"WHERE user = %s AND allow IN ('Company', 'Farm')",
+					(current_user,),
+					as_dict=True,
+				)
+				for p in perm_rows:
+					if p.allow == "Company" and p.for_value:
+						scope_companies.append(p.for_value)
+					elif p.allow == "Farm" and p.for_value:
+						scope_farms.append(p.for_value)
+			else:
+				employee = frappe.db.get_value(
+					"Employee", {"user_id": current_user}, ["company", "custom_farm"], as_dict=True
+				)
+				if employee:
+					if employee.company:
+						scope_companies.append(employee.company)
+					if employee.custom_farm:
+						scope_farms.append(employee.custom_farm)
+				else:
+					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
+					if user_full:
+						guard = frappe.db.get_value(
+							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+						)
+						if guard:
+							if guard.company:
+								scope_companies.append(guard.company)
+							if guard.farm:
+								scope_farms.append(guard.farm)
+
+			if report_company and report_company in scope_companies:
+				allowed = True
+			elif r.farm and r.farm in scope_farms:
+				allowed = True
+
+		if not allowed:
+			return {"error": "You do not have access to this patrol report"}
+
+		return {
+			"name": r.name,
+			"patrol": r.patrol or "",
+			"report_type": r.report_type or "",
+			"farm": r.farm or "",
+			"personel": r.personel or "",
+			"internal_guard": r.internal_guard or "",
+			"external_guard": r.external_guard or "",
+			"shift_assignment": r.shift_assignment or "",
+			"started_at": str(r.started_at) if r.started_at else "",
+			"ended_at": str(r.ended_at) if r.ended_at else "",
+			"points_logged": r.points_logged or 0,
+			"filed_at": str(r.filed_at) if r.filed_at else "",
+			"observations": r.observations or "",
+			"severity": r.severity or "",
+			"nature_of_incident": r.nature_of_incident or "",
+			"incident_report": r.incident_report or "",
+			"attachment_1": r.attachment_1 or "",
+			"attachment_2": r.attachment_2 or "",
+			"attachment_3": r.attachment_3 or "",
+			"attachment_4": r.attachment_4 or "",
+			"status": r.status or "",
+			"reviewed_by": r.reviewed_by or "",
+			"reviewed_on": str(r.reviewed_on) if r.reviewed_on else "",
+			"supervisor_remarks": r.supervisor_remarks or "",
+		}
+	except Exception as e:
+		frappe.log_error("get_patrol_report", str(e))
+		return {"error": str(e)}
+@frappe.whitelist()
+def list_patrol_reports(from_date=None, to_date=None, status=None, report_type=None, limit=None):
+	"""Supervisor-facing list of filed Patrol Reports, newest first.
+
+	Same scoping as list_incidents: System Manager sees everything; a Security
+	Head sees whatever their User Permission grants (Company and/or Farm);
+	anyone else is scoped to their own company/farm.
+
+	Patrol Report has no `company` column, so a Company grant is matched via a
+	LEFT JOIN to Farm (farm is already on this doctype, unlike list_incidents
+	which has to infer it from the filer's Employee row). Company and farm
+	grants are OR-ed together here.
+
+	If a non-System-Manager has no resolvable company or farm the query gets
+	`1=0` -- show nothing rather than falling through to "everything". Load
+	bearing; do not "simplify" away.
+
+	`limit` defaults to 200 and is clamped to 1..1000; an unparseable value
+	silently falls back to 200. from_date/to_date compare against DATE(filed_at).
+	The IN lists are built from generated placeholders with bound values.
+	Read-only.
+	"""
+	try:
+		from_date = from_date or ""
+		to_date = to_date or ""
+		status_filter = status or ""
+		report_type_filter = report_type or ""
+
+		row_limit = 200
+		try:
+			if limit:
+				row_limit = int(limit)
+		except (TypeError, ValueError):
+			row_limit = 200
+		if row_limit < 1:
+			row_limit = 1
+		if row_limit > 1000:
+			row_limit = 1000
+
+		current_user = frappe.session.user
+		role_rows = frappe.db.sql(
+			"SELECT role FROM `tabHas Role` WHERE parent = %s", (current_user,)
+		)
+		roles = []
+		for row in role_rows:
+			if row and row[0]:
+				roles.append(row[0])
+
+		is_system_manager = "System Manager" in roles
+		is_security_head = "Security Head" in roles
+
+		scope_companies = []
+		scope_farms = []
+
+		if not is_system_manager:
+			if is_security_head:
+				perm_rows = frappe.db.sql(
+					"SELECT allow, for_value FROM `tabUser Permission` "
+					"WHERE user = %s AND allow IN ('Company', 'Farm')",
+					(current_user,),
+					as_dict=True,
+				)
+				for p in perm_rows:
+					if p.allow == "Company" and p.for_value:
+						scope_companies.append(p.for_value)
+					elif p.allow == "Farm" and p.for_value:
+						scope_farms.append(p.for_value)
+			else:
+				employee = frappe.db.get_value(
+					"Employee", {"user_id": current_user}, ["company", "custom_farm"], as_dict=True
+				)
+				if employee:
+					if employee.company:
+						scope_companies.append(employee.company)
+					if employee.custom_farm:
+						scope_farms.append(employee.custom_farm)
+				else:
+					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
+					if user_full:
+						guard = frappe.db.get_value(
+							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+						)
+						if guard:
+							if guard.company:
+								scope_companies.append(guard.company)
+							if guard.farm:
+								scope_farms.append(guard.farm)
+
+		where_parts = ["1=1"]
+		params = {}
+		if from_date:
+			where_parts.append("DATE(p.filed_at) >= %(from_date)s")
+			params["from_date"] = from_date
+		if to_date:
+			where_parts.append("DATE(p.filed_at) <= %(to_date)s")
+			params["to_date"] = to_date
+		if status_filter:
+			where_parts.append("p.status = %(status_filter)s")
+			params["status_filter"] = status_filter
+		if report_type_filter:
+			where_parts.append("p.report_type = %(report_type_filter)s")
+			params["report_type_filter"] = report_type_filter
+
+		if not is_system_manager:
+			conditions = []
+			if scope_companies:
+				placeholders = ", ".join(["%(c" + str(idx) + ")s" for idx in range(len(scope_companies))])
+				conditions.append("f.company IN (" + placeholders + ")")
+				for idx in range(len(scope_companies)):
+					params["c" + str(idx)] = scope_companies[idx]
+			if scope_farms:
+				placeholders = ", ".join(["%(f" + str(idx) + ")s" for idx in range(len(scope_farms))])
+				conditions.append("p.farm IN (" + placeholders + ")")
+				for idx in range(len(scope_farms)):
+					params["f" + str(idx)] = scope_farms[idx]
+			if conditions:
+				where_parts.append("(" + " OR ".join(conditions) + ")")
+			else:
+				where_parts.append("1=0")
+
+		params["row_limit"] = row_limit
+
+		where_clause = " AND ".join(where_parts)
+		sql = (
+			"SELECT p.name, p.patrol, p.report_type, p.farm, p.severity, p.nature_of_incident, "
+			"p.status, p.filed_at, p.points_logged, p.personel, p.internal_guard, p.external_guard "
+			"FROM `tabPatrol Report` p "
+			"LEFT JOIN `tabFarm` f ON f.name = p.farm "
+			"WHERE " + where_clause + " "
+			"ORDER BY p.filed_at DESC "
+			"LIMIT %(row_limit)s"
+		)
+
+		rows = frappe.db.sql(sql, params, as_dict=True)
+		out = []
+		for r in rows:
+			out.append(
+				{
+					"name": r.name,
+					"patrol": r.patrol or "",
+					"report_type": r.report_type or "",
+					"farm": r.farm or "",
+					"severity": r.severity or "",
+					"nature_of_incident": r.nature_of_incident or "",
+					"status": r.status or "",
+					"filed_at": str(r.filed_at) if r.filed_at else "",
+					"points_logged": r.points_logged or 0,
+					"personel": r.personel or "",
+					"internal_guard": r.internal_guard or "",
+					"external_guard": r.external_guard or "",
+				}
+			)
+		return out
+	except Exception as e:
+		frappe.log_error("list_patrol_reports", str(e))
+		return {"error": str(e)}
+@frappe.whitelist()
+def my_patrol_reports():
+	"""The calling guard's own filed Patrol Reports, most recent first (max 50).
+
+	Filters on `owner` (the standard Frappe creator field) rather than
+	internal_guard/external_guard: always correct without having to re-resolve
+	guard identity. Mirrors my_incidents. No pagination beyond the hard LIMIT 50.
+	Read-only.
+	"""
+	try:
+		user = frappe.session.user
+		rows = frappe.db.sql(
+			"""
+			SELECT name, patrol, report_type, farm, severity, nature_of_incident,
+                   status, filed_at, points_logged
+			FROM `tabPatrol Report`
+			WHERE owner = %s
+			ORDER BY filed_at DESC
+			LIMIT 50
+			""",
+			(user,),
+			as_dict=True,
+		)
+		out = []
+		for r in rows:
+			out.append(
+				{
+					"name": r.name,
+					"patrol": r.patrol or "",
+					"report_type": r.report_type or "",
+					"farm": r.farm or "",
+					"severity": r.severity or "",
+					"nature_of_incident": r.nature_of_incident or "",
+					"status": r.status or "",
+					"filed_at": str(r.filed_at) if r.filed_at else "",
+					"points_logged": r.points_logged or 0,
+				}
+			)
+		return out
+	except Exception as e:
+		frappe.log_error("my_patrol_reports", str(e))
+		return {"error": str(e)}
+@frappe.whitelist()
+def createPatrolEntry():
+	"""Deliberate no-op stub.
+
+	The live Server Script body is the single statement `pass`: it does nothing
+	and writes no response message. The mobile app (app/(tabs)/patrol.tsx)
+	comment claims createPatrolEntry "lazy-creates the Patrol Session on the
+	first successful upload", but no such behaviour exists on the server. Ported
+	as-is (returns None -> Frappe sends no message) so the endpoint stays
+	callable and parity is exact. Writes nothing.
+	"""
+	return None
 
 
 # =============================================================================
@@ -4345,6 +5693,327 @@ def update_incident(name=None, status=None, resolution=None, corrective_actions=
 	except Exception as e:
 		frappe.db.rollback()
 		frappe.log_error("update_incident", str(e))
+		return {"error": str(e)}
+
+
+@frappe.whitelist()
+def get_incident_report(name=None):
+	"""Single Incident Report fetch (incl. witnesses and victims) with scoping.
+
+	Hierarchy mirrors list_incidents: System Manager sees everything; the
+	reporter always sees their own; a Security Head is scoped to their own User
+	Permission grants; anyone else only their own company/farm. Unlike Patrol
+	Report, Incident Report has no farm/company column, so the company/farm of
+	the incident is INFERRED from the reporter's Employee row (company,
+	custom_farm). A reporter with no Employee record therefore yields no
+	company/farm and only owner/System Manager access applies.
+
+	Witnesses/victims are Incident Person child rows read with get_all (no
+	permission check beyond the parent gate above); they include id_number and
+	contact (PII).
+
+	Errors are returned at HTTP 200 as {"error": ...}. Read-only.
+	"""
+	try:
+		name = str(name or "").strip()
+
+		if not name:
+			return {"error": "name is required"}
+
+		r = frappe.db.get_value(
+			"Incident Report",
+			name,
+			[
+				"name",
+				"incident_datetime",
+				"location",
+				"nature_of_incident",
+				"severity",
+				"description",
+				"status",
+				"reported_by",
+				"reporter_name",
+				"reported_datetime",
+				"activity_at_time_of_injury",
+				"body_part_affected",
+				"nature_of_injury",
+				"is_fatal",
+				"doshs_deadline",
+				"doshs_reported",
+				"doshs_reported_date",
+				"doshs_reference_number",
+				"attending_physician",
+				"injury_case_status",
+				"injury_current_location",
+				"days_off_work",
+				"return_to_work_date",
+				"first_aid_given",
+				"first_aider_name",
+				"ambulance_needed",
+				"ambulance_provider",
+				"ambulance_called_at",
+				"taken_to_hospital",
+				"hospital_name",
+				"hospital_admission_type",
+				"treatment_summary",
+				"police_report_required",
+				"ob_number",
+				"police_station",
+				"compensation_required",
+				"wiba_claim_filed",
+				"wiba_claim_number",
+				"payment_status",
+				"amount_paid",
+			],
+			as_dict=True,
+		)
+		if not r:
+			return {"error": "Incident Report " + name + " not found"}
+
+		current_user = frappe.session.user
+		role_rows = frappe.db.sql(
+			"SELECT role FROM `tabHas Role` WHERE parent = %s", (current_user,)
+		)
+		roles = []
+		for row in role_rows:
+			if row and row[0]:
+				roles.append(row[0])
+
+		is_system_manager = "System Manager" in roles
+		is_security_head = "Security Head" in roles
+
+		allowed = is_system_manager or r.reported_by == current_user
+
+		if not allowed:
+			reporter_employee = frappe.db.get_value(
+				"Employee", {"user_id": r.reported_by}, ["company", "custom_farm"], as_dict=True
+			)
+			reporter_company = reporter_employee.company if reporter_employee else None
+			reporter_farm = reporter_employee.custom_farm if reporter_employee else None
+
+			scope_companies = []
+			scope_farms = []
+			if is_security_head:
+				perm_rows = frappe.db.sql(
+					"SELECT allow, for_value FROM `tabUser Permission` "
+					"WHERE user = %s AND allow IN ('Company', 'Farm')",
+					(current_user,),
+					as_dict=True,
+				)
+				for p in perm_rows:
+					if p.allow == "Company" and p.for_value:
+						scope_companies.append(p.for_value)
+					elif p.allow == "Farm" and p.for_value:
+						scope_farms.append(p.for_value)
+			else:
+				employee = frappe.db.get_value(
+					"Employee", {"user_id": current_user}, ["company", "custom_farm"], as_dict=True
+				)
+				if employee:
+					if employee.company:
+						scope_companies.append(employee.company)
+					if employee.custom_farm:
+						scope_farms.append(employee.custom_farm)
+				else:
+					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
+					if user_full:
+						guard = frappe.db.get_value(
+							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+						)
+						if guard:
+							if guard.company:
+								scope_companies.append(guard.company)
+							if guard.farm:
+								scope_farms.append(guard.farm)
+
+			if reporter_company and reporter_company in scope_companies:
+				allowed = True
+			elif reporter_farm and reporter_farm in scope_farms:
+				allowed = True
+
+		if not allowed:
+			return {"error": "You do not have access to this incident"}
+
+		witnesses = frappe.get_all(
+			"Incident Person",
+			filters={"parent": name, "parentfield": "witnesses"},
+			fields=["person_name", "person_type", "contact", "id_number", "notes"],
+		)
+		victims = frappe.get_all(
+			"Incident Person",
+			filters={"parent": name, "parentfield": "victims"},
+			fields=["person_name", "person_type", "contact", "id_number", "notes"],
+		)
+		return {
+			"name": r.name,
+			"incident_datetime": str(r.incident_datetime) if r.incident_datetime else "",
+			"location": r.location or "",
+			"nature_of_incident": r.nature_of_incident or "",
+			"severity": r.severity or "",
+			"description": r.description or "",
+			"status": r.status or "",
+			"reported_by": r.reported_by or "",
+			"reporter_name": r.reporter_name or "",
+			"reported_datetime": str(r.reported_datetime) if r.reported_datetime else "",
+			"activity_at_time_of_injury": r.activity_at_time_of_injury or "",
+			"body_part_affected": r.body_part_affected or "",
+			"nature_of_injury": r.nature_of_injury or "",
+			"is_fatal": bool(r.is_fatal),
+			"doshs_deadline": str(r.doshs_deadline) if r.doshs_deadline else "",
+			"doshs_reported": bool(r.doshs_reported),
+			"doshs_reported_date": str(r.doshs_reported_date) if r.doshs_reported_date else "",
+			"doshs_reference_number": r.doshs_reference_number or "",
+			"attending_physician": r.attending_physician or "",
+			"injury_case_status": r.injury_case_status or "",
+			"injury_current_location": r.injury_current_location or "",
+			"days_off_work": r.days_off_work if r.days_off_work is not None else None,
+			"return_to_work_date": str(r.return_to_work_date) if r.return_to_work_date else "",
+			"first_aid_given": bool(r.first_aid_given),
+			"first_aider_name": r.first_aider_name or "",
+			"ambulance_needed": bool(r.ambulance_needed),
+			"ambulance_provider": r.ambulance_provider or "",
+			"ambulance_called_at": str(r.ambulance_called_at) if r.ambulance_called_at else "",
+			"taken_to_hospital": bool(r.taken_to_hospital),
+			"hospital_name": r.hospital_name or "",
+			"hospital_admission_type": r.hospital_admission_type or "",
+			"treatment_summary": r.treatment_summary or "",
+			"police_report_required": bool(r.police_report_required),
+			"ob_number": r.ob_number or "",
+			"police_station": r.police_station or "",
+			"compensation_required": bool(r.compensation_required),
+			"wiba_claim_filed": bool(r.wiba_claim_filed),
+			"wiba_claim_number": r.wiba_claim_number or "",
+			"payment_status": r.payment_status or "",
+			"amount_paid": r.amount_paid if r.amount_paid is not None else None,
+			"witnesses": witnesses,
+			"victims": victims,
+		}
+	except Exception as e:
+		frappe.log_error("get_incident_report", str(e))
+		return {"error": str(e)}
+@frappe.whitelist()
+def update_workplace_injury(name=None):
+	"""Progressive update of the Workplace Injury case fields on an Incident Report.
+
+	The follow-up screen sends only the fields it changed, so each field is
+	touched only when its key is PRESENT in the request. Explicit null differs
+	from absent (check -> 0, text -> "", date/datetime -> None, numbers -> None),
+	which a `field=None` signature cannot express; presence is therefore tested
+	against frappe.local.form_dict (Frappe merges a JSON body into it), and only
+	`name` is a named parameter.
+
+	Writes with frappe.db.set_value: NO validate(), no on_update hooks, no
+	workflow, and no permission check -- any authenticated caller can update any
+	Workplace Injury incident (preserved from the original). Closing the case
+	(injury_case_status == "Closed") also sets the parent status to "Resolved"
+	so the general incident list reflects it.
+
+	Unparseable days_off_work/amount_paid are silently skipped, not rejected.
+	Check fields use truthiness, so a form-encoded "0" counts as 1 (JSON false
+	is fine). The except block rolls back, including for errors that happen
+	before any write.
+
+	Writes: Incident Report.
+	"""
+	try:
+		data = frappe.local.form_dict
+
+		name = str(name or "").strip()
+
+		if not name:
+			return {"error": "name is required"}
+
+		existing = frappe.db.get_value(
+			"Incident Report", name, ["name", "nature_of_incident"], as_dict=True
+		)
+		if not existing:
+			return {"error": "Incident Report " + name + " not found"}
+		if existing.nature_of_incident != "Workplace Injury":
+			return {"error": name + " is not a Workplace Injury incident"}
+
+		check_fields = [
+			"first_aid_given",
+			"ambulance_needed",
+			"taken_to_hospital",
+			"police_report_required",
+			"compensation_required",
+			"wiba_claim_filed",
+			"is_fatal",
+			"doshs_reported",
+		]
+		text_fields = [
+			"injury_case_status",
+			"injury_current_location",
+			"first_aider_name",
+			"ambulance_provider",
+			"hospital_name",
+			"hospital_admission_type",
+			"attending_physician",
+			"treatment_summary",
+			"ob_number",
+			"police_station",
+			"wiba_claim_number",
+			"payment_status",
+			"activity_at_time_of_injury",
+			"body_part_affected",
+			"nature_of_injury",
+			"doshs_reference_number",
+		]
+		datetime_fields = ["ambulance_called_at"]
+		date_fields = ["return_to_work_date", "doshs_reported_date"]
+
+		updates = {}
+
+		for key in check_fields:
+			if key in data:
+				v = data[key]
+				updates[key] = 1 if v else 0
+
+		for key in text_fields:
+			if key in data:
+				v = data[key]
+				updates[key] = str(v).strip() if v is not None else ""
+
+		for key in datetime_fields + date_fields:
+			if key in data:
+				v = data[key]
+				updates[key] = v if v else None
+
+		if "days_off_work" in data:
+			try:
+				v = data["days_off_work"]
+				if v in (None, ""):
+					updates["days_off_work"] = None
+				else:
+					updates["days_off_work"] = int(v)
+			except (TypeError, ValueError):
+				pass
+
+		if "amount_paid" in data:
+			try:
+				v = data["amount_paid"]
+				if v in (None, ""):
+					updates["amount_paid"] = None
+				else:
+					updates["amount_paid"] = float(v)
+			except (TypeError, ValueError):
+				pass
+
+		if not updates:
+			return {"error": "No updatable fields were sent"}
+
+		closing = False
+		if "injury_case_status" in updates:
+			closing = updates["injury_case_status"] == "Closed"
+		if closing:
+			updates["status"] = "Resolved"
+
+		frappe.db.set_value("Incident Report", name, updates)
+		frappe.db.commit()
+		return {"name": name, "updated": list(updates.keys())}
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error("update_workplace_injury", str(e))
 		return {"error": str(e)}
 
 
@@ -5227,6 +6896,89 @@ def search_staff_vehicle_sticker(reference=None):
 		return {"found": False, "error": str(e)}
 
 
+@frappe.whitelist(allow_guest=True)
+def submit_staff_sticker_request(
+	employee=None,
+	vehicle_type=None,
+	plate_number=None,
+	color=None,
+	collection_farm=None,
+	collection_point=None,
+):
+	"""Staff submit a vehicle/motorcycle sticker request by Employee ID.
+
+	allow_guest=True is load-bearing: staff submit this without a login
+	(the original is a guest endpoint); a 403 logs the mobile user out.
+	Gated by feature_vehicle_stickers. Only Active employees may request
+	(a blank status is tolerated). Colour is required for "Vehicle" only,
+	not "Motorcycle". A Pending request for the same employee+plate is
+	rejected, returning the existing request name under "existing".
+
+	The doc is inserted with ignore_permissions because the caller is a Guest.
+	"""
+	try:
+		if frappe.db.get_single_value("Security Ops Settings", "feature_vehicle_stickers") == 0:
+			raise Exception("This feature is not enabled on this instance.")
+
+		employee = str(employee or "").strip()
+		vehicle_type = str(vehicle_type or "").strip()
+		plate_number = str(plate_number or "").strip()
+		color = str(color or "").strip()
+		collection_farm = str(collection_farm or "").strip()
+		collection_point = str(collection_point or "").strip()
+
+		if not employee:
+			return {"error": "Employee ID is required."}
+		elif vehicle_type not in ("Vehicle", "Motorcycle"):
+			return {"error": "vehicle_type must be Vehicle or Motorcycle."}
+		elif not plate_number:
+			return {"error": "Plate number is required."}
+		elif vehicle_type == "Vehicle" and not color:
+			return {"error": "Color is required for a vehicle."}
+		elif not collection_farm:
+			return {"error": "Collection farm is required."}
+		elif not collection_point:
+			return {"error": "Collection point is required."}
+		else:
+			emp = frappe.db.get_value("Employee", employee, ["name", "employee_name", "status"], as_dict=True)
+			if not emp:
+				return {"error": "Employee " + employee + " not found."}
+			elif emp.status and emp.status != "Active":
+				return {"error": "Employee status is " + str(emp.status) + " - only active staff can request a sticker."}
+			else:
+				existing = frappe.db.get_value(
+					"Staff Vehicle Sticker Request",
+					{"employee": emp.name, "plate_number": plate_number, "status": "Pending"},
+					"name",
+				)
+				if existing:
+					return {
+						"error": "A request for this plate is already pending review.",
+						"existing": existing,
+					}
+				else:
+					req = frappe.new_doc("Staff Vehicle Sticker Request")
+					req.flags.ignore_permissions = True
+					req.employee = emp.name
+					req.vehicle_type = vehicle_type
+					req.plate_number = plate_number
+					req.color = color
+					req.collection_farm = collection_farm
+					req.collection_point = collection_point
+					req.status = "Pending"
+					req.insert(ignore_permissions=True)
+					frappe.db.commit()
+					return {
+						"success": True,
+						"name": req.name,
+						"employee_name": emp.employee_name or "",
+					}
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error("submit_staff_sticker_request", str(e))
+		return {"error": str(e)}
+
+
 # =============================================================================
 # SECTION 11   DASHBOARDS & REPORTS
 # =============================================================================
@@ -5838,6 +7590,100 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 		return msg
 	except Exception as e:
 		frappe.log_error("security_report", str(e))
+		return {"error": str(e)}
+
+
+@frappe.whitelist()
+def security_analytics_summary():
+	"""Dashboard analytics: 30-day incident counts, patrol coverage, 7-day visitor trend.
+
+	NO role or company/farm scoping -- any authenticated user receives
+	site-wide aggregates (preserved from the original). Aggregates only, no PII.
+
+	patrol_coverage_pct = distinct Active shift assignments with a Patrol GPS
+	Log point captured in the last hour / Active shift count; None when there
+	are no Active shifts. The join matches the guard by Internal/External type
+	plus the matching guard link.
+
+	Near misses are Incident Reports with nature_of_incident = "Near Miss" (the
+	standalone Near Miss Report doctype is retired). Read-only.
+	"""
+	try:
+		today_str = frappe.utils.today()
+		window_start = frappe.utils.add_days(today_str, -30)
+
+		incidents_by_severity = frappe.db.sql(
+			"""
+			SELECT severity, COUNT(*) as cnt
+			FROM `tabIncident Report`
+			WHERE incident_datetime >= %(start)s
+			GROUP BY severity
+			ORDER BY cnt DESC
+			""",
+			{"start": window_start},
+			as_dict=True,
+		)
+
+		incidents_by_location = frappe.db.sql(
+			"""
+			SELECT COALESCE(location, 'Unspecified') as location, COUNT(*) as cnt
+			FROM `tabIncident Report`
+			WHERE incident_datetime >= %(start)s
+			GROUP BY location
+			ORDER BY cnt DESC
+			LIMIT 10
+			""",
+			{"start": window_start},
+			as_dict=True,
+		)
+
+		active_shift_count = frappe.db.count("Security Guard Shift Assignment", {"status": "Active"})
+		hour_ago = frappe.utils.add_to_date(frappe.utils.now_datetime(), hours=-1)
+		covered_shifts = frappe.db.sql(
+			"""
+			SELECT COUNT(DISTINCT sgsa.name) as cnt
+			FROM `tabSecurity Guard Shift Assignment` sgsa
+			JOIN `tabPatrol GPS Log` pgl
+              ON (
+                   (sgsa.security_guard = 'Internal Guard' AND pgl.personel = 'Internal Guard' AND pgl.internal_guard = sgsa.internal_guard)
+				OR (sgsa.security_guard = 'External Guard' AND pgl.personel = 'External Guard' AND pgl.external_guard = sgsa.external_guard)
+              )
+			WHERE sgsa.status = 'Active' AND pgl.captured_at >= %(hour_ago)s
+			""",
+			{"hour_ago": hour_ago},
+			as_dict=True,
+		)
+		covered = covered_shifts[0].cnt if covered_shifts else 0
+		patrol_coverage_pct = round((covered / active_shift_count) * 100, 1) if active_shift_count else None
+
+		visitor_daily_trend = frappe.db.sql(
+			"""
+			SELECT DATE(custom_check_in_time) as day, COUNT(*) as cnt
+			FROM `tabAppointment`
+			WHERE custom_check_in_time >= %(start)s
+			GROUP BY DATE(custom_check_in_time)
+			ORDER BY day
+			""",
+			{"start": frappe.utils.add_days(today_str, -7)},
+			as_dict=True,
+		)
+
+		near_miss_count_30d = frappe.db.count(
+			"Incident Report",
+			{"nature_of_incident": "Near Miss", "incident_datetime": [">=", window_start]},
+		)
+
+		return {
+			"window_days": 30,
+			"incidents_by_severity": incidents_by_severity,
+			"incidents_by_location": incidents_by_location,
+			"active_shift_count": active_shift_count,
+			"patrol_coverage_pct": patrol_coverage_pct,
+			"visitor_daily_trend": visitor_daily_trend,
+			"near_miss_count_30d": near_miss_count_30d,
+		}
+	except Exception as e:
+		frappe.log_error("security_analytics_summary", str(e))
 		return {"error": str(e)}
 
 

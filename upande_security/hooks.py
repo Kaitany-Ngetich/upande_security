@@ -179,6 +179,19 @@ doc_events = {
 		"validate": "upande_security.api.staff_vehicle_sticker_qr.auto_sync_status",
 	},
 	"Appointment": {
+		# Ported from DocType Event Server Scripts (api/appointment_events.py).
+		# Before Insert runs first; Frappe also runs before_save during an
+		# insert, so the party clear fires twice on a new doc — same as the
+		# Server Scripts did, and harmless since it only clears fields.
+		"before_insert": "upande_security.api.appointment_events.clear_appointment_party_before_insert",
+		"before_save": [
+			"upande_security.api.appointment_events.clear_appointment_party",
+			# appointment_host_wa_number is DELIBERATELY NOT WIRED. Its Server
+			# Script was disabled because it was stopping WhatsApp host alerts
+			# from going out. Uncommenting restores that breakage.
+			# "upande_security.api.appointment_events.appointment_host_wa_number",
+		],
+		"after_save": "upande_security.api.appointment_events.clear_stale_event_participant",
 		# Copies the farm's configured extra recipients (Security Ops
 		# Settings) on every newly registered appointment, alongside the
 		# host's own "Visitor at Reception" Notification.
@@ -313,6 +326,14 @@ scheduler_events = {
 # so a future deletion fails a test instead of a gate.
 # Keep this grouped by the section banners in api/security_api.py, in the
 # same order, so the two files read as one list.
+# Ported from the 'Host Sees Own Appointments' Permission Query Server
+# Script. Returns None (no restriction) for Secretary and for anyone
+# without a Host/Visit Approver role — Gate Guards and System Managers
+# included — which is the original's behaviour, not a change made here.
+permission_query_conditions = {
+	"Appointment": "upande_security.api.appointment_events.host_sees_own_appointments",
+}
+
 override_whitelisted_methods = {
 	# -- SECTION 1  session & lookups
 	"get_session_info": "upande_security.api.security_api.get_session_info",
@@ -324,6 +345,12 @@ override_whitelisted_methods = {
 	"get_security_ops_settings": "upande_security.api.security_api.get_security_ops_settings",
 	"update_security_ops_settings": "upande_security.api.security_api.update_security_ops_settings",
 	# -- SECTION 2  visitors
+	"getVisitorHistory": "upande_security.api.security_api.getVisitorHistory",
+	"getVisitorAppointment": "upande_security.api.security_api.getVisitorAppointment",
+	"confirm_host_received": "upande_security.api.security_api.confirm_host_received",
+	"confirm_host_received_by_appointment": "upande_security.api.security_api.confirm_host_received_by_appointment",
+	"confirm_host_received_by_number": "upande_security.api.security_api.confirm_host_received_by_number",
+	"check_out_taxi_driver": "upande_security.api.security_api.check_out_taxi_driver",
 	"approved_appointments": "upande_security.api.security_api.approved_appointments",
 	"search_visitor_appointment": "upande_security.api.security_api.search_visitor_appointment",
 	"get_appointment": "upande_security.api.security_api.get_appointment",
@@ -342,10 +369,16 @@ override_whitelisted_methods = {
 	"contractor_gate_checkin": "upande_security.api.security_api.contractor_gate_checkin",
 	"create_contractor_notify": "upande_security.api.security_api.create_contractor_notify",
 	# -- SECTION 4  badges
+	"get_visitor_badge_info": "upande_security.api.security_api.get_visitor_badge_info",
+	"get_visitor_badge_info_by_number": "upande_security.api.security_api.get_visitor_badge_info_by_number",
+	"get_supplier_badge_info": "upande_security.api.security_api.get_supplier_badge_info",
+	"issue_supplier_badge": "upande_security.api.security_api.issue_supplier_badge",
 	"list_supplier_badges": "upande_security.api.security_api.list_supplier_badges",
 	"issue_visitor_badge": "upande_security.api.security_api.issue_visitor_badge",
 	"update_supplier_badge": "upande_security.api.security_api.update_supplier_badge",
 	# -- SECTION 5  staff gate
+	"list_staff_movements": "upande_security.api.security_api.list_staff_movements",
+	"list_active_gates_for_farm": "upande_security.api.security_api.list_active_gates_for_farm",
 	"get_today_attendance": "upande_security.api.security_api.get_today_attendance",
 	"list_checked_in_staff": "upande_security.api.security_api.list_checked_in_staff",
 	"list_today_staff_attendance": "upande_security.api.security_api.list_today_staff_attendance",
@@ -353,9 +386,16 @@ override_whitelisted_methods = {
 	"submit_staff_attendance": "upande_security.api.security_api.submit_staff_attendance",
 	"staff_gate_checkout": "upande_security.api.security_api.staff_gate_checkout",
 	# -- SECTION 6  patrols
+	"get_patrol_report": "upande_security.api.security_api.get_patrol_report",
+	"list_patrol_reports": "upande_security.api.security_api.list_patrol_reports",
+	"my_patrol_reports": "upande_security.api.security_api.my_patrol_reports",
+	"createPatrolEntry": "upande_security.api.security_api.createPatrolEntry",
+	"fetchPatrolData": "upande_security.api.security_dashboard.fetchPatrolData",
 	"submit_patrol_points": "upande_security.api.security_api.submit_patrol_points",
 	"file_patrol_report": "upande_security.api.security_api.file_patrol_report",
 	# -- SECTION 7  incidents
+	"get_incident_report": "upande_security.api.security_api.get_incident_report",
+	"update_workplace_injury": "upande_security.api.security_api.update_workplace_injury",
 	"list_incident_categories": "upande_security.api.security_api.list_incident_categories",
 	"list_incidents": "upande_security.api.security_api.list_incidents",
 	"my_incidents": "upande_security.api.security_api.my_incidents",
@@ -370,11 +410,14 @@ override_whitelisted_methods = {
 	"scan_asset": "upande_security.api.security_api.scan_asset",
 	"report_asset_missing": "upande_security.api.security_api.report_asset_missing",
 	# -- SECTION 10  vehicle stickers
+	"submit_staff_sticker_request": "upande_security.api.security_api.submit_staff_sticker_request",
 	"list_sticker_requests": "upande_security.api.security_api.list_sticker_requests",
 	"reject_staff_sticker_request": "upande_security.api.security_api.reject_staff_sticker_request",
 	"approve_staff_sticker_request": "upande_security.api.security_api.approve_staff_sticker_request",
 	"search_staff_vehicle_sticker": "upande_security.api.security_api.search_staff_vehicle_sticker",
 	# -- SECTION 11  dashboards & reports
+	"security_analytics_summary": "upande_security.api.security_api.security_analytics_summary",
+	"fetchSecurityDasboardData": "upande_security.api.security_dashboard.fetchSecurityDasboardData",
 	"daily_summary": "upande_security.api.security_api.daily_summary",
 	"gate_activity": "upande_security.api.security_api.gate_activity",
 	"security_report": "upande_security.api.security_api.security_report",
