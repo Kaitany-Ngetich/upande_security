@@ -439,6 +439,13 @@ override_whitelisted_methods = {
 	"daily_summary": "upande_security.api.security_api.daily_summary",
 	"gate_activity": "upande_security.api.security_api.gate_activity",
 	"security_report": "upande_security.api.security_api.security_report",
+	"security_shift_assignment_tab_fetch": "upande_security.api.security_api.security_shift_assignment_tab_fetch",
+	# -- SECTION 12  legacy vehicle tickets (old handset builds only)
+	"search_vehicle_tickets": "upande_security.api.security_api.search_vehicle_tickets",
+	"get_vehicle_ticket": "upande_security.api.security_api.get_vehicle_ticket",
+	"mark_vehicle_task_completed": "upande_security.api.security_api.mark_vehicle_task_completed",
+	"create_gate_timesheet": "upande_security.api.security_api.create_gate_timesheet",
+	"submit_gate_timesheet": "upande_security.api.security_api.submit_gate_timesheet",
 }
 
 #
@@ -516,18 +523,6 @@ fixtures = [
         "dt": "Web Page",
         "filters": [
             ["route", "in", ["security-dashboard", "patrol-map", "visitor-received", "supplier-badge", "request-sticker", "shift-schedule"]],
-        ],
-    },
-    {
-        "dt": "Server Script",
-        "filters": [
-            ["module", "=", "Upande Security"],
-        ],
-    },
-    {
-        "dt": "Client Script",
-        "filters": [
-            ["module", "=", "Upande Security"],
         ],
     },
     {

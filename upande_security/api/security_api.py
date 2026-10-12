@@ -31,6 +31,7 @@ searching for the banner text jumps straight to it:
     SECTION 9   ASSETS
     SECTION 10  VEHICLE STICKERS
     SECTION 11  DASHBOARDS & REPORTS
+    SECTION 12  LEGACY VEHICLE TICKETS
 
 Within a section, functions are in the order the app uses them: read
 before write, search before act.
@@ -6338,6 +6339,253 @@ def update_shift_assignment(name=None, status=None, start_date=None, end_date=No
 		return {"error": str(e)}
 
 
+_SHIFT_FARM_PALETTE = [
+	{"bg": "#E6F1FB", "text": "#0C447C"},
+	{"bg": "#EAF3DE", "text": "#27500A"},
+	{"bg": "#FAEEDA", "text": "#633806"},
+	{"bg": "#EEEDFE", "text": "#3C3489"},
+	{"bg": "#FCEBEB", "text": "#791F1F"},
+	{"bg": "#CCFBF1", "text": "#115E59"},
+	{"bg": "#FFE4E6", "text": "#9F1239"},
+	{"bg": "#E0E7FF", "text": "#3730A3"},
+]
+
+
+def _shift_farm_colors(farm_names):
+	"""Stable colour per farm: sorted farm names, palette assigned in order."""
+	colors = {}
+	for i, name in enumerate(sorted({n for n in farm_names if n})):
+		colors[name] = _SHIFT_FARM_PALETTE[i % len(_SHIFT_FARM_PALETTE)]
+	return colors
+
+
+def _shift_guard_key(row):
+	if row.get("internal_guard"):
+		return "employee::" + row.get("internal_guard")
+	if row.get("external_guard"):
+		return "security_guard::" + row.get("external_guard")
+	return None
+
+
+def _shift_guard_name(row, employee_names, security_guard_names):
+	internal_guard = row.get("internal_guard")
+	if internal_guard:
+		return employee_names.get(internal_guard, internal_guard)
+	external_guard = row.get("external_guard")
+	if external_guard:
+		return security_guard_names.get(external_guard, external_guard)
+	return "Unassigned"
+
+
+@frappe.whitelist()
+def security_shift_assignment_tab_fetch(
+	period=None, from_date=None, to_date=None, farm=None, shift_type=None, status=None, company=None
+):
+	"""Shift assignments, today's Day/Night coverage per farm, and filter options.
+
+	READ-ONLY. Was the "Security Shift Assignment Tab Fetch (stopgap)" Server
+	Script; nothing in this repo calls it, which is exactly why it is kept
+	(see tests/test_bare_paths.py on "no in-repo caller").
+
+	period: "custom" (with from_date and to_date), "last_7_days",
+	"last_30_days", anything else = today only.
+
+	No explicit permission check: every query goes through frappe.get_list,
+	so the caller's own read permission applies and an unauthorised caller
+	gets empty results rather than real data.
+
+	Farm's display field is "farm" on upande_kaitet and "farm_name" on
+	upande_core, so Farm.name (which both autoname from it) is used instead.
+	The company filter only narrows farms where Farm actually has a company
+	field; elsewhere it is a no-op rather than a field-permission error.
+
+	Failure returns {"success": False, "error": ...}, never logs - as the
+	Server Script did.
+	"""
+	try:
+		today = frappe.utils.getdate()
+
+		if period == "custom" and from_date and to_date:
+			range_from = frappe.utils.getdate(from_date)
+			range_to = frappe.utils.getdate(to_date)
+		elif period == "last_7_days":
+			range_from = frappe.utils.add_days(today, -6)
+			range_to = today
+		elif period == "last_30_days":
+			range_from = frappe.utils.add_days(today, -29)
+			range_to = today
+		else:
+			range_from = today
+			range_to = today
+
+		doctype = "Security Guard Shift Assignment"
+
+		if company and frappe.get_meta("Farm").has_field("company"):
+			company_farm_filters = {"company": company}
+		else:
+			company_farm_filters = {}
+
+		company_farms_raw = frappe.get_list(
+			"Farm",
+			filters=company_farm_filters,
+			fields=["name"],
+			order_by="name asc",
+			page_length=500,
+		)
+		company_farms = [{"name": f["name"], "farm": f["name"]} for f in company_farms_raw]
+
+		if farm:
+			farm_scope = [farm]
+		elif company:
+			farm_scope = [f["name"] for f in company_farms] or ["__no_farm_matches__"]
+		else:
+			farm_scope = None
+
+		range_filters = [
+			["start_date", "<=", str(range_to) + " 23:59:59"],
+			["end_date", ">=", str(range_from) + " 00:00:00"],
+		]
+		if farm_scope is not None:
+			range_filters.append(["farm", "in", farm_scope])
+		if shift_type:
+			range_filters.append(["shift_type", "=", shift_type])
+		if status:
+			range_filters.append(["status", "=", status])
+
+		range_rows = frappe.get_list(
+			doctype,
+			filters=range_filters,
+			fields=[
+				"name", "security_guard", "internal_guard", "external_guard",
+				"farm", "block", "shift_type", "start_date", "end_date", "status",
+				"assigned_by", "remarks", "modified",
+			],
+			order_by="start_date desc",
+			page_length=1000,
+		)
+
+		all_rows_filters = {"status": "Active"}
+		if farm_scope is not None:
+			all_rows_filters["farm"] = ["in", farm_scope]
+
+		all_rows = frappe.get_list(
+			doctype,
+			filters=all_rows_filters,
+			fields=[
+				"name", "security_guard", "internal_guard", "external_guard",
+				"farm", "shift_type", "start_date", "end_date",
+			],
+			page_length=5000,
+		)
+
+		employee_ids = {r.get("internal_guard") for r in range_rows + all_rows if r.get("internal_guard")}
+		security_guard_ids = {r.get("external_guard") for r in range_rows + all_rows if r.get("external_guard")}
+
+		employee_names = {}
+		for e in frappe.get_all(
+			"Employee", filters={"name": ["in", list(employee_ids)]}, fields=["name", "employee_name"]
+		):
+			employee_names[e.name] = e.employee_name
+
+		security_guard_names = {}
+		for g in frappe.get_all(
+			"Security Guard", filters={"name": ["in", list(security_guard_ids)]}, fields=["name", "full_name"]
+		):
+			security_guard_names[g.name] = g.full_name or g.name
+
+		if farm:
+			matching = [f for f in company_farms if f["name"] == farm]
+			if matching:
+				board_farms = matching
+			else:
+				fallback_raw = frappe.get_list("Farm", filters={"name": farm}, fields=["name"])
+				board_farms = [{"name": f["name"], "farm": f["name"]} for f in fallback_raw]
+		else:
+			board_farms = company_farms
+
+		farm_colors = _shift_farm_colors([a.get("farm") for a in range_rows])
+
+		rows = []
+		for r in range_rows:
+			farm_name = r.get("farm") or ""
+			start_date = r.get("start_date")
+			end_date = r.get("end_date")
+			rows.append({
+				"name": r["name"],
+				"guard_key": _shift_guard_key(r),
+				"guard_name": _shift_guard_name(r, employee_names, security_guard_names),
+				"guard_type": r.get("security_guard"),
+				"farm": farm_name,
+				"farm_color": farm_colors.get(farm_name) or {"bg": "#F1EFE8", "text": "#444441"},
+				"block": r.get("block") or "",
+				"shift_type": r.get("shift_type"),
+				"start_date": str(start_date) if start_date else None,
+				"end_date": str(end_date) if end_date else None,
+				"status": r.get("status"),
+				"remarks": r.get("remarks") or "",
+			})
+
+		coverage = {}
+		for f in board_farms:
+			coverage[f["farm"]] = {"Day": None, "Night": None}
+
+		for r in all_rows:
+			start = frappe.utils.getdate(r.get("start_date")) if r.get("start_date") else None
+			end = frappe.utils.getdate(r.get("end_date")) if r.get("end_date") else None
+			if not (start and start <= today and (not end or end >= today)):
+				continue
+			slot = coverage.setdefault(r.get("farm"), {"Day": None, "Night": None})
+			slot[r.get("shift_type")] = _shift_guard_name(r, employee_names, security_guard_names)
+
+		coverage_board = [
+			{"farm": farm_name, "day_guard": slots.get("Day"), "night_guard": slots.get("Night")}
+			for farm_name, slots in coverage.items()
+		]
+		coverage_board.sort(key=lambda x: x["farm"] or "")
+
+		filled_slots = sum(bool(c["day_guard"]) + bool(c["night_guard"]) for c in coverage_board)
+		total_slots = len(coverage_board) * 2
+
+		guard_farms = {}
+		for r in all_rows:
+			key = _shift_guard_key(r)
+			if key and r.get("farm"):
+				guard_farms.setdefault(key, set()).add(r.get("farm"))
+		guards_on_rotation = sum(1 for farms in guard_farms.values() if len(farms) > 1)
+
+		day_count = sum(1 for r in rows if r["shift_type"] == "Day" and r["status"] == "Active")
+		night_count = sum(1 for r in rows if r["shift_type"] == "Night" and r["status"] == "Active")
+		farms_covered = sum(1 for c in coverage_board if c["day_guard"] or c["night_guard"])
+
+		companies = frappe.get_list("Company", fields=["name"], order_by="name asc", page_length=200)
+
+		return {
+			"success": True,
+			"range_from": str(range_from),
+			"range_to": str(range_to),
+			"summary": {
+				"total_assignments": len(rows),
+				"day_shift_count": day_count,
+				"night_shift_count": night_count,
+				"farms_covered": farms_covered,
+				"farms_total": len(coverage_board),
+				"unfilled_slots": total_slots - filled_slots,
+				"guards_on_rotation": guards_on_rotation,
+			},
+			"coverage_board": coverage_board,
+			"rows": rows,
+			"farm_colors": farm_colors,
+			"filter_options": {
+				"farms": [f["farm"] for f in company_farms],
+				"shift_types": ["Day", "Night"],
+				"statuses": ["Active", "Cancelled"],
+				"companies": [c.name for c in companies],
+			},
+		}
+	except Exception as e:
+		return {"success": False, "error": str(e)}
+
+
 # =============================================================================
 # SECTION 9   ASSETS
 # =============================================================================
@@ -7687,3 +7935,333 @@ def security_analytics_summary():
 		return {"error": str(e)}
 
 
+
+
+# =============================================================================
+# SECTION 12   LEGACY VEHICLE TICKETS
+# =============================================================================
+#
+# The old Tractor Daily Task gate flow. api/gate_vehicle.py replaced it
+# (Gate Vehicle Verification), and its docstring explains why this flow never
+# worked end to end. It is kept only because installed handset builds still
+# call these bare paths - search_vehicle_tickets was seen in the field on
+# 2026-10-10. Ported as-is from their Server Scripts; do not extend. Delete
+# once no build in the field calls them.
+
+
+def _legacy_body():
+	"""JSON body if there is one, else form_dict - as the Server Scripts read it."""
+	data = {}
+	try:
+		data = frappe.request.get_json(silent=True) or {}
+	except Exception:
+		data = {}
+	if not data:
+		data = dict(frappe.form_dict or {})
+	return data
+
+
+@frappe.whitelist()
+def search_vehicle_tickets():
+	"""Up to 20 Tractor Daily Tasks whose name or vehicle matches `query`. READ-ONLY.
+
+	Blank query returns [] (a list, not an error).
+	"""
+	try:
+		query = _s(_sp_lookup(_legacy_body(), "query"))
+		if not query:
+			return []
+
+		like = "%" + query + "%"
+		rows = frappe.db.sql(
+			"""
+			SELECT name, motor_vehicle, farm, operator,
+			       company, date, erp_task, timesheet
+			FROM `tabTractor Daily Task`
+			WHERE name LIKE %s OR motor_vehicle LIKE %s
+			ORDER BY modified DESC
+			LIMIT 20
+			""",
+			(like, like),
+			as_dict=True,
+		)
+		return [
+			{
+				"name": r.name,
+				"motor_vehicle": r.motor_vehicle or "",
+				"farm": r.farm or "",
+				"operator": r.operator or "",
+				"custom_employee": r.operator or "",
+				"company": r.company or "",
+				"date": str(r.date) if r.date else "",
+				"erp_task": r.erp_task or "",
+				"timesheet": r.timesheet or "",
+				"workflow_state": "",
+			}
+			for r in rows
+		]
+	except Exception as e:
+		frappe.log_error("search_vehicle_tickets", str(e))
+		return {"error": str(e)}
+
+
+@frappe.whitelist()
+def get_vehicle_ticket():
+	"""One Tractor Daily Task (`name`) with its task rows and operator names. READ-ONLY."""
+	try:
+		name = _s(_sp_lookup(_legacy_body(), "name"))
+		if not name:
+			return {"error": "name is required"}
+
+		row = frappe.db.get_value(
+			"Tractor Daily Task",
+			name,
+			["name", "motor_vehicle", "farm", "operator", "company", "date", "erp_task", "timesheet", "location"],
+			as_dict=True,
+		)
+		if not row:
+			return {"error": "Ticket " + name + " not found"}
+
+		tasks = frappe.get_all(
+			"Timesheet Detail",
+			filters={"parent": name},
+			fields=[
+				"name", "activity_type", "description", "from_time", "to_time",
+				"hours", "completed", "task", "is_billable",
+			],
+			order_by="idx asc",
+		)
+
+		operator_name = ""
+		employee_name = ""
+		if row.operator:
+			operator_name = frappe.db.get_value("Driver", row.operator, "full_name") or ""
+			employee_name = (
+				frappe.db.get_value(
+					"Employee",
+					frappe.db.get_value("Driver", row.operator, "employee"),
+					"employee_name",
+				)
+				or ""
+			)
+
+		return {
+			"name": row.name,
+			"motor_vehicle": row.motor_vehicle or "",
+			"farm": row.farm or "",
+			"operator": row.operator or "",
+			"operator_name": operator_name,
+			"custom_employee": row.operator or "",
+			"employee_name": employee_name,
+			"company": row.company or "",
+			"date": str(row.date) if row.date else "",
+			"erp_task": row.erp_task or "",
+			"timesheet": row.timesheet or "",
+			"workflow_state": "",
+			"location": row.location or "",
+			"custom_qr_code": "",
+			"task": [
+				{
+					"name": t.name,
+					"activity_type": t.activity_type or "",
+					"description": t.description or "",
+					"from_time": str(t.from_time) if t.from_time else "",
+					"to_time": str(t.to_time) if t.to_time else "",
+					"hours": float(t.hours or 0),
+					"completed": int(t.completed or 0),
+					"task": t.task or "",
+					"is_billable": int(t.is_billable or 0),
+				}
+				for t in tasks
+			],
+		}
+	except Exception as e:
+		frappe.log_error("get_vehicle_ticket", str(e))
+		return {"error": str(e)}
+
+
+@frappe.whitelist()
+def mark_vehicle_task_completed():
+	"""Set completed=1 on a ticket's task row (`task_row`, else its first row).
+
+	WRITES Timesheet Detail.completed.
+	"""
+	try:
+		data = _legacy_body()
+		ticket = _s(_sp_lookup(data, "ticket"))
+		task_row = _s(_sp_lookup(data, "task_row"))
+
+		if not ticket:
+			return {"error": "ticket is required"}
+		if not frappe.db.get_value("Tractor Daily Task", ticket, "name"):
+			return {"error": "Ticket " + ticket + " not found"}
+
+		if task_row:
+			if not frappe.db.get_value("Timesheet Detail", {"name": task_row, "parent": ticket}, "name"):
+				return {"error": "Task row " + task_row + " not on ticket"}
+			frappe.db.set_value("Timesheet Detail", task_row, "completed", 1)
+			frappe.db.commit()
+			return {"ticket": ticket, "task_row": task_row, "completed": 1}
+
+		rows = frappe.get_all(
+			"Timesheet Detail",
+			filters={"parent": ticket},
+			fields=["name"],
+			order_by="idx asc",
+			limit_page_length=1,
+		)
+		if not rows:
+			return {"ticket": ticket, "task_row": None, "completed": 0, "message": "no task rows on ticket"}
+
+		frappe.db.set_value("Timesheet Detail", rows[0].name, "completed", 1)
+		frappe.db.commit()
+		return {"ticket": ticket, "task_row": rows[0].name, "completed": 1}
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error("mark_vehicle_task_completed", str(e))
+		return {"error": str(e)}
+
+
+@frappe.whitelist()
+def create_gate_timesheet():
+	"""Open a draft Timesheet for a ticket's vehicle leaving the gate.
+
+	WRITES Timesheet (inserted with ignore_permissions). One time log from
+	`entry_time` (default now) with a provisional one-hour end; activity,
+	description and task come from the ticket's first task row.
+	"""
+	try:
+		data = _legacy_body()
+		ticket = _s(_sp_lookup(data, "ticket"))
+		entry_time = _s(_sp_lookup(data, "entry_time"))
+
+		if not ticket:
+			return {"error": "ticket is required"}
+		if not entry_time:
+			entry_time = str(frappe.utils.now_datetime())
+
+		ticket_row = frappe.db.get_value(
+			"Tractor Daily Task",
+			ticket,
+			["name", "motor_vehicle", "operator", "company", "farm", "erp_task"],
+			as_dict=True,
+		)
+		if not ticket_row:
+			return {"error": "Ticket " + ticket + " not found"}
+
+		first_task = frappe.db.sql(
+			"""
+			SELECT activity_type, description, task
+			FROM `tabTimesheet Detail`
+			WHERE parent = %s
+			ORDER BY idx ASC
+			LIMIT 1
+			""",
+			(ticket,),
+			as_dict=True,
+		)
+		activity = "Transport"
+		description = ""
+		task_link = ticket_row.erp_task or ""
+		if first_task:
+			ft = first_task[0]
+			if ft.activity_type:
+				activity = ft.activity_type
+			if ft.description:
+				description = ft.description
+			if ft.task and not task_link:
+				task_link = ft.task
+
+		ts = frappe.new_doc("Timesheet")
+		ts.naming_series = "TS-.YYYY.-"
+		if ticket_row.company:
+			ts.company = ticket_row.company
+		if ticket_row.operator:
+			ts.employee = frappe.db.get_value("Driver", ticket_row.operator, "employee")
+		ts.custom_asset = ticket_row.motor_vehicle
+		ts.start_date = frappe.utils.nowdate()
+		ts.end_date = frappe.utils.nowdate()
+
+		provisional_end = frappe.utils.add_to_date(entry_time, hours=1, as_datetime=True)
+		ts.append(
+			"time_logs",
+			{
+				"activity_type": activity,
+				"from_time": entry_time,
+				"to_time": str(provisional_end),
+				"hours": 1,
+				"expected_hours": 1,
+				"description": description,
+				"task": task_link,
+				"is_billable": 1,
+				"completed": 0,
+			},
+		)
+		ts.insert(ignore_permissions=True)
+		frappe.db.commit()
+		return {
+			"name": ts.name,
+			"ticket": ticket,
+			"entry_time": entry_time,
+			"activity_type": activity,
+			"description": description,
+		}
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error("create_gate_timesheet", str(e))
+		return {"error": str(e)}
+
+
+@frappe.whitelist()
+def submit_gate_timesheet():
+	"""Close and submit the Timesheet create_gate_timesheet opened.
+
+	WRITES Timesheet: first time log gets to_time = `exit_time`, real hours
+	(minimum 0.01) and `completion_note`, then the doc is submitted. An
+	already-submitted Timesheet is reported as success, not an error.
+	"""
+	try:
+		data = _legacy_body()
+		timesheet = _s(_sp_lookup(data, "timesheet"))
+		exit_time = _s(_sp_lookup(data, "exit_time"))
+		completion_note = _s(_sp_lookup(data, "completion_note"))
+
+		if not timesheet:
+			return {"error": "timesheet is required"}
+		if not exit_time:
+			return {"error": "exit_time is required"}
+		if not completion_note:
+			return {"error": "completion_note is required"}
+
+		existing = frappe.db.get_value("Timesheet", timesheet, ["name", "docstatus"], as_dict=True)
+		if not existing:
+			return {"error": "Timesheet " + timesheet + " not found"}
+		if int(existing.docstatus or 0) == 1:
+			return {"name": timesheet, "docstatus": 1, "message": "already submitted"}
+
+		doc = frappe.get_doc("Timesheet", timesheet)
+		if not doc.time_logs:
+			return {"error": "Timesheet has no time_logs"}
+		row = doc.time_logs[0]
+
+		from_sec = frappe.utils.time_diff_in_seconds(exit_time, str(row.from_time))
+		hours = max(float(from_sec or 0) / 3600.0, 0.01)
+		row.to_time = exit_time
+		row.hours = round(hours, 4)
+		row.expected_hours = round(hours, 4)
+		row.description = completion_note
+		row.completed = 1
+		doc.save(ignore_permissions=True)
+		doc.submit()
+		frappe.db.commit()
+		return {
+			"name": doc.name,
+			"docstatus": doc.docstatus,
+			"exit_time": exit_time,
+			"hours": round(hours, 4),
+			"completion_note": completion_note,
+		}
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error("submit_gate_timesheet", str(e))
+		return {"error": str(e)}

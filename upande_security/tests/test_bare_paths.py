@@ -118,6 +118,13 @@ OTHER_BARE_PATHS = (
 	"security_analytics_summary",
 	"submit_staff_sticker_request",
 	"update_workplace_injury",
+	"security_shift_assignment_tab_fetch",
+	# Legacy Tractor Daily Task flow, still called by older handset builds.
+	"search_vehicle_tickets",
+	"get_vehicle_ticket",
+	"mark_vehicle_task_completed",
+	"create_gate_timesheet",
+	"submit_gate_timesheet",
 )
 
 #: Called by `api.ts` (getContractorPersonnelHistory) but implemented nowhere -

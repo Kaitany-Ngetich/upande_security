@@ -93,9 +93,9 @@ def appointment_host_wa_number(doc, method=None):
 
 	DISABLED by NOT being wired in hooks.py (hook entry left commented out),
 	rather than deleted. It was disabled=1 on the local site because it was
-	interfering with WhatsApp notifications; it is still ENABLED on production,
-	so the Server Script there must be disabled separately when this ships, and
-	this function kept so it can be re-enabled by uncommenting one hook line.
+	interfering with WhatsApp notifications. Sites that still had the Server
+	Script enabled lose it via patches/delete_appointment_host_wa_number_script;
+	this function is kept so it can be re-enabled by uncommenting one hook line.
 
 	Original reasoning: custom_host_whatsapp_no is fetch_from'd off the host
 	Employee's cell_number, usually stored in local Kenyan format
