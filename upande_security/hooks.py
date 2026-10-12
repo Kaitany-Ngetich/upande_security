@@ -286,27 +286,31 @@ scheduler_events = {
 #
 # The gate app posts to short paths like `/api/method/get_employee`, which
 # Frappe resolves only via an API-type Server Script. These endpoints have
-# moved into app code (api/lookups.py); this map is what keeps the old URLs
-# working for every APK already installed at a gate, with no rebuild and no
-# OTA — `frappe.handler.execute_cmd` consults it before the Server Script
-# map and before `get_attr`:
+# moved into app code (api/security_api.py); this map is what keeps the old
+# URLs working for every APK already installed at a gate, with no rebuild
+# and no OTA — `frappe.handler.execute_cmd` consults it before the Server
+# Script map and before `get_attr`:
 #
 #     def execute_cmd(cmd, from_async=False):
 #         cmd = frappe.override_whitelisted_method(cmd)   # <- first
 #         server_script = get_server_script_map().get("_api", {}).get(cmd)
 #
-# The alias therefore WINS over the Server Script of the same name, which is
-# why those records are deliberately left in place for now: deleting one
-# line here rolls that single endpoint back to its old implementation on the
-# next reload, with no deploy. Dropping the records is a separate, later
-# decision.
+# EVERY LINE IN THIS MAP IS LOAD-BEARING. The Server Script records for
+# these endpoints have been deleted, so an alias is now the ONLY thing
+# making its bare path resolve. Removing a line here does not roll an
+# endpoint back to its old implementation — there is no old implementation
+# left — it 404s that path for every handset in the field.
 #
-# Anything added here MUST stay once an endpoint's Server Script is deleted.
-# A build in the field can outlive several releases, and these paths are its
-# only way in — upande_scp dropped a batch of scripts after an audit found
-# "no in-repo caller" (true of the repo, false of the handset app) and every
-# handset lost its spray list. test_bare_paths.py pins this map so a future
-# deletion fails a test instead of a gate.
+# (During the migration itself the records are kept until an endpoint's
+# port has been diffed against them; while both exist the alias wins, and
+# removing the line does fall back. That only holds BEFORE the record is
+# dropped, which for everything listed below has already happened.)
+#
+# A build in the field can outlive several releases, and these paths are
+# its only way in — upande_scp dropped a batch of scripts after an audit
+# found "no in-repo caller" (true of the repo, false of the handset app)
+# and every handset lost its spray list. test_bare_paths.py pins this map
+# so a future deletion fails a test instead of a gate.
 # Keep this grouped by the section banners in api/security_api.py, in the
 # same order, so the two files read as one list.
 override_whitelisted_methods = {
