@@ -1134,15 +1134,21 @@ def contractor_gate_checkout():
 	try:
 		now_str = frappe.utils.now()
 
-		# Try the workflow action but do not fail if the current state does
-		# not allow it - the fields below are the source of truth.
-		try:
-			from frappe.model.workflow import apply_workflow
-
-			doc = frappe.get_doc("Appointment", appt_name)
-			apply_workflow(doc, "Confirm Check Out")
-		except Exception:
-			pass
+		# The Server Script had a `from frappe.model.workflow import
+		# apply_workflow` here, wrapped in try/except Exception: pass, to
+		# "also" transition the workflow. That branch was DEAD: safe_exec
+		# forbids every import ("ImportError: __import__ not found"), so the
+		# import raised on the first line and the except swallowed it on
+		# every single call. No contractor checkout has ever transitioned a
+		# workflow, only written the fields below.
+		#
+		# Porting it literally would have started running it for real,
+		# because a plain app module CAN import - silently adding a workflow
+		# transition and a doc.save() (with every Appointment on_update hook
+		# that fires behind it) to an endpoint that never did either. It is
+		# left out so this keeps doing exactly what production does today.
+		# Adding the transition back is a deliberate feature change, not a
+		# migration detail.
 
 		# Always write checkout fields via set_value (bypasses link validation)
 		frappe.db.set_value(
