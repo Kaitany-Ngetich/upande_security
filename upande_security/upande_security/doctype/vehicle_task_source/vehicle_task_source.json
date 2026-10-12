@@ -18,18 +18,20 @@
  ],
  "fields": [
   {
+   "description": "Start typing to search DocTypes.",
    "fieldname": "source_doctype",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Source DocType",
-   "reqd": 1,
-   "in_list_view": 1
+   "options": "DocType",
+   "reqd": 1
   },
   {
    "default": "1",
    "fieldname": "enabled",
    "fieldtype": "Check",
-   "label": "Enabled",
-   "in_list_view": 1
+   "in_list_view": 1,
+   "label": "Enabled"
   },
   {
    "fieldname": "column_break_1",
@@ -37,19 +39,19 @@
   },
   {
    "fieldname": "reference_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
+   "in_list_view": 1,
    "label": "Reference Field",
-   "reqd": 1,
-   "in_list_view": 1
+   "reqd": 1
   },
   {
    "fieldname": "vehicle_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Vehicle Field"
   },
   {
    "fieldname": "description_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Description Field"
   },
   {
@@ -58,12 +60,12 @@
   },
   {
    "fieldname": "farm_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Farm Field"
   },
   {
    "fieldname": "status_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Status Field"
   },
   {

@@ -29,18 +29,20 @@
  ],
  "fields": [
   {
+   "description": "Start typing to search DocTypes.",
    "fieldname": "source_doctype",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Source DocType",
-   "reqd": 1,
-   "in_list_view": 1
+   "options": "DocType",
+   "reqd": 1
   },
   {
    "default": "1",
    "fieldname": "enabled",
    "fieldtype": "Check",
-   "label": "Enabled",
-   "in_list_view": 1
+   "in_list_view": 1,
+   "label": "Enabled"
   },
   {
    "fieldname": "column_break_1",
@@ -49,18 +51,18 @@
   {
    "default": "name",
    "fieldname": "reference_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Reference Field",
    "reqd": 1
   },
   {
    "fieldname": "vehicle_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Vehicle Field"
   },
   {
    "fieldname": "driver_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Driver Field"
   },
   {
@@ -69,23 +71,23 @@
   },
   {
    "fieldname": "date_field",
-   "fieldtype": "Data",
-   "label": "Date Field",
-   "in_list_view": 1
+   "fieldtype": "Autocomplete",
+   "in_list_view": 1,
+   "label": "Date Field"
   },
   {
    "fieldname": "time_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Time Field"
   },
   {
    "fieldname": "farm_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Farm Field"
   },
   {
    "fieldname": "items_summary_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Items Summary Field"
   },
   {
@@ -94,7 +96,7 @@
   },
   {
    "fieldname": "status_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Status Field"
   },
   {
@@ -109,17 +111,17 @@
   },
   {
    "fieldname": "items_child_table",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Items Child Table Fieldname"
   },
   {
    "fieldname": "item_code_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Item Code Field"
   },
   {
    "fieldname": "item_name_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Item Name Field"
   },
   {
@@ -128,12 +130,12 @@
   },
   {
    "fieldname": "item_qty_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Item Qty Field"
   },
   {
    "fieldname": "item_uom_field",
-   "fieldtype": "Data",
+   "fieldtype": "Autocomplete",
    "label": "Item UOM Field"
   }
  ],

@@ -292,6 +292,24 @@ scheduler_events = {
 # 	"Task": "upande_security.custom.task.CustomTaskMixin"
 # }
 
+# Form scripts for doctypes this app does NOT own, migrated out of Client
+# Script records. `doctype_js` MERGES with the doctype's own controller JS
+# rather than replacing it, so ERPNext's Delivery Note behaviour and CRM's
+# Appointment behaviour stay intact.
+#
+# Scripts for doctypes this app DOES own (Incident Report, Patrol Report)
+# need no entry here - Frappe loads a doctype's own .js automatically.
+#
+# There is no alias/shadow layer for client scripts, unlike the Server
+# Script migration: a leftover Client Script record would load ALONGSIDE
+# these files and register its handlers a second time, so buttons would
+# appear twice. The records must be deleted, not merely unshipped.
+doctype_js = {
+	"Appointment": "public/js/appointment.js",
+	"Delivery Note": "public/js/delivery_note.js",
+	"Staff Vehicle Sticker Request": "public/js/staff_vehicle_sticker_request.js",
+}
+
 # Overriding Methods
 # ------------------------------
 
