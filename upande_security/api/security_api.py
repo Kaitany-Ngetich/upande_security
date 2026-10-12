@@ -2339,12 +2339,27 @@ def contractor_gate_checkin(
 				frappe.db.set_value('Appointment', appt_name, 'custom_contractor_ref', contractor_ref, update_modified=False)
 
 		else:
-			try:
-				from frappe.model.workflow import apply_workflow
-				doc = frappe.get_doc('Appointment', appt_name)
-				apply_workflow(doc, 'Confirm Check In')
-			except Exception:
-				pass
+			# The Server Script had `from frappe.model.workflow import
+			# apply_workflow` here in try/except Exception: pass. It was DEAD
+			# — safe_exec forbids every import ("ImportError: __import__ not
+			# found"), so the import raised on its first line and the except
+			# swallowed it on every call. No contractor check-in has ever
+			# transitioned a workflow; only the custom_* fields below were
+			# written.
+			#
+			# Porting it literally would have started running it for real,
+			# because a plain module CAN import. "Confirm Check In" is a real
+			# transition, so apply_workflow would call doc.save(), move
+			# workflow_state to "Visitor Checked In", and fire every
+			# Appointment on_update hook behind it — including
+			# visitor_sms.on_appointment_update, which texts the contractor
+			# an OTP. Whether it fired would depend on the guard's role and
+			# the appointment's state, and a failed attempt would leave
+			# partial writes for the db.commit() below to commit.
+			#
+			# Same removal as contractor_gate_checkout (b371f5b). Adding the
+			# transition back is a deliberate feature change, not a
+			# migration detail.
 
 			updates = {
 				'custom_visitor_type': 'Contractor',
@@ -2534,22 +2549,27 @@ def create_contractor_notify(
 				pass
 		frappe.db.set_value("Appointment", appt_name, updates, update_modified=False)
 
-		try:
-			doc2 = frappe.get_doc("Appointment", appt_name)
-			doc2.flags.ignore_mandatory = True
-			apply_workflow(doc2, "Notify Host")
-			doc2.save(ignore_permissions=True)
-			frappe.db.commit()
-		except Exception:
-			frappe.db.set_value(
-				"Appointment",
-				appt_name,
-				{
-					"workflow_state": "Pending Host Review",
-					"custom_reporting_status": "Pending Host Review",
-				},
-			)
-			frappe.db.commit()
+		# The Server Script wrapped `apply_workflow(doc2, "Notify Host")` in
+		# try/except with this set_value as the fallback. The import it
+		# needed is forbidden in safe_exec, so the call always raised and the
+		# fallback is what has always run.
+		#
+		# The port carried the call across without an import, so it raised
+		# NameError instead and the fallback still ran — accidentally
+		# correct, but a trap: anyone "fixing" the undefined name, or adding
+		# a module-level import, would silently make a workflow transition
+		# and a doc2.save() live, firing every Appointment on_update hook.
+		# The direct write is now the only path, matching
+		# create_walk_in_notify and notify_host.
+		frappe.db.set_value(
+			"Appointment",
+			appt_name,
+			{
+				"workflow_state": "Pending Host Review",
+				"custom_reporting_status": "Pending Host Review",
+			},
+		)
+		frappe.db.commit()
 
 		host_user_id = host_rec.user_id or ""
 		host_name = host_rec.employee_name or host
