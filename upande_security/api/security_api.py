@@ -2237,9 +2237,13 @@ def contractor_gate_checkin(
 
 	New Appointments are inserted with validation/links/mandatory/email all
 	bypassed, then the custom_* fields are written with db.set_value (they are not
-	reliably writable through insert). For an existing Appointment the
-	'Confirm Check In' workflow transition is attempted and ANY failure is
-	deliberately swallowed, then the fields are stamped regardless.
+	reliably writable through insert). For an existing Appointment ONLY the
+	fields are stamped - there is NO workflow transition. The Server Script
+	appeared to attempt one, but that block could never run (see the comment
+	in the else branch), so stamping is all this has ever done. Do not
+	"restore" the transition on the strength of the old code: it would add
+	a doc.save() and every Appointment on_update hook, including the OTP
+	text, to an endpoint that never fired them.
 
 	Values are used with .strip() exactly as before, so a non-string (e.g. numeric
 	phone) raises AttributeError, as it did in the sandbox.
@@ -2412,18 +2416,23 @@ def create_contractor_notify(
 ):
 	"""Register a contractor arriving at the gate and notify the host + secretaries.
 
-	WRITES Appointment (new doc, then a workflow transition), Error Log (a
-	debug entry on every call), and queues/sends Email. Always creates a new
+	WRITES Appointment (insert, then field writes), Error Log (a debug entry
+	on every call), and queues/sends Email. Always creates a new
 	Appointment; there is no duplicate check.
 
 	Sequence matters: the Appointment is inserted with validation, link and
 	mandatory checks bypassed (the gate must never be blocked from logging a
 	contractor), then the contractor-specific fields are written with
 	set_value(update_modified=False) because they are set after insert, then
-	the "Notify Host" workflow action is applied. If the workflow action
-	fails for any reason, workflow_state and custom_reporting_status are
-	forced to "Pending Host Review" directly -- and the response reports
-	"Pending Host Review" regardless of which path ran.
+	workflow_state and custom_reporting_status are set directly to
+	"Pending Host Review".
+
+	There is NO workflow transition. The Server Script wrapped
+	apply_workflow(doc2, "Notify Host") in a try with this direct write as
+	its fallback, but the import it needed is forbidden in safe_exec, so the
+	call always raised and the fallback is all that has ever run. Do not
+	"restore" the transition: it would add a doc2.save() and every
+	Appointment on_update hook to an endpoint that never fired them.
 
 	`personnel` is a JSON array of {full_name, id_number, is_team_leader}.
 	Malformed or missing input just yields no personnel rows. Note the
