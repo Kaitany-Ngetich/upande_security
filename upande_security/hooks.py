@@ -320,19 +320,26 @@ override_whitelisted_methods = {
 	"search_employees": "upande_security.api.security_api.search_employees",
 	"search_staff": "upande_security.api.security_api.search_staff",
 	"search_customers": "upande_security.api.security_api.search_customers",
+	"get_security_head_contact": "upande_security.api.security_api.get_security_head_contact",
 	"get_security_ops_settings": "upande_security.api.security_api.get_security_ops_settings",
 	# -- SECTION 2  visitors
+	"approved_appointments": "upande_security.api.security_api.approved_appointments",
+	"search_visitor_appointment": "upande_security.api.security_api.search_visitor_appointment",
 	"get_appointment": "upande_security.api.security_api.get_appointment",
 	"get_visitor_history": "upande_security.api.security_api.get_visitor_history",
 	"pending_approvals": "upande_security.api.security_api.pending_approvals",
 	# -- SECTION 3  contractors
+	"getContractorContract": "upande_security.api.security_api.getContractorContract",
 	"contractor_gate_checkout": "upande_security.api.security_api.contractor_gate_checkout",
 	# -- SECTION 4  badges
 	"list_supplier_badges": "upande_security.api.security_api.list_supplier_badges",
 	# -- SECTION 5  staff gate
+	"get_today_attendance": "upande_security.api.security_api.get_today_attendance",
+	"list_checked_in_staff": "upande_security.api.security_api.list_checked_in_staff",
 	"list_today_staff_attendance": "upande_security.api.security_api.list_today_staff_attendance",
 	# -- SECTION 7  incidents
 	"list_incident_categories": "upande_security.api.security_api.list_incident_categories",
+	"list_incidents": "upande_security.api.security_api.list_incidents",
 	"my_incidents": "upande_security.api.security_api.my_incidents",
 	# -- SECTION 8  shifts
 	"check_in_shift": "upande_security.api.security_api.check_in_shift",
