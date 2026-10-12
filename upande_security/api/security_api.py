@@ -381,9 +381,214 @@ def search_customers(query=None):
 		return {"error": str(e)}
 
 
+@frappe.whitelist()
+def get_security_ops_settings():
+	"""The Security Ops Settings singleton, for Command Center's mobile
+	Settings screen.
+
+	Deliberately narrow: only the four scalar thresholds are exposed.
+	fallback_contacts / notification_rules / farm_gates / dispatch_sources
+	are Desk-only for now (no mobile screen needs them) and are left out.
+
+	Access is strictly Security Head / System Manager by role, with no
+	allowlist - matching get_session_info's has_command_center_access
+	exactly, since visibility and every write it allows are one gate, not
+	two that can drift apart.
+	"""
+	try:
+		role_rows = frappe.db.sql(
+			"SELECT role FROM `tabHas Role` WHERE parent = %s", (frappe.session.user,)
+		)
+		roles = [row[0] for row in role_rows if row and row[0]]
+
+		if not ("Security Head" in roles or "System Manager" in roles):
+			return {"error": "You do not have access to Security Ops Settings."}
+
+		settings = (
+			frappe.db.get_value(
+				"Security Ops Settings",
+				"Security Ops Settings",
+				[
+					"nearby_guard_alert_radius_m",
+					"nearby_alert_stale_minutes",
+					"missed_checkin_minutes",
+					"escalation_minutes",
+				],
+				as_dict=True,
+			)
+			or {}
+		)
+
+		# `or 0` on every read: a blank threshold means "unset", and the app
+		# expects a number, not null.
+		return {
+			"nearby_guard_alert_radius_m": settings.get("nearby_guard_alert_radius_m") or 0,
+			"nearby_alert_stale_minutes": settings.get("nearby_alert_stale_minutes") or 0,
+			"missed_checkin_minutes": settings.get("missed_checkin_minutes") or 0,
+			"escalation_minutes": settings.get("escalation_minutes") or 0,
+		}
+	except Exception as e:
+		frappe.log_error("get_security_ops_settings", str(e))
+		return {"error": str(e)}
+
+
 # =============================================================================
 # SECTION 2   VISITORS
 # =============================================================================
+
+
+@frappe.whitelist()
+def get_appointment(name=None):
+	"""One appointment, flattened, with the host's name and badge details
+	joined in.
+
+	LEFT JOINs rather than follow-up get_values so a deleted host Employee
+	or a detached Visitor Badge still returns the appointment instead of
+	failing - host_name then falls back to the raw custom_meet_with ID.
+	"""
+	try:
+		name = str(name or "").strip()
+		if not name:
+			return {"error": "name is required"}
+
+		row = frappe.db.sql(
+			"""
+			SELECT a.name, a.customer_name, a.customer_phone_number,
+			       a.customer_email, a.customer_organization, a.custom_meet_with,
+			       e.employee_name AS host_name,
+			       a.scheduled_time, a.customer_details,
+			       a.custom_mode_of_transport,
+			       a.custom_vehicles_number_plate, a.custom_vehicles_colour,
+			       a.workflow_state, a.status, a.custom_reporting_status,
+			       a.custom_check_in_time, a.custom_check_out_time,
+			       a.custom_visitor_badge, a.custom_host_received_time,
+			       b.badge_number, b.company AS badge_company, b.farm AS badge_farm
+			FROM `tabAppointment` a
+			LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with
+			LEFT JOIN `tabVisitor Badge` b ON b.name = a.custom_visitor_badge
+			WHERE a.name = %s
+			LIMIT 1
+			""",
+			(name,),
+			as_dict=True,
+		)
+		if not row:
+			return {"error": "Appointment " + name + " not found"}
+
+		r = row[0]
+		return {
+			"name": r.name,
+			"customer_name": r.customer_name or "",
+			"customer_phone_number": r.customer_phone_number or "",
+			"customer_email": r.customer_email or "",
+			"customer_organization": r.customer_organization or "",
+			"custom_meet_with": r.custom_meet_with or "",
+			"host_name": r.host_name or r.custom_meet_with or "",
+			"scheduled_time": str(r.scheduled_time) if r.scheduled_time else "",
+			"customer_details": r.customer_details or "",
+			"custom_mode_of_transport": r.custom_mode_of_transport or "",
+			"custom_vehicles_number_plate": r.custom_vehicles_number_plate or "",
+			"custom_vehicles_colour": r.custom_vehicles_colour or "",
+			"workflow_state": r.workflow_state or "",
+			"status": r.status or "",
+			"custom_reporting_status": r.custom_reporting_status or "",
+			"custom_check_in_time": str(r.custom_check_in_time) if r.custom_check_in_time else "",
+			"custom_check_out_time": str(r.custom_check_out_time) if r.custom_check_out_time else "",
+			"custom_visitor_badge": r.custom_visitor_badge or "",
+			# Deliberately None rather than "" when absent - the app
+			# distinguishes "no badge" from "badge number zero".
+			"custom_visitor_badge_number": r.badge_number if r.badge_number is not None else None,
+			"custom_visitor_badge_company": r.badge_company or "",
+			"custom_visitor_badge_farm": r.badge_farm or "",
+			"custom_host_received_time": str(r.custom_host_received_time)
+			if r.custom_host_received_time
+			else "",
+		}
+	except Exception as e:
+		frappe.log_error("get_appointment", str(e))
+		return {"error": str(e)}
+
+
+@frappe.whitelist()
+def get_visitor_history(query=None):
+	"""Look up a returning visitor by ID number, to pre-fill a walk-in.
+
+	Keyed on custom_id_number ONLY - deliberately not name or phone. Both
+	of those can match more than one real person (two visitors named
+	"Peter", a shared or reassigned phone), and this result pre-fills AND
+	LOCKS a walk-in's identity fields, so a wrong match would silently
+	attach a stranger's ID, host and purpose to today's visitor.
+
+	Note the failure shape: {"found": False}, not {"error": ...}. The app
+	treats any failure here as "no history", which is the safe default -
+	the guard just keys the details in by hand.
+	"""
+	try:
+		query = str(query or "").strip()
+		if not query:
+			return {"found": False}
+
+		matches = frappe.get_all(
+			"Appointment",
+			filters=[["custom_check_in_time", "is", "set"], ["custom_id_number", "=", query]],
+			fields=[
+				"name",
+				"customer_name",
+				"customer_phone_number",
+				"customer_organization",
+				"custom_id_number",
+				"custom_meet_with",
+				"customer_details",
+				"custom_mode_of_transport",
+				"custom_vehicles_number_plate",
+				"custom_vehicles_colour",
+				"scheduled_time",
+				"custom_check_in_time",
+			],
+			order_by="custom_check_in_time desc",
+			limit_page_length=10,
+		)
+
+		if not matches:
+			return {"found": False}
+
+		# The most recent visit is the source of truth for name/ID/host/
+		# purpose - but not every visitor type collects every field
+		# (Customer and Contractor bookings never key in a phone number), so
+		# a later phone-less visit must not blank out a phone that genuinely
+		# is on file from an earlier one. Backfill each optional field from
+		# the nearest match that actually has it, still newest-first.
+		m = matches[0]
+
+		def backfill(fieldname):
+			for row in matches:
+				if row.get(fieldname):
+					return row.get(fieldname)
+			return None
+
+		return {
+			"found": True,
+			"visitor_name": m.customer_name,
+			"phone_number": m.customer_phone_number or backfill("customer_phone_number"),
+			"organization": m.customer_organization or backfill("customer_organization"),
+			"id_no": m.custom_id_number,
+			"host_id": m.custom_meet_with,
+			"host_name": frappe.db.get_value("Employee", m.custom_meet_with, "employee_name")
+			if m.custom_meet_with
+			else "",
+			"purpose": m.customer_details,
+			"transport_mode": m.custom_mode_of_transport or backfill("custom_mode_of_transport"),
+			"vehicle_reg_no": m.custom_vehicles_number_plate
+			or backfill("custom_vehicles_number_plate"),
+			"vehicle_color": m.custom_vehicles_colour or backfill("custom_vehicles_colour"),
+			"last_visit_date": m.custom_check_in_time or m.scheduled_time,
+			# Always "id" - this only ever queries custom_id_number, so a
+			# match is always a unique-key match and is safe to lock on.
+			"matched_by": "id",
+		}
+	except Exception as e:
+		frappe.log_error("get_visitor_history", str(e))
+		return {"found": False}
 
 
 @frappe.whitelist()
@@ -506,6 +711,81 @@ def contractor_gate_checkout():
 			+ str(e),
 		)
 		frappe.throw("Contractor check-out failed: " + str(e))
+
+
+# =============================================================================
+# SECTION 4   BADGES
+# =============================================================================
+
+
+@frappe.whitelist()
+def list_supplier_badges(status=None, company=None, limit=None):
+	"""Supplier Badge rows for Command Center's badge management screen.
+
+	All filters optional. Access is System Manager or Security Head only -
+	this is a management surface, same gate as issuing a badge.
+	"""
+	try:
+		allowed_roles = ("System Manager", "Security Head")
+		role_rows = frappe.db.sql(
+			"SELECT role FROM `tabHas Role` WHERE parent = %s", (frappe.session.user,)
+		)
+		caller_roles = [row[0] for row in role_rows if row and row[0]]
+		if not any(r in caller_roles for r in allowed_roles):
+			return {"error": "Only System Manager or Security Head can list supplier badges."}
+
+		status = str(status).strip() if status is not None else ""
+		company = str(company).strip() if company is not None else ""
+
+		row_limit = 200
+		if limit:
+			try:
+				row_limit = int(limit)
+			except (TypeError, ValueError):
+				row_limit = 200
+		row_limit = max(1, min(row_limit, 1000))
+
+		where_parts = ["1=1"]
+		params = {"row_limit": row_limit}
+		if status:
+			where_parts.append("status = %(status)s")
+			params["status"] = status
+		if company:
+			where_parts.append("company = %(company)s")
+			params["company"] = company
+
+		rows = frappe.db.sql(
+			"SELECT name, badge_number, company, supplier, status, qr_image, creation "
+			"FROM `tabSupplier Badge` "
+			"WHERE " + " AND ".join(where_parts) + " "
+			"ORDER BY creation DESC "
+			"LIMIT %(row_limit)s",
+			params,
+			as_dict=True,
+		)
+		out = []
+		for r in rows:
+			# Resolved per row rather than joined: Supplier is a link that may
+			# dangle, and the original fell back to the raw ID in that case.
+			supplier_name = ""
+			if r.supplier:
+				supplier_name = frappe.db.get_value("Supplier", r.supplier, "supplier_name") or r.supplier
+			out.append(
+				{
+					"name": r.name,
+					"badge_number": r.badge_number,
+					"company": r.company or "",
+					"supplier": r.supplier or "",
+					"supplier_name": supplier_name,
+					"status": r.status or "",
+					"qr_image": r.qr_image or "",
+					"creation": str(r.creation) if r.creation else "",
+				}
+			)
+		return out
+	except Exception as e:
+		frappe.log_error("list_supplier_badges", str(e))
+		return {"error": str(e)}
 
 
 # =============================================================================
@@ -697,6 +977,109 @@ def check_in_shift():
 		return {"error": str(e)}
 
 
+@frappe.whitelist()
+def my_current_shift():
+	"""The calling guard's own shift: the Active one if there is one, else
+	the nearest upcoming Scheduled one, else none.
+
+	Read-only. Creation stays in Desk, where Security Head / System Manager
+	/ HR User already have full CRUD through native doctype permissions.
+
+	guard_type and checked_in are surfaced so the app can decide whether to
+	offer the "check in to shift" action - that is only meaningful for
+	External (contractor) guards, who have no Employee or Attendance record
+	to check in against. An Internal guard's checked_in stays governed by
+	whatever ties it to Attendance, untouched here.
+	"""
+	try:
+		current_user = frappe.session.user
+
+		internal_guard = None
+		external_guard = None
+		guard_type = None
+
+		emp = frappe.db.get_value("Employee", {"user_id": current_user}, "name")
+		if emp:
+			internal_guard = emp
+			guard_type = "Internal"
+		else:
+			# External guards have no User of their own; the app signs in as
+			# a shared gate account, so fall back to matching on full name.
+			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
+			if user_full:
+				guard_name = frappe.db.get_value("Security Guard", {"full_name": user_full}, "name")
+				if guard_name:
+					external_guard = guard_name
+					guard_type = "External"
+
+		if not internal_guard and not external_guard:
+			# No guard_type key at all here, matching the original - the app
+			# treats a missing guard_type as "could not identify you".
+			return {"shift": None}
+
+		# Four queries written out in full rather than one with the guard
+		# column and sort direction interpolated in. Both would come from a
+		# fixed pair, so formatting would be safe today - but SQL assembled
+		# by string formatting invites the next edit to splice in something
+		# that isn't. The duplication is the cheaper of the two costs.
+		ACTIVE_INTERNAL = """
+			SELECT name, farm, shift_type, start_date, end_date, status, checked_in
+			FROM `tabSecurity Guard Shift Assignment`
+			WHERE internal_guard = %s AND status = 'Active'
+			ORDER BY start_date DESC LIMIT 1
+		"""
+		ACTIVE_EXTERNAL = """
+			SELECT name, farm, shift_type, start_date, end_date, status, checked_in
+			FROM `tabSecurity Guard Shift Assignment`
+			WHERE external_guard = %s AND status = 'Active'
+			ORDER BY start_date DESC LIMIT 1
+		"""
+		NEXT_INTERNAL = """
+			SELECT name, farm, shift_type, start_date, end_date, status, checked_in
+			FROM `tabSecurity Guard Shift Assignment`
+			WHERE internal_guard = %s AND status = 'Scheduled'
+			ORDER BY start_date ASC LIMIT 1
+		"""
+		NEXT_EXTERNAL = """
+			SELECT name, farm, shift_type, start_date, end_date, status, checked_in
+			FROM `tabSecurity Guard Shift Assignment`
+			WHERE external_guard = %s AND status = 'Scheduled'
+			ORDER BY start_date ASC LIMIT 1
+		"""
+
+		guard_value = internal_guard or external_guard
+
+		# Active first, newest; then the soonest upcoming Scheduled one.
+		rows = frappe.db.sql(
+			ACTIVE_INTERNAL if internal_guard else ACTIVE_EXTERNAL, (guard_value,), as_dict=True
+		)
+		chosen = rows[0] if rows else None
+		if not chosen:
+			rows2 = frappe.db.sql(
+				NEXT_INTERNAL if internal_guard else NEXT_EXTERNAL, (guard_value,), as_dict=True
+			)
+			chosen = rows2[0] if rows2 else None
+
+		if not chosen:
+			return {"shift": None, "guard_type": guard_type}
+
+		return {
+			"shift": {
+				"name": chosen["name"],
+				"farm": chosen["farm"],
+				"shift_type": chosen["shift_type"],
+				"start_date": str(chosen["start_date"]),
+				"end_date": str(chosen["end_date"]),
+				"status": chosen["status"],
+				"guard_type": guard_type,
+				"checked_in": 1 if chosen["checked_in"] else 0,
+			}
+		}
+	except Exception as e:
+		frappe.log_error("my_current_shift", str(e))
+		return {"error": str(e)}
+
+
 # =============================================================================
 # SECTION 9   ASSETS
 # =============================================================================
@@ -761,6 +1144,76 @@ def my_assets_at_farm():
 # =============================================================================
 # SECTION 10   VEHICLE STICKERS
 # =============================================================================
+
+
+@frappe.whitelist()
+def list_sticker_requests(status=None, limit=None):
+	"""The sticker review queue that feeds approve/reject_staff_sticker_request.
+
+	`status` defaults to "Pending" - the working set a review screen needs
+	most. Pass an explicit empty string to get every status. Access is
+	System Manager or Security Head only, the same gate as approving.
+	"""
+	try:
+		if frappe.db.get_single_value("Security Ops Settings", "feature_vehicle_stickers") == 0:
+			raise Exception("This feature is not enabled on this instance.")
+
+		allowed_roles = ("System Manager", "Security Head")
+		role_rows = frappe.db.sql(
+			"SELECT role FROM `tabHas Role` WHERE parent = %s", (frappe.session.user,)
+		)
+		caller_roles = [row[0] for row in role_rows if row and row[0]]
+		if not any(r in caller_roles for r in allowed_roles):
+			return {"error": "Only System Manager or Security Head can list sticker requests."}
+
+		# Note the asymmetry with list_supplier_badges: an omitted status
+		# means "Pending" here, but "any" there. Both match their originals.
+		status = str(status).strip() if status is not None else "Pending"
+
+		row_limit = 200
+		if limit:
+			try:
+				row_limit = int(limit)
+			except (TypeError, ValueError):
+				row_limit = 200
+		row_limit = max(1, min(row_limit, 1000))
+
+		where_parts = ["1=1"]
+		params = {"row_limit": row_limit}
+		if status:
+			where_parts.append("status = %(status)s")
+			params["status"] = status
+
+		rows = frappe.db.sql(
+			"SELECT name, employee, employee_name, vehicle_type, plate_number, color, "
+			"collection_farm, collection_point, status, review_notes, linked_sticker, creation "
+			"FROM `tabStaff Vehicle Sticker Request` "
+			"WHERE " + " AND ".join(where_parts) + " "
+			"ORDER BY creation DESC "
+			"LIMIT %(row_limit)s",
+			params,
+			as_dict=True,
+		)
+		return [
+			{
+				"name": r.name,
+				"employee": r.employee or "",
+				"employee_name": r.employee_name or "",
+				"vehicle_type": r.vehicle_type or "",
+				"plate_number": r.plate_number or "",
+				"color": r.color or "",
+				"collection_farm": r.collection_farm or "",
+				"collection_point": r.collection_point or "",
+				"status": r.status or "",
+				"review_notes": r.review_notes or "",
+				"linked_sticker": r.linked_sticker or "",
+				"creation": str(r.creation) if r.creation else "",
+			}
+			for r in rows
+		]
+	except Exception as e:
+		frappe.log_error("list_sticker_requests", str(e))
+		return {"error": str(e)}
 
 
 @frappe.whitelist()

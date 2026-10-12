@@ -320,10 +320,15 @@ override_whitelisted_methods = {
 	"search_employees": "upande_security.api.security_api.search_employees",
 	"search_staff": "upande_security.api.security_api.search_staff",
 	"search_customers": "upande_security.api.security_api.search_customers",
+	"get_security_ops_settings": "upande_security.api.security_api.get_security_ops_settings",
 	# -- SECTION 2  visitors
+	"get_appointment": "upande_security.api.security_api.get_appointment",
+	"get_visitor_history": "upande_security.api.security_api.get_visitor_history",
 	"pending_approvals": "upande_security.api.security_api.pending_approvals",
 	# -- SECTION 3  contractors
 	"contractor_gate_checkout": "upande_security.api.security_api.contractor_gate_checkout",
+	# -- SECTION 4  badges
+	"list_supplier_badges": "upande_security.api.security_api.list_supplier_badges",
 	# -- SECTION 5  staff gate
 	"list_today_staff_attendance": "upande_security.api.security_api.list_today_staff_attendance",
 	# -- SECTION 7  incidents
@@ -331,9 +336,11 @@ override_whitelisted_methods = {
 	"my_incidents": "upande_security.api.security_api.my_incidents",
 	# -- SECTION 8  shifts
 	"check_in_shift": "upande_security.api.security_api.check_in_shift",
+	"my_current_shift": "upande_security.api.security_api.my_current_shift",
 	# -- SECTION 9  assets
 	"my_assets_at_farm": "upande_security.api.security_api.my_assets_at_farm",
 	# -- SECTION 10 vehicle stickers
+	"list_sticker_requests": "upande_security.api.security_api.list_sticker_requests",
 	"reject_staff_sticker_request": "upande_security.api.security_api.reject_staff_sticker_request",
 }
 
