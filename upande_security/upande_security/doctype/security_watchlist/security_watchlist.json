@@ -5,70 +5,132 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "person_section",
   "full_name",
+  "person_type",
+  "employee",
+  "supplier",
+  "col_person",
   "id_number",
   "phone_number",
-  "column_break_1",
+  "vehicle_plate",
+  "case_section",
   "status",
-  "company",
-  "section_break_1",
+  "incident",
+  "close_with_incident",
+  "restrict_to_company",
+  "col_case",
   "reason",
   "added_by",
-  "added_on"
+  "added_on",
+  "activity_section",
+  "activity_count",
+  "col_activity",
+  "last_activity_on",
+  "transactions_section",
+  "transactions_html",
+  "closure_section",
+  "closed_on",
+  "closed_by",
+  "col_closure",
+  "closure_notes"
  ],
  "fields": [
+  {
+   "fieldname": "person_section",
+   "fieldtype": "Section Break",
+   "label": "Person"
+  },
   {
    "fieldname": "full_name",
    "fieldtype": "Data",
    "label": "Full Name",
    "reqd": 1,
-   "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "person_type",
+   "fieldtype": "Select",
+   "label": "Person Type",
+   "options": "\nVisitor\nContractor\nEmployee\nSupplier / Driver\nExternal",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "depends_on": "eval:doc.person_type=='Employee'"
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier",
+   "options": "Supplier",
+   "depends_on": "eval:doc.person_type=='Supplier / Driver'"
+  },
+  {
+   "fieldname": "col_person",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "id_number",
    "fieldtype": "Data",
-   "label": "ID / Passport Number",
-   "in_list_view": 1,
-   "in_standard_filter": 1
+   "label": "ID / Passport Number"
   },
   {
    "fieldname": "phone_number",
    "fieldtype": "Data",
-   "label": "Phone Number",
-   "in_list_view": 1,
-   "in_standard_filter": 1
+   "label": "Phone Number"
   },
   {
-   "fieldname": "column_break_1",
-   "fieldtype": "Column Break"
+   "fieldname": "vehicle_plate",
+   "fieldtype": "Data",
+   "label": "Vehicle Plate"
   },
   {
-   "default": "Active",
+   "fieldname": "case_section",
+   "fieldtype": "Section Break",
+   "label": "Case"
+  },
+  {
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
    "options": "Active\nInactive",
-   "reqd": 1,
+   "default": "Active",
    "in_list_view": 1,
    "in_standard_filter": 1
   },
   {
-   "fieldname": "company",
+   "fieldname": "incident",
    "fieldtype": "Link",
-   "label": "Restrict To Company",
-   "options": "Company"
+   "label": "Incident",
+   "options": "Incident Report",
+   "in_standard_filter": 1
   },
   {
-   "fieldname": "section_break_1",
-   "fieldtype": "Section Break",
-   "label": "Details"
+   "fieldname": "close_with_incident",
+   "fieldtype": "Check",
+   "label": "Close when the incident is resolved or closed",
+   "default": "1",
+   "depends_on": "eval:doc.incident"
+  },
+  {
+   "fieldname": "restrict_to_company",
+   "fieldtype": "Link",
+   "label": "Restrict To Company",
+   "options": "Company",
+   "ignore_user_permissions": 1
+  },
+  {
+   "fieldname": "col_case",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "reason",
    "fieldtype": "Small Text",
-   "label": "Reason",
-   "reqd": 1
+   "label": "Reason"
   },
   {
    "fieldname": "added_by",
@@ -82,11 +144,77 @@
    "fieldtype": "Datetime",
    "label": "Added On",
    "read_only": 1
+  },
+  {
+   "fieldname": "activity_section",
+   "fieldtype": "Section Break",
+   "label": "Activity"
+  },
+  {
+   "fieldname": "activity_count",
+   "fieldtype": "Int",
+   "label": "Transactions Logged",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "col_activity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_activity_on",
+   "fieldtype": "Datetime",
+   "label": "Last Transaction",
+   "read_only": 1
+  },
+  {
+   "fieldname": "transactions_section",
+   "fieldtype": "Section Break",
+   "label": "Transactions"
+  },
+  {
+   "fieldname": "transactions_html",
+   "fieldtype": "HTML",
+   "label": "Transactions"
+  },
+  {
+   "fieldname": "closure_section",
+   "fieldtype": "Section Break",
+   "label": "Closure",
+   "depends_on": "eval:doc.status=='Inactive'"
+  },
+  {
+   "fieldname": "closed_on",
+   "fieldtype": "Datetime",
+   "label": "Closed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "closed_by",
+   "fieldtype": "Link",
+   "label": "Closed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_closure",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "closure_notes",
+   "fieldtype": "Small Text",
+   "label": "Closure Notes"
   }
  ],
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-08-08 00:00:00.000000",
+ "links": [
+  {
+   "link_doctype": "Watchlist Activity",
+   "link_fieldname": "watchlist",
+   "group": "Transactions"
+  }
+ ],
+ "modified": "2026-10-13 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Watchlist",
@@ -121,5 +249,8 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "track_changes": 1
+ "track_changes": 1,
+ "title_field": "full_name",
+ "show_title_field_in_link": 1,
+ "search_fields": "id_number,phone_number,vehicle_plate"
 }

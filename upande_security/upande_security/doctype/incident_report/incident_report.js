@@ -226,3 +226,61 @@ frappe.ui.form.on('Incident Report', {
     }
 });
 
+
+// ---- covert watchlist: start watching a person named on this incident ----
+// Registered after the handler above, which calls clear_custom_buttons() on
+// refresh, so this button survives it. Shown only to Security Head / System
+// Manager - guards must never see that anyone is being watched (see
+// upande_security/api/watchlist.py).
+frappe.ui.form.on('Incident Report', {
+    refresh: function(frm) {
+        if (frm.is_new()) return;
+        if (!(frappe.user.has_role('Security Head') || frappe.user.has_role('System Manager'))) return;
+
+        frm.add_custom_button(__('Watch a person'), function() {
+            const people = [];
+            [['responsible_persons', 'Responsible'], ['victims', 'Victim'], ['witnesses', 'Witness']].forEach(function([table, role]) {
+                (frm.doc[table] || []).forEach(function(row) {
+                    if (row.person_name) {
+                        people.push({ value: row.name, label: row.person_name + ' (' + role + (row.id_number ? ', ID ' + row.id_number : '') + ')' });
+                    }
+                });
+            });
+            if (!people.length) {
+                frappe.msgprint(__('Add the person to Responsible Persons, Victims or Witnesses first, with their ID number or phone if known - those are what the watch matches on.'));
+                return;
+            }
+            const d = new frappe.ui.Dialog({
+                title: __('Watch a person'),
+                fields: [
+                    { fieldname: 'row_name', fieldtype: 'Select', label: __('Person'), reqd: 1,
+                      options: people.map(p => p.value), default: people[0].value },
+                    { fieldname: 'reason', fieldtype: 'Small Text', label: __('Reason'),
+                      default: (frm.doc.nature_of_incident || 'Incident') + ' - ' + frm.doc.name },
+                    { fieldname: 'close_with_incident', fieldtype: 'Check', default: 1,
+                      label: __('Stop watching when this incident is resolved or closed') },
+                    { fieldtype: 'HTML', options: '<p class="text-muted small">' + __('Their visits, attendance, gate movements and vehicle checks will be logged for Security Heads only. Guards are not told.') + '</p>' },
+                ],
+                primary_action_label: __('Start watching'),
+                primary_action: function(values) {
+                    frappe.call({
+                        method: 'upande_security.api.watchlist.watch_incident_person',
+                        args: { incident: frm.doc.name, row_name: values.row_name, reason: values.reason, close_with_incident: values.close_with_incident },
+                        callback: function(r) {
+                            d.hide();
+                            if (!r.message) return;
+                            frappe.show_alert({ message: r.message.existing ? __('Already being watched') : __('Now watching'), indicator: 'blue' });
+                            frappe.set_route('Form', 'Security Watchlist', r.message.name);
+                        },
+                    });
+                },
+            });
+            // Show names, not row ids, in the picker.
+            d.fields_dict.row_name.$input.find('option').each(function() {
+                const p = people.find(x => x.value === this.value);
+                if (p) this.textContent = p.label;
+            });
+            d.show();
+        }, __('Investigation'));
+    },
+});

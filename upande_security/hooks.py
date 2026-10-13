@@ -195,7 +195,11 @@ doc_events = {
 		# Copies the farm's configured extra recipients (Security Ops
 		# Settings) on every newly registered appointment, alongside the
 		# host's own "Visitor at Reception" Notification.
-		"after_insert": "upande_security.api.appointment_recipients.notify_extra_recipients",
+		"after_insert": [
+			"upande_security.api.appointment_recipients.notify_extra_recipients",
+			# Covert watchlist - see api/watchlist.py. Never raises.
+			"upande_security.api.watchlist.on_doc_event",
+		],
 		# Releases the visitor's badge back to Available the moment
 		# workflow_state reaches Visitor Checked Out, no matter which path
 		# got it there - the mobile check_out_visitor Server Script already
@@ -218,6 +222,9 @@ doc_events = {
 			# doc.save() this hook could ever see. See visitor_sms.py's own
 			# docstring.
 			"upande_security.api.visitor_sms.on_appointment_update",
+			# Desk-path check-in/out for the covert watchlist; the mobile
+			# endpoints call watchlist.track() themselves (they never save).
+			"upande_security.api.watchlist.on_doc_event",
 		],
 	},
 	# Auto-provision the Company/Farm User Permission rows the hierarchical
@@ -239,7 +246,18 @@ doc_events = {
 	},
 	"Incident Report": {
 		"before_insert": "upande_security.api.scoping.stamp_incident_report_farm",
+		# Logs watched people named on it, and closes watchlist entries whose
+		# incident is Resolved/Closed.
+		"on_update": "upande_security.api.watchlist.on_doc_event",
 	},
+	# Covert watchlist (api/watchlist.py): log a watched person's gate
+	# transactions for Security Heads. Every handler is a no-op while the
+	# watchlist is empty and never raises into the guard's request.
+	"Attendance": {"after_insert": "upande_security.api.watchlist.on_doc_event"},
+	"Staff Gate Movement": {"after_insert": "upande_security.api.watchlist.on_doc_event"},
+	"Gate Vehicle Verification": {"after_insert": "upande_security.api.watchlist.on_doc_event", "on_update": "upande_security.api.watchlist.on_doc_event"},
+	"Gate Dispatch Verification": {"after_insert": "upande_security.api.watchlist.on_doc_event"},
+	"Gate Receiving Verification": {"after_insert": "upande_security.api.watchlist.on_doc_event"},
 }
 
 # Scheduled Tasks
@@ -464,6 +482,11 @@ override_whitelisted_methods = {
 # -----------------------------------------------------------
 
 # ignore_links_on_delete = ["Communication", "ToDo"]
+# The covert watchlist links to gate records (Watchlist Activity.reference_name)
+# and to Employee / Incident Report. Without this, deleting any of those
+# fails with "linked with Watchlist Activity ..." - which both blocks the
+# delete and tells the user a watch exists.
+ignore_links_on_delete = ["Watchlist Activity", "Security Watchlist"]
 
 # Request Events
 # ----------------

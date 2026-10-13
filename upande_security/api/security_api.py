@@ -83,6 +83,7 @@ import urllib.parse
 
 import frappe
 
+from upande_security.api import watchlist
 from upande_security.api.security_alerts import log_unauthorized_access
 
 
@@ -1451,6 +1452,7 @@ def check_in_visitor(name=None, transport=None, plate=None, colour=None, organiz
 
 		frappe.db.set_value("Appointment", name, updates)
 		frappe.db.commit()
+		watchlist.track("Appointment", name, "Visitor Check-in")
 
 		try:
 			otp_enabled = frappe.db.get_single_value("Security Ops Settings", "feature_visitor_sms_otp")
@@ -1541,6 +1543,7 @@ def check_out_visitor(name=None):
 				{"status": "Available", "current_appointment": None},
 			)
 		frappe.db.commit()
+		watchlist.track("Appointment", name, "Visitor Check-out")
 
 		try:
 			thankyou_enabled = frappe.db.get_single_value("Security Ops Settings", "feature_visitor_sms_otp")
@@ -2407,6 +2410,7 @@ def check_out_taxi_driver(name=None):
 					"Appointment", name, "custom_taxi_driver_check_out_time", now
 				)
 				frappe.db.commit()
+				watchlist.track("Appointment", name, "Taxi Driver Check-out")
 				return {
 					"name": name,
 					"custom_taxi_driver_check_out_time": str(now),
@@ -2635,6 +2639,7 @@ def contractor_gate_checkout():
 			)
 
 		frappe.db.commit()
+		watchlist.track("Appointment", appt_name, "Contractor Check-out")
 
 		return {"success": True, "appointment": appt_name, "check_out_time": now_str}
 
@@ -2829,6 +2834,7 @@ def contractor_gate_checkin(
 				frappe.db.set_value('Appointment', appt_name, 'custom_contractor_ref', contractor_ref, update_modified=False)
 
 		frappe.db.commit()
+		watchlist.track("Appointment", appt_name, "Visitor Check-in")
 
 		return {
 			'success': True,
@@ -4313,6 +4319,7 @@ def staff_gate_checkout(attendance_name=None, exit_gate=None):
 				"Staff Gate Movement", attendance_name, mv_updates, update_modified=True
 			)
 			frappe.db.commit()
+			watchlist.track("Staff Gate Movement", attendance_name, "Staff Check-out")
 			return {
 				"success": True,
 				"attendance_name": attendance_name,
@@ -4344,6 +4351,7 @@ def staff_gate_checkout(attendance_name=None, exit_gate=None):
 
 		frappe.db.set_value("Attendance", attendance_name, updates, update_modified=True)
 		frappe.db.commit()
+		watchlist.track("Attendance", attendance_name, "Staff Check-out")
 
 		return {
 			"success": True,

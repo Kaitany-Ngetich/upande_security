@@ -63,8 +63,7 @@
    "fieldname": "asset_status",
    "fieldtype": "Data",
    "label": "Asset Status at Scan",
-   "read_only": 1,
-   "description": "The ERPNext Asset's own status when it was scanned - a Sold, Scrapped or Cancelled asset turning up on patrol is worth a look."
+   "read_only": 1
   },
   {
    "fieldname": "col_br_1",
@@ -102,8 +101,7 @@
    "fieldtype": "Link",
    "label": "Farm",
    "options": "Farm",
-   "in_standard_filter": 1,
-   "description": "The scanning guard's farm."
+   "in_standard_filter": 1
   },
   {
    "fieldname": "company",
@@ -144,7 +142,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-13 00:00:00.000000",
+ "modified": "2026-10-13 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Asset Scan Log",

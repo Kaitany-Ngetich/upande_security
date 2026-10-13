@@ -1,0 +1,149 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-10-13 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "watchlist",
+  "person",
+  "activity_type",
+  "occurred_at",
+  "matched_on",
+  "col_br_1",
+  "reference_doctype",
+  "reference_name",
+  "farm",
+  "gate",
+  "handled_by",
+  "details_section",
+  "details"
+ ],
+ "fields": [
+  {
+   "fieldname": "watchlist",
+   "fieldtype": "Link",
+   "label": "Watchlist Entry",
+   "options": "Security Watchlist",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "person",
+   "fieldtype": "Data",
+   "label": "Person",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "activity_type",
+   "fieldtype": "Select",
+   "label": "Activity",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "options": "Visit Registered\nVisitor Check-in\nVisitor Check-out\nContractor Check-out\nTaxi Driver Check-out\nStaff Check-in\nStaff Check-out\nVehicle Exit\nVehicle Entry\nDispatch Check\nReceiving Check\nNamed in Incident"
+  },
+  {
+   "fieldname": "occurred_at",
+   "fieldtype": "Datetime",
+   "label": "Occurred At",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "matched_on",
+   "fieldtype": "Data",
+   "label": "Matched On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_br_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Record Type",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Record",
+   "options": "reference_doctype",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "label": "Farm",
+   "options": "Farm",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "gate",
+   "fieldtype": "Data",
+   "label": "Gate",
+   "read_only": 1
+  },
+  {
+   "fieldname": "handled_by",
+   "fieldtype": "Link",
+   "label": "Handled By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "details",
+   "fieldtype": "Small Text",
+   "label": "Details",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-13 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Watchlist Activity",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "Security Head",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "occurred_at",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "person",
+ "in_create": 1,
+ "read_only": 1,
+ "track_changes": 0,
+ "description": "Covert log of a watched person's transactions - visible to Security Heads only. Written by the server; never shown to guards."
+}

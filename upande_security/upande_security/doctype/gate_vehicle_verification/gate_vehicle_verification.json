@@ -55,8 +55,7 @@
    "options": "Asset",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "search_index": 1,
-   "description": "The vehicle or machine. Legs are matched on this when set, so a trip can leave on a task scan and return on the asset's label."
+   "search_index": 1
   },
   {
    "fieldname": "task_description",
@@ -152,7 +151,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-13 13:30:00.000000",
+ "modified": "2026-10-13 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Gate Vehicle Verification",
