@@ -16,10 +16,12 @@
   "source_status",
   "section_break_exit",
   "gate_exit_time",
+  "exit_gate",
   "gate_exit_verified_by",
   "gate_exit_status",
   "section_break_entry",
   "gate_entry_time",
+  "entry_gate",
   "gate_entry_verified_by",
   "gate_entry_status",
   "remarks"
@@ -102,6 +104,12 @@
    "in_list_view": 1
   },
   {
+   "fieldname": "exit_gate",
+   "fieldtype": "Data",
+   "label": "Exit Gate",
+   "in_standard_filter": 1
+  },
+  {
    "fieldname": "gate_exit_verified_by",
    "fieldtype": "Link",
    "options": "User",
@@ -130,6 +138,12 @@
    "in_list_view": 1
   },
   {
+   "fieldname": "entry_gate",
+   "fieldtype": "Data",
+   "label": "Entry Gate",
+   "in_standard_filter": 1
+  },
+  {
    "fieldname": "gate_entry_verified_by",
    "fieldtype": "Link",
    "options": "User",
@@ -151,7 +165,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-13 16:00:00.000000",
+ "modified": "2026-10-13 18:30:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Gate Vehicle Verification",

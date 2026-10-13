@@ -12,6 +12,20 @@ through Gate B) is a real anomaly worth flagging, not just a data point.
 import frappe
 
 
+def resolve_gate(gate, farm):
+	"""The gate a movement is recorded at: what the guard picked, else the
+	farm's main (or only) configured gate, else "Main Gate" - the same order
+	the app's gate picker uses, so an older app build that sends no gate
+	still records one."""
+	gate = (gate or "").strip()
+	gates = get_farm_gates(farm) if farm else []
+	# Only a gate this farm actually has - a stale pick from another farm, or
+	# anything else the client sends, falls back to the default.
+	if gate and any(g["gate_name"] == gate for g in gates):
+		return gate
+	return gates[0]["gate_name"] if gates else "Main Gate"
+
+
 @frappe.whitelist()
 def get_farm_gates(farm):
 	"""Active gates configured for a farm, main gate first. Used by the

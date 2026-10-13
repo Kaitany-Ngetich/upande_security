@@ -291,7 +291,16 @@ def _notify_receiving_team(doc, match):
 		frappe.log_error("gate_receiving _notify_receiving_team failed for " + doc.name, str(e))
 
 
-def _verify_receiving_one(reference, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None):
+def _gate_for_this_guard(gate):
+	"""The gate picked in the app, else the calling guard's farm's main gate,
+	else "Main Gate"."""
+	from upande_security.api.gate_movement import resolve_gate
+	from upande_security.api.gate_vehicle import _resolve_checking_farm
+
+	return resolve_gate(gate, _resolve_checking_farm(frappe.session.user))
+
+
+def _verify_receiving_one(reference, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None, gate=None):
 	"""Core single-PO verification: creates the actual audit record — a NEW
 	Gate Receiving Verification document, never an edit to the Purchase
 	Order. Re-resolves the PO fresh (rather than trusting whatever the
@@ -316,6 +325,7 @@ def _verify_receiving_one(reference, gate_verification_status, vehicle_no=None, 
 	doc.driver_name = driver_name
 	doc.gate_verification_status = gate_verification_status
 	doc.gate_verified_by = frappe.session.user
+	doc.gate = _gate_for_this_guard(gate)
 	doc.gate_arrival_time = frappe.utils.now_datetime()
 	doc.remarks = remarks
 	doc.insert(ignore_permissions=True)
@@ -367,7 +377,7 @@ def _verify_receiving_one(reference, gate_verification_status, vehicle_no=None, 
 
 
 @frappe.whitelist()
-def verify_receiving_at_gate(reference, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None):
+def verify_receiving_at_gate(reference, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None, gate=None):
 	require_feature("feature_gate_receiving")
 	reference = (reference or "").strip()
 	gate_verification_status = (gate_verification_status or "").strip()
@@ -375,12 +385,12 @@ def verify_receiving_at_gate(reference, gate_verification_status, vehicle_no=Non
 		frappe.throw(_("gate_verification_status must be 'Verified' or 'Rejected'."))
 
 	frappe.response["message"] = _verify_receiving_one(
-		reference, gate_verification_status, vehicle_no, driver_name, remarks
+		reference, gate_verification_status, vehicle_no, driver_name, remarks, gate
 	)
 
 
 @frappe.whitelist()
-def verify_receiving_at_gate_bulk(references, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None):
+def verify_receiving_at_gate_bulk(references, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None, gate=None):
 	"""Same as verify_receiving_at_gate, but for every PO the guard selected
 	off one Supplier Badge scan in one action — one driver can be carrying
 	goods for several open POs, so instead of scanning/verifying each PO
@@ -412,7 +422,7 @@ def verify_receiving_at_gate_bulk(references, gate_verification_status, vehicle_
 			continue
 		try:
 			results.append(
-				_verify_receiving_one(ref, gate_verification_status, vehicle_no, driver_name, remarks)
+				_verify_receiving_one(ref, gate_verification_status, vehicle_no, driver_name, remarks, gate)
 			)
 		except Exception as e:
 			frappe.log_error("verify_receiving_at_gate_bulk for " + str(ref), str(e))

@@ -58,6 +58,7 @@ import frappe
 from frappe import _
 
 from upande_security.api.feature_flags import require_feature
+from upande_security.api.gate_movement import resolve_gate
 from upande_security.api.security_alerts import log_unauthorized_access
 
 _RETIRED_ASSET_STATUSES = ("Sold", "Scrapped", "Cancelled")
@@ -300,7 +301,7 @@ def search_vehicle_task_for_gate(reference):
 
 
 @frappe.whitelist()
-def verify_vehicle_task_at_gate(reference, movement_type, gate_verification_status, remarks=None):
+def verify_vehicle_task_at_gate(reference, movement_type, gate_verification_status, remarks=None, gate=None):
 	"""Exit: always creates a NEW leg record - from_farm, exit time/
 	verifier/status set, everything on the entry side left blank.
 
@@ -339,6 +340,7 @@ def verify_vehicle_task_at_gate(reference, movement_type, gate_verification_stat
 		return
 
 	now = frappe.utils.now_datetime()
+	gate_name = resolve_gate(gate, farm)
 	note = remarks.strip() if remarks else ""
 	stamped_note = (
 		("[" + movement_type + " @ " + farm + ", " + frappe.utils.format_datetime(now) + "] " + note)
@@ -358,6 +360,7 @@ def verify_vehicle_task_at_gate(reference, movement_type, gate_verification_stat
 	if movement_type == "Exit":
 		doc = new_leg()
 		doc.from_farm = farm
+		doc.exit_gate = gate_name
 		doc.gate_exit_time = now
 		doc.gate_exit_verified_by = frappe.session.user
 		doc.gate_exit_status = gate_verification_status
@@ -369,6 +372,7 @@ def verify_vehicle_task_at_gate(reference, movement_type, gate_verification_stat
 		if open_leg:
 			doc = frappe.get_doc("Gate Vehicle Verification", open_leg)
 			doc.to_farm = farm
+			doc.entry_gate = gate_name
 			doc.gate_entry_time = now
 			doc.gate_entry_verified_by = frappe.session.user
 			doc.gate_entry_status = gate_verification_status
@@ -382,6 +386,7 @@ def verify_vehicle_task_at_gate(reference, movement_type, gate_verification_stat
 			# the scan or blocking the guard.
 			doc = new_leg()
 			doc.to_farm = farm
+			doc.entry_gate = gate_name
 			doc.gate_entry_time = now
 			doc.gate_entry_verified_by = frappe.session.user
 			doc.gate_entry_status = gate_verification_status
@@ -418,6 +423,7 @@ def verify_vehicle_task_at_gate(reference, movement_type, gate_verification_stat
 		"asset": match.get("asset"),
 		"has_task": match.get("has_task"),
 		"farm": farm,
+		"gate": gate_name,
 		"movement_type": movement_type,
 		"gate_verification_status": gate_verification_status,
 		"is_authorized": match.get("is_authorized"),

@@ -242,6 +242,7 @@ def verify_dispatch_at_gate(
 	gate_arrival_time=None,
 	vehicle_no=None,
 	driver_name=None,
+	gate=None,
 ):
 	"""Creates the actual audit record — a NEW Gate Dispatch Verification
 	document, never an edit to the source. Re-resolves the source fresh
@@ -287,6 +288,7 @@ def verify_dispatch_at_gate(
 		gate_arrival_time=gate_arrival_time,
 		vehicle_no=vehicle_no,
 		driver_name=driver_name,
+		gate=gate,
 	)
 
 
@@ -298,6 +300,7 @@ def verify_dispatch_at_gate_bulk(
 	gate_arrival_time=None,
 	vehicle_no=None,
 	driver_name=None,
+	gate=None,
 ):
 	"""Same idea as verify_dispatch_at_gate, but for every dispatch document
 	the guard selected off one scan's related_by_vehicle list — one truck
@@ -343,6 +346,7 @@ def verify_dispatch_at_gate_bulk(
 					gate_arrival_time=gate_arrival_time,
 					vehicle_no=vehicle_no,
 					driver_name=driver_name,
+					gate=gate,
 				)
 			)
 		except Exception as e:
@@ -350,6 +354,16 @@ def verify_dispatch_at_gate_bulk(
 			results.append({"reference": ref, "error": str(e)})
 
 	frappe.response["message"] = {"results": results}
+
+
+def _gate_for_this_guard(gate):
+	"""The gate picked in the app, else the calling guard's farm's main gate,
+	else "Main Gate". The guard's farm, not the dispatch document's - a
+	transfer can be checked at either end."""
+	from upande_security.api.gate_movement import resolve_gate
+	from upande_security.api.gate_vehicle import _resolve_checking_farm
+
+	return resolve_gate(gate, _resolve_checking_farm(frappe.session.user))
 
 
 def _verify_dispatch_one(
@@ -360,6 +374,7 @@ def _verify_dispatch_one(
 	gate_arrival_time=None,
 	vehicle_no=None,
 	driver_name=None,
+	gate=None,
 ):
 	"""Core single-dispatch verification, factored out of
 	verify_dispatch_at_gate so both it and verify_dispatch_at_gate_bulk
@@ -461,6 +476,7 @@ def _verify_dispatch_one(
 
 	doc.gate_verification_status = gate_verification_status
 	doc.gate_verified_by = frappe.session.user
+	doc.gate = _gate_for_this_guard(gate)
 	# The client sends new Date().toISOString(), which is always UTC/"Z"
 	# suffixed. frappe.utils.get_datetime() correctly parses that into a
 	# timezone-AWARE datetime, but Datetime fields need a naive one - left

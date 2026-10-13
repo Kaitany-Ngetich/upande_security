@@ -20,6 +20,7 @@
   "section_break_2",
   "gate_verification_status",
   "gate_verified_by",
+  "gate",
   "column_break_2",
   "gate_arrival_time",
   "gate_exit_time",
@@ -122,6 +123,12 @@
    "read_only": 1
   },
   {
+   "fieldname": "gate",
+   "fieldtype": "Data",
+   "label": "Gate",
+   "in_standard_filter": 1
+  },
+  {
    "fieldname": "column_break_2",
    "fieldtype": "Column Break"
   },
@@ -143,7 +150,7 @@
   }
  ],
  "links": [],
- "modified": "2026-08-12 00:00:00.000000",
+ "modified": "2026-10-13 18:30:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Gate Dispatch Verification",

@@ -263,6 +263,15 @@ def _parse_gate_activity_comment(state, html_content):
 # Read-only. Nothing here writes, so these were migrated first as the pilot.
 
 
+def _checking_farm(user):
+	try:
+		from upande_security.api.gate_vehicle import _resolve_checking_farm
+
+		return _resolve_checking_farm(user)
+	except Exception:
+		return None
+
+
 @frappe.whitelist()
 def get_session_info():
 	"""Who is logged in, what they may do, and which features are on.
@@ -344,6 +353,10 @@ def get_session_info():
 			"has_command_center_access": has_command_center_access
 			and features.get("feature_command_center", True),
 			"employee": employee or {},
+			# The farm whose gate this login checks at - Employee first, then
+			# Security Guard - the same resolution the gate endpoints use, so
+			# external guards (no Employee record) get a gate picker too.
+			"checking_farm": _checking_farm(user),
 			"features": features,
 		}
 	except Exception as e:
