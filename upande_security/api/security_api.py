@@ -79,7 +79,11 @@ Server Script used, so existing Error Log entries stay greppable by the
 same name.
 """
 
+import urllib.parse
+
 import frappe
+
+from upande_security.api.security_alerts import log_unauthorized_access
 
 
 def _s(value):
@@ -6589,54 +6593,147 @@ def security_shift_assignment_tab_fetch(
 # =============================================================================
 # SECTION 9   ASSETS
 # =============================================================================
+#
+# Guards scan the QR on an ERPNext Asset's printed label ("Asset QR Label"
+# print format), which encodes the asset's Desk URL
+# (https://<site>/app/asset/ASS-IR-00042). Every scan is checked against
+# Asset itself - there is no separate security catalogue to keep in step -
+# and recorded as one Asset Scan Log row (Found or Missing). Last-seen,
+# last status and the averaged position are derived from those rows.
+#
+# Security Asset, the old auto-registering catalogue for blank pre-printed
+# stickers, is no longer written to.
+
+# A scan of one of these is still logged, but raised as an Invalid Asset
+# Scan: the asset should not be on a farm any more.
+_RETIRED_ASSET_STATUSES = ("Sold", "Scrapped", "Cancelled")
+
+
+def _asset_name_from_scan(raw):
+	"""ASS-IR-00042 from whatever the camera read.
+
+	Accepts the label's full URL (any host, with or without a trailing slash,
+	query or fragment) or a bare asset name typed in by hand.
+	"""
+	raw = _s(raw)
+	marker = "/app/asset/"
+	if marker in raw:
+		raw = raw.split(marker, 1)[1]
+		for sep in ("?", "#", "/"):
+			raw = raw.split(sep, 1)[0]
+		raw = urllib.parse.unquote(raw)
+	return raw.strip()
+
+
+def _asset_scanner():
+	"""Who is scanning: (personel, internal_guard, external_guard, farm, company).
+
+	Employee linked to this login first (Internal Guard), else a Security
+	Guard matched on the user's full name (External Guard). Any of them may be
+	None.
+	"""
+	emp = frappe.db.get_value(
+		"Employee", {"user_id": frappe.session.user}, ["name", "custom_farm", "company"], as_dict=True
+	)
+	if emp:
+		return "Internal Guard", emp.name, None, emp.custom_farm, emp.company
+
+	user_full = frappe.db.get_value("User", frappe.session.user, "full_name") or ""
+	guard = None
+	if user_full:
+		guard = frappe.db.get_value(
+			"Security Guard", {"full_name": user_full}, ["name", "farm", "company"], as_dict=True
+		)
+	if guard:
+		return "External Guard", None, guard.name, guard.farm, guard.company
+	return None, None, None, None, None
+
+
+def _asset_fields():
+	"""Asset fields to read. `farm` is a site-level custom field on production
+	and absent elsewhere, so it is only asked for where it exists."""
+	fields = ["name", "asset_name", "asset_category", "company", "location", "status", "docstatus"]
+	if frappe.get_meta("Asset").has_field("farm"):
+		fields.append("farm")
+	return fields
+
+
+def _asset_is_retired(asset):
+	return asset.docstatus == 2 or asset.status in _RETIRED_ASSET_STATUSES
+
+
+def _log_asset_scan(asset, status, latitude, longitude, accuracy, remarks):
+	personel, internal_guard, external_guard, farm, company = _asset_scanner()
+	log = frappe.new_doc("Asset Scan Log")
+	log.asset = asset.name
+	log.asset_name = asset.asset_name
+	log.asset_status = asset.status
+	log.status = status
+	log.scanned_at = frappe.utils.now_datetime()
+	log.scanned_by = frappe.session.user
+	log.personel = personel
+	log.internal_guard = internal_guard
+	log.external_guard = external_guard
+	log.farm = farm
+	log.company = company
+	log.latitude = frappe.utils.flt(latitude) if latitude else None
+	log.longitude = frappe.utils.flt(longitude) if longitude else None
+	log.gps_accuracy = frappe.utils.flt(accuracy) if accuracy else None
+	log.remarks = remarks
+	log.flags.ignore_links = True
+	log.insert(ignore_permissions=True)
+	return log
+
+
+def _invalid_asset_scan(reference, detail):
+	"""Best-effort alert; log_unauthorized_access never raises."""
+	_, _, _, farm, company = _asset_scanner()
+	log_unauthorized_access("Invalid Asset Scan", reference, detail, company, farm)
 
 
 @frappe.whitelist()
 def my_assets_at_farm():
-	"""Known Security Assets at the calling guard's own farm, most recently
-	seen first - feeds the "report missing" picker.
+	"""Assets at the calling guard's farm, most recently seen first - feeds the
+	"report missing" picker.
 
-	Resolves the farm from the guard's Employee record, falling back to a
-	Security Guard matched on full name for external guards, who have no
-	Employee record.
+	Matched on Asset.farm where the site has that field, else on Asset.location
+	(this site's Location names are the farm names). Cancelled, Sold and
+	Scrapped assets are left out. Last-seen and last-missing come from Asset
+	Scan Log.
 	"""
 	try:
-		current_user = frappe.session.user
-
-		resolved_farm = frappe.db.get_value("Employee", {"user_id": current_user}, "custom_farm")
-		if not resolved_farm:
-			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
-			guard_name = None
-			if user_full:
-				guard_name = frappe.db.get_value("Security Guard", {"full_name": user_full}, "name")
-			if guard_name:
-				resolved_farm = frappe.db.get_value("Security Guard", guard_name, "farm")
-
-		if not resolved_farm:
+		_, _, _, farm, _ = _asset_scanner()
+		if not farm:
 			return {"assets": []}
 
+		farm_column = "farm" if frappe.get_meta("Asset").has_field("farm") else "location"
 		rows = frappe.db.sql(
-			"""
-			SELECT asset_code, asset_name, category, last_status, last_seen_at,
-			       last_missing_reported_at
-			FROM `tabSecurity Asset`
-			WHERE farm = %s
-			ORDER BY COALESCE(last_seen_at, '1970-01-01') DESC
-			LIMIT 200
+			f"""
+			SELECT a.name AS asset_code, a.asset_name, a.asset_category AS category,
+			       (SELECT l.status FROM `tabAsset Scan Log` l
+			        WHERE l.asset = a.name ORDER BY l.scanned_at DESC LIMIT 1) AS last_status,
+			       (SELECT MAX(l.scanned_at) FROM `tabAsset Scan Log` l
+			        WHERE l.asset = a.name AND l.status = 'Found') AS last_seen_at,
+			       (SELECT MAX(l.scanned_at) FROM `tabAsset Scan Log` l
+			        WHERE l.asset = a.name AND l.status = 'Missing') AS last_missing_reported_at
+			FROM `tabAsset` a
+			WHERE a.`{farm_column}` = %s AND a.docstatus = 1 AND a.status NOT IN %s
+			ORDER BY COALESCE(last_seen_at, '1970-01-01') DESC, a.asset_name
+			LIMIT 1000
 			""",
-			(resolved_farm,),
+			(farm, _RETIRED_ASSET_STATUSES),
 			as_dict=True,
 		)
 		return {
 			"assets": [
 				{
-					"asset_code": r["asset_code"],
-					"asset_name": r["asset_name"],
-					"category": r["category"],
-					"last_status": r["last_status"],
-					"last_seen_at": str(r["last_seen_at"]) if r["last_seen_at"] else None,
-					"last_missing_reported_at": str(r["last_missing_reported_at"])
-					if r["last_missing_reported_at"]
+					"asset_code": r.asset_code,
+					"asset_name": r.asset_name,
+					"category": r.category,
+					"last_status": r.last_status,
+					"last_seen_at": str(r.last_seen_at) if r.last_seen_at else None,
+					"last_missing_reported_at": str(r.last_missing_reported_at)
+					if r.last_missing_reported_at
 					else None,
 				}
 				for r in rows
@@ -6649,210 +6746,98 @@ def my_assets_at_farm():
 
 @frappe.whitelist()
 def scan_asset(asset_code=None, latitude=None, longitude=None, accuracy=None):
-	"""Guard scans a pre-printed QR sticker on a physical asset.
+	"""Guard scans an Asset's QR label: logs it as Found.
 
-	Stickers already carry fixed codes and there is no catalogue to pre-populate,
-	so the first scan of a code IS the registration (Security Asset auto-created).
+	asset_code is whatever the camera read - normally the label's URL. It must
+	resolve to an existing Asset; anything else is refused and raised as an
+	Invalid Asset Scan rather than registered. A Cancelled, Sold or Scrapped
+	asset is still logged (it was seen) but also raised, and the response
+	carries a `warning` for the guard.
 
-	Location is never trusted from one reading: Security Asset's cached
-	latitude/longitude is the average of every "Found" Asset Scan Log, refining as
-	more guards scan the same sticker. The aggregate is recomputed after each
-	insert and written with update_modified=False.
-
-	Guard identity: Employee by user_id (Internal Guard) first, else Security
-	Guard matched by full name (External Guard); either may resolve to nothing.
-
-	`not latitude or not longitude` treats a literal 0 as missing; kept as is.
-	CAST ... AS DECIMAL in the aggregate is MariaDB/MySQL syntax.
+	The response keeps the shape the app already reads: asset_code is the Asset
+	name, is_new is always False now, and latitude/longitude are the average of
+	every Found scan of this asset.
 	"""
 	try:
 		if frappe.db.get_single_value("Security Ops Settings", "feature_asset_scanning") == 0:
 			raise Exception("This feature is not enabled on this instance.")
 
-		asset_code = str(asset_code or "").strip()
-
-		if not asset_code:
+		scanned = _s(asset_code)
+		name = _asset_name_from_scan(scanned)
+		if not name:
 			return {"error": "asset_code is required"}
 		if not latitude or not longitude:
 			return {"error": "latitude and longitude are required"}
 
-		current_user = frappe.session.user
+		asset = frappe.db.get_value("Asset", name, _asset_fields(), as_dict=True)
+		if not asset:
+			_invalid_asset_scan(scanned, "Scanned code '" + scanned + "' is not a registered Asset.")
+			return {"error": "This QR code is not a registered asset."}
 
-		personel = None
-		internal_guard = None
-		external_guard = None
-		resolved_farm = None
-		resolved_company = None
+		warning = None
+		if _asset_is_retired(asset):
+			status_label = "Cancelled" if asset.docstatus == 2 else asset.status
+			warning = asset.name + " is recorded as " + status_label + " - report this to your supervisor."
+			_invalid_asset_scan(
+				asset.name,
+				"Asset " + asset.name + " (" + (asset.asset_name or "") + ") is " + status_label
+				+ " but was scanned on patrol.",
+			)
 
-		emp = frappe.db.get_value(
-			"Employee", {"user_id": current_user}, ["name", "custom_farm", "company"], as_dict=True
-		)
-		if emp:
-			personel = "Internal Guard"
-			internal_guard = emp["name"]
-			resolved_farm = emp["custom_farm"]
-			resolved_company = emp["company"]
-		else:
-			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
-			guard_name = None
-			if user_full:
-				guard_name = frappe.db.get_value("Security Guard", {"full_name": user_full}, "name")
-			if guard_name:
-				personel = "External Guard"
-				external_guard = guard_name
-				sg = frappe.db.get_value("Security Guard", guard_name, ["farm", "company"], as_dict=True)
-				if sg:
-					resolved_farm = sg["farm"]
-					resolved_company = sg["company"]
-
-		is_new = False
-		if frappe.db.exists("Security Asset", asset_code):
-			asset = frappe.get_doc("Security Asset", asset_code)
-		else:
-			asset = frappe.new_doc("Security Asset")
-			asset.asset_code = asset_code
-			asset.farm = resolved_farm
-			asset.company = resolved_company
-			asset.flags.ignore_links = True
-			asset.insert(ignore_permissions=True)
-			is_new = True
-
-		log = frappe.new_doc("Asset Scan Log")
-		log.asset = asset_code
-		log.status = "Found"
-		log.personel = personel
-		log.internal_guard = internal_guard
-		log.external_guard = external_guard
-		log.farm = resolved_farm
-		log.latitude = str(latitude)
-		log.longitude = str(longitude)
-		if accuracy:
-			log.gps_accuracy = str(accuracy)
-		log.scanned_at = frappe.utils.now()
-		log.flags.ignore_links = True
-		log.insert(ignore_permissions=True)
+		_log_asset_scan(asset, "Found", latitude, longitude, accuracy, warning)
+		frappe.db.commit()
 
 		agg = frappe.db.sql(
 			"""
-			SELECT AVG(CAST(latitude AS DECIMAL(12,8))) AS avg_lat,
-                   AVG(CAST(longitude AS DECIMAL(12,8))) AS avg_lng,
-                   COUNT(*) AS n
+			SELECT AVG(latitude) AS lat, AVG(longitude) AS lng, COUNT(*) AS n
 			FROM `tabAsset Scan Log`
-			WHERE asset = %s AND status = 'Found'
+			WHERE asset = %s AND status = 'Found' AND latitude IS NOT NULL AND longitude IS NOT NULL
 			""",
-			(asset_code,),
+			(asset.name,),
 			as_dict=True,
-		)
-		guard_display = internal_guard if internal_guard else external_guard
+		)[0]
 
-		if agg and agg[0]["n"]:
-			frappe.db.set_value(
-				"Security Asset",
-				asset_code,
-				{
-					"latitude": str(agg[0]["avg_lat"]),
-					"longitude": str(agg[0]["avg_lng"]),
-					"location_sample_count": agg[0]["n"],
-					"last_status": "Found",
-					"last_seen_at": log.scanned_at,
-					"last_reported_by": guard_display,
-				},
-				update_modified=False,
-			)
-		frappe.db.commit()
-
-		updated = frappe.get_doc("Security Asset", asset_code)
 		return {
-			"asset_code": asset_code,
-			"asset_name": updated.asset_name,
-			"farm": updated.farm,
-			"is_new": is_new,
-			"latitude": updated.latitude,
-			"longitude": updated.longitude,
-			"location_sample_count": updated.location_sample_count,
+			"asset_code": asset.name,
+			"asset_name": asset.asset_name,
+			"category": asset.asset_category,
+			"farm": asset.get("farm") or asset.location,
+			"asset_status": asset.status,
+			"is_new": False,
+			"warning": warning,
+			"latitude": str(agg.lat) if agg.lat is not None else None,
+			"longitude": str(agg.lng) if agg.lng is not None else None,
+			"location_sample_count": agg.n,
 		}
 	except Exception as e:
 		frappe.db.rollback()
 		frappe.log_error("scan_asset", str(e))
 		return {"error": str(e)}
+
+
 @frappe.whitelist()
 def report_asset_missing(asset_code=None, latitude=None, longitude=None, accuracy=None, remarks=None):
-	"""Guard reports an asset as missing (its sticker left with the asset, so this
-	is separate from scan_asset).
+	"""Guard reports an Asset as missing: logs it as Missing. GPS is optional.
 
-	The asset must already exist: there is nothing to compare a "missing" report
-	against for a code nobody has scanned. Unlike scan_asset, GPS is optional here
-	and nothing is averaged into the asset's cached location; only last_status,
-	last_missing_reported_at and last_reported_by are updated (update_modified=False).
-
-	Guard identity resolution matches scan_asset (Employee, else Security Guard by
-	full name).
+	asset_code is an Asset name (from the my_assets_at_farm picker) or a label
+	URL. Unknown assets are refused.
 	"""
 	try:
 		if frappe.db.get_single_value("Security Ops Settings", "feature_asset_scanning") == 0:
 			raise Exception("This feature is not enabled on this instance.")
 
-		asset_code = str(asset_code or "").strip()
-
-		if not asset_code:
+		name = _asset_name_from_scan(asset_code)
+		if not name:
 			return {"error": "asset_code is required"}
-		if not frappe.db.exists("Security Asset", asset_code):
-			return {"error": "Unknown asset — it must be scanned as Found at least once first"}
 
-		current_user = frappe.session.user
+		asset = frappe.db.get_value("Asset", name, _asset_fields(), as_dict=True)
+		if not asset:
+			return {"error": "Unknown asset " + name + "."}
 
-		personel = None
-		internal_guard = None
-		external_guard = None
-		resolved_farm = None
-
-		emp = frappe.db.get_value("Employee", {"user_id": current_user}, ["name", "custom_farm"], as_dict=True)
-		if emp:
-			personel = "Internal Guard"
-			internal_guard = emp["name"]
-			resolved_farm = emp["custom_farm"]
-		else:
-			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
-			guard_name = None
-			if user_full:
-				guard_name = frappe.db.get_value("Security Guard", {"full_name": user_full}, "name")
-			if guard_name:
-				personel = "External Guard"
-				external_guard = guard_name
-				resolved_farm = frappe.db.get_value("Security Guard", guard_name, "farm")
-
-		log = frappe.new_doc("Asset Scan Log")
-		log.asset = asset_code
-		log.status = "Missing"
-		log.personel = personel
-		log.internal_guard = internal_guard
-		log.external_guard = external_guard
-		log.farm = resolved_farm
-		if latitude:
-			log.latitude = str(latitude)
-		if longitude:
-			log.longitude = str(longitude)
-		if accuracy:
-			log.gps_accuracy = str(accuracy)
-		log.remarks = remarks
-		log.scanned_at = frappe.utils.now()
-		log.flags.ignore_links = True
-		log.insert(ignore_permissions=True)
-
-		guard_display = internal_guard if internal_guard else external_guard
-		frappe.db.set_value(
-			"Security Asset",
-			asset_code,
-			{
-				"last_status": "Missing",
-				"last_missing_reported_at": log.scanned_at,
-				"last_reported_by": guard_display,
-			},
-			update_modified=False,
-		)
+		log = _log_asset_scan(asset, "Missing", latitude, longitude, accuracy, _s(remarks) or None)
 		frappe.db.commit()
 
-		return {"asset_code": asset_code, "status": "Missing", "reported_at": str(log.scanned_at)}
+		return {"asset_code": asset.name, "status": "Missing", "reported_at": str(log.scanned_at)}
 	except Exception as e:
 		frappe.db.rollback()
 		frappe.log_error("report_asset_missing", str(e))

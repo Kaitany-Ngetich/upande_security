@@ -1,0 +1,188 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-10-13 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "asset",
+  "asset_name",
+  "status",
+  "scanned_at",
+  "asset_status",
+  "col_br_1",
+  "scanned_by",
+  "personel",
+  "internal_guard",
+  "external_guard",
+  "farm",
+  "company",
+  "gps_section",
+  "latitude",
+  "longitude",
+  "gps_accuracy",
+  "col_br_2",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "asset",
+   "fieldtype": "Link",
+   "label": "Asset",
+   "options": "Asset",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "asset_name",
+   "fieldtype": "Data",
+   "label": "Asset Name",
+   "fetch_from": "asset.asset_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Found\nMissing",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "scanned_at",
+   "fieldtype": "Datetime",
+   "label": "Scanned At",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "asset_status",
+   "fieldtype": "Data",
+   "label": "Asset Status at Scan",
+   "read_only": 1,
+   "description": "The ERPNext Asset's own status when it was scanned - a Sold, Scrapped or Cancelled asset turning up on patrol is worth a look."
+  },
+  {
+   "fieldname": "col_br_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "scanned_by",
+   "fieldtype": "Link",
+   "label": "Scanned By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "personel",
+   "fieldtype": "Select",
+   "label": "Personel",
+   "options": "\nInternal Guard\nExternal Guard"
+  },
+  {
+   "fieldname": "internal_guard",
+   "fieldtype": "Link",
+   "label": "Internal Guard",
+   "options": "Employee",
+   "depends_on": "eval:doc.personel=='Internal Guard'"
+  },
+  {
+   "fieldname": "external_guard",
+   "fieldtype": "Link",
+   "label": "External Guard",
+   "options": "Security Guard",
+   "depends_on": "eval:doc.personel=='External Guard'"
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "label": "Farm",
+   "options": "Farm",
+   "in_standard_filter": 1,
+   "description": "The scanning guard's farm."
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "gps_section",
+   "fieldtype": "Section Break",
+   "label": "Location"
+  },
+  {
+   "fieldname": "latitude",
+   "fieldtype": "Float",
+   "label": "Latitude",
+   "precision": "8"
+  },
+  {
+   "fieldname": "longitude",
+   "fieldtype": "Float",
+   "label": "Longitude",
+   "precision": "8"
+  },
+  {
+   "fieldname": "gps_accuracy",
+   "fieldtype": "Float",
+   "label": "GPS Accuracy (m)"
+  },
+  {
+   "fieldname": "col_br_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Asset Scan Log",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1
+  },
+  {
+   "role": "Security Head",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "Gate Guard",
+   "read": 1,
+   "if_owner": 1
+  }
+ ],
+ "sort_field": "scanned_at",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "asset_name",
+ "show_title_field_in_link": 0,
+ "in_create": 1,
+ "track_changes": 0
+}
