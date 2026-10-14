@@ -42,13 +42,43 @@ def _covers(shift, now):
 	return start <= now < end
 
 
+# A location change ends with the shift it was made in; one left running
+# must not quietly carry over to the guard's next shift.
+_LOCATION_CHANGE_HOURS = 14
+
+
+def _active_location_change(user):
+	"""The guard's Active Guard Location Change, or None. One older than
+	_LOCATION_CHANGE_HOURS has lapsed and no longer counts."""
+	cutoff = frappe.utils.add_to_date(frappe.utils.now_datetime(), hours=-_LOCATION_CHANGE_HOURS)
+	rows = frappe.get_all(
+		"Guard Location Change",
+		filters={"guard_user": user, "status": "Active", "started_at": [">=", cutoff]},
+		fields=["name", "farm", "gate", "reason", "started_at", "rostered_farm", "rostered_gate"],
+		order_by="started_at desc",
+		limit=1,
+	)
+	return rows[0] if rows else None
+
+
 def guard_post(user=None):
-	"""(farm, gate) where the calling guard is rostered right now, from their
-	Security Guard Shift Assignment - not the static farm on Security Guard,
-	since guards are moved between blocks. Blocks are named "<Farm> - <Post>";
-	the post is returned as the gate. A shift covering the current time wins,
-	else any shift dated today. (None, None) when the guard is not rostered."""
+	"""(farm, gate) where the calling guard is posted right now.
+
+	A location change the guard made in the app (emergency cover) comes
+	first; otherwise their Security Guard Shift Assignment - not the static
+	farm on Security Guard, since guards are moved between blocks. Blocks
+	are named "<Farm> - <Post>"; the post is returned as the gate. A shift
+	covering the current time wins, else any shift dated today. (None, None)
+	when the guard has neither."""
 	user = user or frappe.session.user
+	change = _active_location_change(user)
+	if change:
+		return change.farm, change.gate
+	return rostered_post(user)
+
+
+def rostered_post(user):
+	"""(farm, gate) from the roster alone - see guard_post."""
 	employee, guard = _roster_guard(user)
 	or_filters = []
 	if employee:
@@ -174,3 +204,114 @@ def compute_gate_mismatch(entry_gate, exit_gate):
 	this module. This function documents the rule those scripts duplicate.
 	"""
 	return bool(entry_gate and exit_gate and entry_gate != exit_gate)
+
+
+def _location(user):
+	farm, gate = rostered_post(user)
+	change = _active_location_change(user)
+	if change:
+		source, here, here_gate = "change", change.farm, change.gate
+	elif farm:
+		source, here, here_gate = "roster", farm, gate
+	else:
+		# Not rostered today: the farm on the guard's own record, if any.
+		from upande_security.api.gate_vehicle import _resolve_checking_farm
+
+		here = _resolve_checking_farm(user, linked_only=True)
+		source, here_gate = ("record" if here else None), None
+	return {
+		"rostered": {"farm": farm, "gate": gate} if farm else None,
+		"change": change,
+		"farm": here,
+		"gate": here_gate,
+		"source": source,
+	}
+
+
+@frappe.whitelist()
+def get_my_location():
+	"""Where the gate app should say this guard is: the rostered post, and
+	any active location change on top of it."""
+	return _location(frappe.session.user)
+
+
+@frappe.whitelist(methods=["POST"])
+def change_location(farm, gate, reason):
+	"""Emergency switch away from the rostered post - e.g. covering a gate
+	nobody turned up for. Every scan after this records the chosen farm and
+	gate until return_to_roster() or the change lapses.
+
+	Never silent: each change is a Guard Location Change record (Security
+	Head can read it, guards cannot) and every security recipient gets a
+	notification, so someone covering for an absent colleague - or claiming
+	to - is visible the moment it happens."""
+	user = frappe.session.user
+	farm = (farm or "").strip()
+	gate = (gate or "").strip()
+	reason = (reason or "").strip()
+	if not frappe.db.exists("Farm", farm):
+		return {"error": "Choose a valid farm."}
+	if not any(g["gate_name"] == gate for g in get_farm_gates(farm)):
+		return {"error": "Choose one of " + farm + "'s gates."}
+	if len(reason) < 5:
+		return {"error": "Give a reason for the change."}
+
+	rostered_farm, rostered_gate = rostered_post(user)
+	employee, guard = _roster_guard(user)
+	_end_location_changes(user)
+	doc = frappe.new_doc("Guard Location Change")
+	doc.guard_user = user
+	doc.guard_name = frappe.db.get_value("User", user, "full_name") or user
+	doc.external_guard = guard
+	doc.internal_guard = employee
+	doc.status = "Active"
+	doc.started_at = frappe.utils.now_datetime()
+	doc.rostered_farm = rostered_farm
+	doc.rostered_gate = rostered_gate
+	doc.farm = farm
+	doc.gate = gate
+	doc.reason = reason
+	doc.insert(ignore_permissions=True)
+	_notify_location_change(doc)
+	return _location(user)
+
+
+@frappe.whitelist(methods=["POST"])
+def return_to_roster():
+	"""End the guard's location change; scans go back to the rostered post."""
+	_end_location_changes(frappe.session.user)
+	return _location(frappe.session.user)
+
+
+def _end_location_changes(user):
+	for name in frappe.get_all(
+		"Guard Location Change", filters={"guard_user": user, "status": "Active"}, pluck="name"
+	):
+		frappe.db.set_value(
+			"Guard Location Change", name, {"status": "Ended", "ended_at": frappe.utils.now_datetime()}
+		)
+
+
+def _notify_location_change(doc):
+	"""Best-effort Notification Log to every security recipient - a failure
+	here must not undo the change the guard needs to keep working."""
+	from upande_security.utils.notifications import resolve_notification_users
+
+	rostered = (doc.rostered_farm + " - " + (doc.rostered_gate or "?")) if doc.rostered_farm else "not rostered"
+	subject = doc.guard_name + " moved to " + doc.farm + " - " + doc.gate
+	detail = "Rostered: " + rostered + "<br>Reason: " + frappe.utils.escape_html(doc.reason)
+	for recipient in resolve_notification_users("security"):
+		try:
+			frappe.get_doc(
+				{
+					"doctype": "Notification Log",
+					"for_user": recipient,
+					"subject": subject,
+					"email_content": detail,
+					"document_type": "Guard Location Change",
+					"document_name": doc.name,
+					"type": "Alert",
+				}
+			).insert(ignore_permissions=True)
+		except Exception as e:
+			frappe.log_error("_notify_location_change for " + doc.name, str(e))

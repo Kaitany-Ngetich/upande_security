@@ -1,0 +1,175 @@
+{
+ "actions": [],
+ "autoname": "format:GLC-{YYYY}-{#####}",
+ "creation": "2026-10-14 00:00:00.000000",
+ "description": "A guard switching away from their rostered farm/gate (emergency cover). Created only through the gate app; visible to Security Heads.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "guard_user",
+  "guard_name",
+  "external_guard",
+  "internal_guard",
+  "status",
+  "col_br_1",
+  "started_at",
+  "ended_at",
+  "location_section",
+  "rostered_farm",
+  "rostered_gate",
+  "col_br_2",
+  "farm",
+  "gate",
+  "reason_section",
+  "reason"
+ ],
+ "fields": [
+  {
+   "fieldname": "guard_user",
+   "fieldtype": "Link",
+   "label": "Guard Login",
+   "options": "User",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "guard_name",
+   "fieldtype": "Data",
+   "label": "Guard Name",
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "external_guard",
+   "fieldtype": "Link",
+   "label": "External Guard",
+   "options": "Security Guard",
+   "read_only": 1
+  },
+  {
+   "fieldname": "internal_guard",
+   "fieldtype": "Link",
+   "label": "Internal Guard",
+   "options": "Employee",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nEnded",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_br_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "started_at",
+   "fieldtype": "Datetime",
+   "label": "Started At",
+   "reqd": 1,
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "ended_at",
+   "fieldtype": "Datetime",
+   "label": "Ended At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "location_section",
+   "fieldtype": "Section Break",
+   "label": "Location"
+  },
+  {
+   "fieldname": "rostered_farm",
+   "fieldtype": "Link",
+   "label": "Rostered Farm",
+   "options": "Farm",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rostered_gate",
+   "fieldtype": "Data",
+   "label": "Rostered Gate",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_br_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "label": "Chosen Farm",
+   "options": "Farm",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "gate",
+   "fieldtype": "Data",
+   "label": "Chosen Gate",
+   "reqd": 1,
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "reason_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason",
+   "reqd": 1,
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-14 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Guard Location Change",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1
+  },
+  {
+   "role": "Security Head",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "started_at",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "guard_name",
+ "in_create": 1,
+ "track_changes": 1
+}

@@ -246,6 +246,15 @@ def _parse_gate_activity_comment(state, html_content):
 # Read-only. Nothing here writes, so these were migrated first as the pilot.
 
 
+def _guard_location(user):
+	try:
+		from upande_security.api.gate_movement import _location
+
+		return _location(user)
+	except Exception:
+		return None
+
+
 def _checking_farm(user):
 	try:
 		from upande_security.api.gate_vehicle import _resolve_checking_farm
@@ -341,6 +350,8 @@ def get_session_info():
 			# Security Guard - the same resolution the gate endpoints use, so
 			# external guards (no Employee record) get a gate picker too.
 			"checking_farm": _checking_farm(user),
+			# Rostered post plus any emergency location change on top of it.
+			"location": _guard_location(user),
 			"features": features,
 		}
 	except Exception as e:
