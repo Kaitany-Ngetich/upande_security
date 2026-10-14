@@ -191,7 +191,6 @@ doc_events = {
 			# from going out. Uncommenting restores that breakage.
 			# "upande_security.api.appointment_events.appointment_host_wa_number",
 		],
-		"after_save": "upande_security.api.appointment_events.clear_stale_event_participant",
 		# Copies the farm's configured extra recipients (Security Ops
 		# Settings) on every newly registered appointment, alongside the
 		# host's own "Visitor at Reception" Notification.
@@ -212,6 +211,12 @@ doc_events = {
 		# this Appointment (doc.owner) whenever it lands on any decision
 		# state (see notifications.STATUS_FRAGMENTS).
 		"on_update": [
+			# Strips the Customer ERPNext links on the appointment's calendar
+			# Event, and the party itself. Must be on_update: the Server Script
+			# it came from was "After Save", which IS on_update - Frappe never
+			# runs a hook named "after_save". Also runs when ignore_validate
+			# is set (contractor check-ins), which skips before_save.
+			"upande_security.api.appointment_events.clear_stale_event_participant",
 			"upande_security.api.visitor_badge_qr.release_badge_on_checkout",
 			"upande_security.api.visitor_approved_alert.notify_gate_guards_on_host_approval",
 			"upande_security.api.notifications.notify_owner_on_status_change",

@@ -57,6 +57,17 @@ def clear_stale_event_participant(doc, method=None):
 	Child rows are deleted individually via frappe.delete_doc (the original
 	sandbox could not reach frappe.db.delete); kept as-is for faithfulness.
 
+	Wired on on_update, NOT "after_save": Frappe has no document event of that
+	name (a Server Script's "After Save" is on_update), so the hook never ran
+	once the Server Script was retired, and every appointment's Event leaked
+	onto a Customer's timeline again.
+
+	Also clears party/appointment_with when they are still set. The before_*
+	clears are skipped by saves made with flags.ignore_validate (both
+	contractor check-in endpoints set it, and the flag survives into ERPNext's
+	own follow-up save in create_calendar_event), so on_update - which runs
+	regardless - is the one place that always sees the record.
+
 	Round 2 (2026-10-01): even with the participant row gone, the same core flow
 	creates a standalone Communication per participant (communication_medium=
 	Event, reference_doctype=Event, reference_name=this event) with a
@@ -66,6 +77,13 @@ def clear_stale_event_participant(doc, method=None):
 	tied to this event. Nothing in this app intends an Appointment's Event to
 	carry a real Customer relationship.
 	"""
+	if doc.get("party") or doc.get("appointment_with"):
+		frappe.db.set_value(
+			"Appointment", doc.name, {"party": None, "appointment_with": None}, update_modified=False
+		)
+		doc.party = None
+		doc.appointment_with = None
+
 	if not doc.calendar_event:
 		return
 
