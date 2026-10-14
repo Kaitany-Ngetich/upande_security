@@ -120,11 +120,14 @@ def _guard_scope():
 	on, so a blank here silently hides the visit from its Security Head.
 	"""
 	current_user = frappe.session.user
+	from upande_security.api.gate_movement import guard_post
+
 	employee = frappe.db.get_value(
 		"Employee", {"user_id": current_user}, ["company", "custom_farm"], as_dict=True
 	)
 	resolved_company = employee.company if employee else None
-	resolved_farm = employee.custom_farm if employee else None
+	# Today's roster shift beats the static farm - guards move between farms.
+	resolved_farm = guard_post(current_user)[0] or (employee.custom_farm if employee else None)
 	if not resolved_company or not resolved_farm:
 		user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 		if user_full:
@@ -165,44 +168,17 @@ def _sp_lookup(container, key):
 	except (KeyError, TypeError):
 		return None
 def _sp_gate_from_roster():
-	"""Resolve the gate/post name for the current guard from their Active shift.
+	"""The gate/post the current guard is rostered at right now (see
+	gate_movement.guard_post), or "" - an empty gate is honest, a guessed one
+	is not.
 
-	The roster already knows where the guard is posted (an Active Security
-	Guard Shift Assignment pointing at a Security Block such as
-	"Kapkolia - Gate B"), so the guard has nothing to pick or mistype. External
-	guards have no User of their own - the app logs in as a shared gate account
-	- so when no internal match exists we fall back to matching the User's
-	full_name against Security Guard. Returns "" when nothing resolves: an
-	empty gate is honest, a guessed one is not. Blocks are named
-	"<Farm> - <Post>"; only the post part is returned.
-
-	Shared verbatim by create_staff_attendance and staff_gate_checkout, which
-	each carried an identical copy of this block.
+	Shared by create_staff_attendance and staff_gate_checkout.
 	"""
-	posted_block = ""
-	guard_emp = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
-	if guard_emp:
-		posted_block = frappe.db.get_value(
-			"Security Guard Shift Assignment",
-			{"status": "Active", "internal_guard": guard_emp},
-			"block",
-		)
-	if not posted_block:
-		user_full = frappe.db.get_value("User", frappe.session.user, "full_name") or ""
-		if user_full:
-			guard_sg = frappe.db.get_value("Security Guard", {"full_name": user_full}, "name")
-			if guard_sg:
-				posted_block = frappe.db.get_value(
-					"Security Guard Shift Assignment",
-					{"status": "Active", "external_guard": guard_sg},
-					"block",
-				)
-	if posted_block:
-		block_parts = posted_block.split(" - ", 1)
-		if len(block_parts) > 1:
-			return block_parts[1]
-		return posted_block
-	return ""
+	from upande_security.api.gate_movement import guard_post
+
+	return guard_post()[1] or ""
+
+
 def _user_roles(user):
 	"""Role names for `user`, read straight from tabHas Role.
 
@@ -4159,12 +4135,16 @@ def create_staff_attendance(employee=None, vehicle_plate=None, entry_gate=None):
 			mv.movement_date = today
 			in_clock = frappe.utils.nowtime()
 			mv.time_in = in_clock
-			if emp.custom_farm:
-				mv.farm = emp.custom_farm
+			# Where the movement happened - the guard's farm - not where the
+			# employee normally works.
+			from upande_security.api.gate_vehicle import _resolve_checking_farm
+
+			mv.farm = _resolve_checking_farm(frappe.session.user) or emp.custom_farm
 			if vehicle_plate:
 				mv.vehicle_plate = vehicle_plate
-			if entry_gate:
-				mv.entry_gate = entry_gate
+			from upande_security.api.gate_movement import resolve_gate
+
+			mv.entry_gate = resolve_gate(entry_gate, mv.farm) if mv.farm else entry_gate
 			mv.recorded_by = frappe.session.user
 			mv.insert(ignore_permissions=True)
 			frappe.db.commit()
@@ -4309,7 +4289,7 @@ def staff_gate_checkout(attendance_name=None, exit_gate=None):
 		movement = frappe.db.get_value(
 			"Staff Gate Movement",
 			attendance_name,
-			["name", "movement_date", "time_in", "time_out"],
+			["name", "movement_date", "time_in", "time_out", "farm"],
 			as_dict=True,
 		)
 		existing = None
@@ -4334,6 +4314,10 @@ def staff_gate_checkout(attendance_name=None, exit_gate=None):
 			out_parts = now_str.split(" ")
 			out_clock = out_parts[1] if len(out_parts) > 1 else now_str
 			mv_updates = {"time_out": out_clock}
+			if movement.farm:
+				from upande_security.api.gate_movement import resolve_gate
+
+				exit_gate = resolve_gate(exit_gate, movement.farm)
 			if exit_gate:
 				mv_updates["exit_gate"] = exit_gate
 			frappe.db.set_value(

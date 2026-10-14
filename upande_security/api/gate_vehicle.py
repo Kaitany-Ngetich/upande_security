@@ -75,7 +75,15 @@ def _resolve_checking_farm(current_user, linked_only=False):
 	contact.py: Employee linked to this login first, then Security Guard
 	matched by full name (Security Guard has no user_id field), then -
 	unless linked_only - the farm the guard chose in the app
-	(gate_movement.requested_farm), for logins linked to no farm at all."""
+	(gate_movement.requested_farm), for logins linked to no farm at all.
+
+	Today's roster shift comes first: guards are moved between farms, so
+	the shift says where they are now, not the static farm on their record."""
+	from upande_security.api.gate_movement import guard_post
+
+	rostered_farm = guard_post(current_user)[0]
+	if rostered_farm:
+		return rostered_farm
 	employee = frappe.db.get_value("Employee", {"user_id": current_user}, "custom_farm")
 	if employee:
 		return employee
