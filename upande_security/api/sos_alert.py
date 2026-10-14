@@ -70,7 +70,7 @@ def register_push_token(expo_push_token, platform=None, lat=None, lng=None):
 	switching phones replaces their old token rather than accumulating
 	stale ones."""
 	require_feature("feature_sos_alert")
-	guard_type, guard_id, _ = _resolve_calling_guard()
+	guard_type, guard_id, guard_name = _resolve_calling_guard()
 	if not guard_id:
 		frappe.response["message"] = {"error": "No Employee or Security Guard record linked to this login"}
 		return
@@ -97,6 +97,8 @@ def register_push_token(expo_push_token, platform=None, lat=None, lng=None):
 			doc.app_user = guard_id
 
 	doc.expo_push_token = expo_push_token
+	doc.login_user = frappe.session.user
+	doc.guard_name = guard_name
 	if platform:
 		doc.platform = platform
 	if lat is not None:
