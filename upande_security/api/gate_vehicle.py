@@ -69,11 +69,13 @@ def _enabled_vehicle_task_sources():
 	return [row for row in settings.vehicle_task_sources if row.enabled]
 
 
-def _resolve_checking_farm(current_user):
+def _resolve_checking_farm(current_user, linked_only=False):
 	"""Which farm's gate the CALLING guard is physically stationed at -
 	same resolution order as issue_visitor_badge.py / get_security_head_
 	contact.py: Employee linked to this login first, then Security Guard
-	matched by full name (Security Guard has no user_id field)."""
+	matched by full name (Security Guard has no user_id field), then -
+	unless linked_only - the farm the guard chose in the app
+	(gate_movement.requested_farm), for logins linked to no farm at all."""
 	employee = frappe.db.get_value("Employee", {"user_id": current_user}, "custom_farm")
 	if employee:
 		return employee
@@ -82,7 +84,11 @@ def _resolve_checking_farm(current_user):
 		guard_farm = frappe.db.get_value("Security Guard", {"full_name": user_full}, "farm")
 		if guard_farm:
 			return guard_farm
-	return None
+	if linked_only:
+		return None
+	from upande_security.api.gate_movement import requested_farm
+
+	return requested_farm()
 
 
 def _parse_scan(reference):

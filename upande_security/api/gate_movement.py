@@ -12,6 +12,30 @@ through Gate B) is a real anomaly worth flagging, not just a data point.
 import frappe
 
 
+def requested_farm():
+	"""The farm the app says this guard is at, for logins with no farm of
+	their own (no Employee.custom_farm, no Security Guard farm). The app
+	sends it as `checking_farm` with every request once the guard has
+	chosen it. Only a real Farm counts. Callers must use it as a FALLBACK
+	only - a linked farm always wins, so nobody can record under a farm
+	they are not assigned to."""
+	farm = (frappe.form_dict.get("checking_farm") or "").strip()
+	if farm and frappe.db.exists("Farm", farm):
+		return farm
+	return None
+
+
+@frappe.whitelist()
+def list_gate_farms():
+	"""Every farm with its active gates (main gate first; "Main Gate" when a
+	farm has none configured) - feeds the app's farm picker for guards whose
+	login is not linked to a farm."""
+	return [
+		{"farm": name, "gates": get_farm_gates(name)}
+		for name in frappe.get_all("Farm", pluck="name", order_by="name asc")
+	]
+
+
 def resolve_gate(gate, farm):
 	"""The gate a movement is recorded at: what the guard picked, else the
 	farm's main (or only) configured gate, else "Main Gate" - the same order

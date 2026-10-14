@@ -136,6 +136,13 @@ def _guard_scope():
 					resolved_company = guard.company
 				if not resolved_farm:
 					resolved_farm = guard.farm
+	if not resolved_farm:
+		# A login linked to no farm: the farm the guard chose in the app.
+		from upande_security.api.gate_movement import requested_farm
+
+		resolved_farm = requested_farm()
+		if resolved_farm and not resolved_company and frappe.get_meta("Farm").has_field("company"):
+			resolved_company = frappe.db.get_value("Farm", resolved_farm, "company")
 	return resolved_company, resolved_farm
 def _form_has(key):
 	"""True if the client sent `key` at all (even as null/"").
@@ -267,7 +274,8 @@ def _checking_farm(user):
 	try:
 		from upande_security.api.gate_vehicle import _resolve_checking_farm
 
-		return _resolve_checking_farm(user)
+		# Linked farm only: an empty value tells the app to ask the guard.
+		return _resolve_checking_farm(user, linked_only=True)
 	except Exception:
 		return None
 
