@@ -29,17 +29,12 @@ def _roster_guard(user):
 	return employee, guard
 
 
-def _covers(shift, now):
-	"""True if `now` falls inside the shift's own hours. A shift with no
-	times covers its whole date; one ending before it starts runs past
-	midnight into the next day."""
-	if not shift.start_time or not shift.end_time:
-		return shift.start_date <= now.date() <= shift.end_date
-	start = frappe.utils.get_datetime(str(shift.start_date) + " " + str(shift.start_time))
-	end = frappe.utils.get_datetime(str(shift.end_date) + " " + str(shift.end_time))
-	if end <= start:
-		end = end + timedelta(days=1)
-	return start <= now < end
+def _covers(shift, now, grace_minutes=0):
+	"""True if `now` falls inside the shift's hours, widened by grace_minutes
+	either side. See _shift_window for shifts with no times or past midnight."""
+	start, end = _shift_window(shift)
+	grace = timedelta(minutes=grace_minutes)
+	return start - grace <= now < end + grace
 
 
 # A location change ends with the shift it was made in; one left running
@@ -102,6 +97,8 @@ def rostered_post(user):
 		order_by="start_date desc, start_time desc",
 	)
 	current = next((s for s in shifts if _covers(s, now)), None)
+	if not current:
+		current = next((s for s in shifts if _covers(s, now, _SHIFT_GRACE_MINUTES)), None)
 	if not current:
 		current = next((s for s in shifts if s.start_date <= today <= s.end_date), None)
 	if not current:
@@ -315,3 +312,159 @@ def _notify_location_change(doc):
 			).insert(ignore_permissions=True)
 		except Exception as e:
 			frappe.log_error("_notify_location_change for " + doc.name, str(e))
+
+
+# --- Off-shift account use -------------------------------------------------
+# A guard's login used at the gate outside that guard's shift is most likely
+# someone else on a borrowed account (e.g. a colleague whose shift ended).
+# Gate actions from it are refused and reported to the security heads.
+
+# Slack either side of a shift for handover and late relief.
+_SHIFT_GRACE_MINUTES = 60
+
+# Gate actions (last segment of the /api/method path) that need the login to
+# be on shift. Lookups/searches stay open; so does change_location, which is
+# how a guard called in off-roster declares it (and is itself reported).
+GATE_ACTIONS = {
+	"create_staff_attendance",
+	"staff_gate_checkout",
+	"gate_temp_exit",
+	"check_in_visitor",
+	"check_out_visitor",
+	"create_walk_in",
+	"create_walk_in_notify",
+	"issue_visitor_badge",
+	"contractor_gate_checkin",
+	"contractor_gate_checkout",
+	"verify_vehicle_task_at_gate",
+	"verify_dispatch_at_gate",
+	"verify_dispatch_at_gate_bulk",
+	"verify_receiving_at_gate",
+	"verify_receiving_at_gate_bulk",
+}
+
+_EXEMPT_ROLES = ("Security Head", "System Manager")
+
+
+def _shift_window(shift):
+	"""(start, end) datetimes of a shift; one ending before it starts runs
+	past midnight. A shift with no times spans its whole dates."""
+	start_time = shift.start_time or "00:00:00"
+	end_time = shift.end_time or "23:59:59"
+	start = frappe.utils.get_datetime(str(shift.start_date) + " " + str(start_time))
+	end = frappe.utils.get_datetime(str(shift.end_date) + " " + str(end_time))
+	if end <= start:
+		end = end + timedelta(days=1)
+	return start, end
+
+
+def off_shift_reason(user):
+	"""Why this login may not act at the gate right now, or None if it may.
+
+	Only applies to logins matched to a rostered guard (any shift within a
+	week either way); everyone else - security heads, admins, logins not on
+	the roster - is never blocked. An active location change also allows it.
+	"""
+	if not user or user in ("Guest", "Administrator"):
+		return None
+	if any(role in _EXEMPT_ROLES for role in frappe.get_roles(user)):
+		return None
+	employee, guard = _roster_guard(user)
+	or_filters = []
+	if employee:
+		or_filters.append(["internal_guard", "=", employee])
+	if guard:
+		or_filters.append(["external_guard", "=", guard])
+	if not or_filters:
+		return None
+	if _active_location_change(user):
+		return None
+	today = frappe.utils.getdate()
+	shifts = frappe.get_all(
+		"Security Guard Shift Assignment",
+		filters=[
+			["status", "in", ["Scheduled", "Active"]],
+			["start_date", "<=", frappe.utils.add_days(today, 7)],
+			["end_date", ">=", frappe.utils.add_days(today, -7)],
+		],
+		or_filters=or_filters,
+		fields=["start_date", "end_date", "start_time", "end_time"],
+	)
+	if not shifts:
+		return None
+	now = frappe.utils.now_datetime()
+	grace = timedelta(minutes=_SHIFT_GRACE_MINUTES)
+	ended, upcoming = None, None
+	for shift in shifts:
+		if _covers(shift, now, _SHIFT_GRACE_MINUTES):
+			return None
+		start, end = _shift_window(shift)
+		if end + grace <= now and (not ended or end > ended):
+			ended = end
+		if now < start - grace and (not upcoming or start < upcoming):
+			upcoming = start
+	if ended and ended.date() >= today - timedelta(days=1):
+		reason = "This account's shift ended at " + ended.strftime("%H:%M")
+	elif upcoming and upcoming.date() == today:
+		reason = "This account's shift starts at " + upcoming.strftime("%H:%M")
+	else:
+		reason = "This account is not on shift today"
+	return reason
+
+
+def check_on_shift():
+	"""before_request hook: refuse gate actions from a login that is off
+	shift (see off_shift_reason), after reporting the attempt."""
+	request = getattr(frappe.local, "request", None)
+	path = request.path if request else ""
+	if "/method/" not in path:
+		return
+	action = path.rsplit("/", 1)[-1].rsplit(".", 1)[-1]
+	if action not in GATE_ACTIONS:
+		return
+	user = frappe.session.user
+	reason = off_shift_reason(user)
+	if not reason:
+		return
+	_report_off_shift(user, action, reason)
+	frappe.throw(
+		reason + ". Log in with your own account, or use Change location if you have been called in to cover.",
+		title="Off shift",
+	)
+
+
+def _report_off_shift(user, action, reason):
+	"""Unauthorized Access Attempt + notification to the security heads -
+	always, not only when feature_security_alerts is on. Repeats from the
+	same login within 15 minutes are one attempt, not a flood."""
+	try:
+		recent = frappe.db.exists(
+			"Unauthorized Access Attempt",
+			{
+				"attempt_type": "Off-Shift Account Use",
+				"attempted_by": user,
+				"attempt_time": [">=", frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-15)],
+			},
+		)
+		if recent:
+			return
+		from upande_security.api.security_alerts import _notify_unauthorized_access
+
+		full_name = frappe.db.get_value("User", user, "full_name") or user
+		attempt = frappe.new_doc("Unauthorized Access Attempt")
+		attempt.attempt_type = "Off-Shift Account Use"
+		attempt.reference = full_name
+		attempt.farm = rostered_post(user)[0]
+		attempt.detail = (
+			full_name + "'s account was used at the gate (" + action + ") outside their shift. "
+			+ reason + "."
+		)
+		attempt.attempted_by = user
+		attempt.attempt_time = frappe.utils.now_datetime()
+		attempt.flags.ignore_links = True
+		attempt.insert(ignore_permissions=True)
+		_notify_unauthorized_access(attempt)
+		# The request is about to fail and roll back; keep the report.
+		frappe.db.commit()
+	except Exception as e:
+		frappe.log_error("off-shift report: " + str(user), str(e))

@@ -495,7 +495,8 @@ ignore_links_on_delete = ["Watchlist Activity", "Security Watchlist"]
 
 # Request Events
 # ----------------
-# before_request = ["upande_security.utils.before_request"]
+# Refuses gate actions from a guard login used outside its shift.
+before_request = ["upande_security.api.gate_movement.check_on_shift"]
 # after_request = ["upande_security.utils.after_request"]
 
 # Job Events
