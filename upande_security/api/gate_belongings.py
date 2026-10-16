@@ -1,7 +1,8 @@
 # Copyright (c) 2026, dev@upande.com and contributors
 # For license information, please see license.txt
 
-"""Passenger names and carried items for a gate visit (Appointment).
+"""Passenger names and carried items for a gate visit (Appointment), and
+carried items for staff (see Staff, at the end).
 
 Two independent Security Ops Settings flags:
 
@@ -241,3 +242,146 @@ def check_out_items(appointment, items_out=None):
 
 	frappe.db.commit()
 	return {"appointment": appt.name, "not_seen_leaving": not_seen}
+
+
+# --- Staff -------------------------------------------------------------------
+# Staff have no Appointment: staff check-in creates a Staff Gate Movement or
+# an HR Attendance depending on the company's Staff Gate Mode. Their items are
+# Staff Carried Item records pointing at whichever of the two it was, with the
+# same exit check as a visit. Gated by the same feature_carried_items flag.
+
+STAFF_ITEM_DOCTYPE = "Staff Carried Item"
+
+
+def _staff_record(record):
+	"""The staff gate record (movement or attendance) as one shape."""
+	record = (record or "").strip()
+	if not record:
+		frappe.throw(_("record is required"))
+	mv = frappe.db.get_value(
+		"Staff Gate Movement",
+		record,
+		["name", "employee", "employee_name", "farm", "movement_date", "time_out"],
+		as_dict=True,
+	)
+	if mv:
+		return frappe._dict(
+			doctype="Staff Gate Movement",
+			name=mv.name,
+			employee=mv.employee,
+			employee_name=mv.employee_name,
+			farm=mv.farm,
+			date=mv.movement_date,
+			checked_out=mv.time_out is not None,
+		)
+	att = frappe.db.get_value(
+		"Attendance",
+		record,
+		["name", "employee", "employee_name", "custom_farm", "attendance_date", "out_time"],
+		as_dict=True,
+	)
+	if att:
+		return frappe._dict(
+			doctype="Attendance",
+			name=att.name,
+			employee=att.employee,
+			employee_name=att.employee_name,
+			farm=att.custom_farm,
+			date=att.attendance_date,
+			checked_out=bool(att.out_time),
+		)
+	frappe.throw(_("Staff gate record {0} not found").format(record))
+
+
+def _employee_name(rec):
+	return rec.employee_name or frappe.db.get_value("Employee", rec.employee, "employee_name") or rec.employee
+
+
+def _staff_item_rows(rec):
+	return frappe.get_all(
+		STAFF_ITEM_DOCTYPE,
+		filters={"reference_doctype": rec.doctype, "reference_name": rec.name},
+		fields=["name", "employee_name as carried_by", "item", "qty", "serial_notes", "exit_status", "exit_time", "exit_checked_by"],
+		order_by="creation asc",
+	)
+
+
+@frappe.whitelist()
+def get_staff_items(record):
+	"""Items a staff member brought in on this gate record. Empty (not an
+	error) when feature_carried_items is off."""
+	_require_gate_user()
+	rec = _staff_record(record)
+	return {
+		"record": rec.name,
+		"employee_name": _employee_name(rec),
+		"checked_out": rec.checked_out,
+		"items": _staff_item_rows(rec) if is_feature_enabled("feature_carried_items") else [],
+	}
+
+
+@frappe.whitelist()
+def save_staff_items(record, items=None):
+	"""Replace the items a staff member brought in - only while they are
+	still on site. items: [{item, qty?, serial_notes?}]."""
+	_require_gate_user()
+	require_feature("feature_carried_items")
+	rec = _staff_record(record)
+	if rec.checked_out:
+		frappe.throw(_("{0} has already checked out - items can no longer be changed.").format(_employee_name(rec)))
+
+	clean = []
+	for it in _as_list(items) or []:
+		item = _clean(it.get("item"))
+		if not item:
+			continue
+		try:
+			qty = int(it.get("qty") or 1)
+		except (TypeError, ValueError):
+			qty = 1
+		clean.append({"item": item, "qty": max(qty, 1), "serial_notes": _clean(it.get("serial_notes"))})
+
+	frappe.db.delete(STAFF_ITEM_DOCTYPE, {"reference_doctype": rec.doctype, "reference_name": rec.name})
+	for row in clean:
+		doc = frappe.new_doc(STAFF_ITEM_DOCTYPE)
+		doc.update(row)
+		doc.employee = rec.employee
+		doc.employee_name = _employee_name(rec)
+		doc.reference_doctype = rec.doctype
+		doc.reference_name = rec.name
+		doc.movement_date = rec.date
+		doc.farm = rec.farm
+		doc.recorded_by = frappe.session.user
+		doc.exit_status = EXIT_INSIDE
+		doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return get_staff_items(rec.name)
+
+
+@frappe.whitelist()
+def check_out_staff_items(record, items_out=None):
+	"""Exit check for staff, like check_out_items: items_out names the items
+	seen leaving; every other item still Inside becomes "Not seen leaving".
+	Call this before staff_gate_checkout."""
+	_require_gate_user()
+	require_feature("feature_carried_items")
+	rec = _staff_record(record)
+	items_out = set(_as_list(items_out) or [])
+
+	now = frappe.utils.now_datetime()
+	not_seen = []
+	for row in _staff_item_rows(rec):
+		if row.exit_status != EXIT_INSIDE:
+			continue
+		status = EXIT_LEFT if row.name in items_out else EXIT_NOT_SEEN
+		frappe.db.set_value(
+			STAFF_ITEM_DOCTYPE,
+			row.name,
+			{"exit_status": status, "exit_time": now, "exit_checked_by": frappe.session.user},
+			update_modified=False,
+		)
+		if status == EXIT_NOT_SEEN:
+			not_seen.append(row.item)
+
+	frappe.db.commit()
+	return {"record": rec.name, "not_seen_leaving": not_seen}
