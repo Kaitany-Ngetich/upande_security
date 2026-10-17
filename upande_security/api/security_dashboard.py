@@ -2919,14 +2919,17 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
     # checked_in belongs to the Shift Assignment doctype, and only the counts
     # derived from it need to leave the server.
     #
-    # Every shift in the range counts, ended ones included: these cards sit
+    # Every shift starting in the range counts, ended ones included: these cards sit
     # beside "Assignments in range", and counting only Active/Scheduled made a
     # 7d or 30d range show the same handful as today - and dropped a morning
     # First shift from "today" as soon as it had ended.
     shift_type_counts = {}
     shift_type_checked_in = {}
     for r in range_rows:
-        if r.get("status") != "Cancelled":
+        # Shifts that start in the range: a night shift ending this morning
+        # belongs to yesterday, not to today as well.
+        starts = frappe.utils.getdate(r["start_date"]) if r.get("start_date") else None
+        if r.get("status") != "Cancelled" and starts and range_from <= starts <= range_to:
             st = r.get("shift_type")
             shift_type_counts[st] = shift_type_counts.get(st, 0) + 1
             if r.get("checked_in"):
