@@ -5482,6 +5482,49 @@ def my_incidents():
 		return {"error": str(e)}
 
 
+def farm_at_point(location):
+	"""The farm whose boundary contains a "lat, lng" string, or None."""
+	parts = [p.strip() for p in str(location or "").split(",")]
+	if len(parts) != 2:
+		return None
+	try:
+		lat, lng = float(parts[0]), float(parts[1])
+	except ValueError:
+		return None
+	from shapely.geometry import Point
+
+	from upande_security.api.patrol_coverage import _load_farm_polygon
+
+	point = Point(lng, lat)
+	for farm in frappe.get_all("Farm", pluck="name"):
+		try:
+			poly = _load_farm_polygon(farm)
+		except Exception:
+			continue
+		if poly is not None and poly.contains(point):
+			return farm
+	return None
+
+
+def incident_farm(user, location=None):
+	"""The farm an incident belongs to - what the dashboard's farm and company
+	filters go by. A location that names a farm wins (the guard said where),
+	then GPS coordinates ("lat, lng", what the app sends from the map) inside
+	a farm's boundary, then wherever the reporter is posted (today's roster,
+	then their own farm). None when none of these is known."""
+	location = (location or "").strip()
+	if location:
+		named = frappe.db.get_value("Farm", {"name": location}, "name")
+		if named:
+			return named
+		at_point = farm_at_point(location)
+		if at_point:
+			return at_point
+	from upande_security.api.gate_vehicle import _resolve_checking_farm
+
+	return _resolve_checking_farm(user) or None
+
+
 @frappe.whitelist()
 def create_incident(
 	incident_datetime=None,
@@ -5554,6 +5597,9 @@ def create_incident(
 		doc = frappe.new_doc("Incident Report")
 		doc.incident_datetime = incident_datetime
 		doc.location = location
+		farm = incident_farm(user, location)
+		if farm:
+			doc.farm = farm
 		doc.nature_of_incident = nature_of_incident
 		doc.severity = severity
 		doc.description = description
