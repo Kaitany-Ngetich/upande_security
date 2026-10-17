@@ -2743,7 +2743,9 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
             "assigned_by", "remarks", "modified",
         ],
         order_by="start_date desc",
-        page_length=1000,
+        # Unlimited: a 30d range is a few thousand rows on live, and a cap
+        # silently cut every range past ~4 days short of its real count.
+        page_length=0,
     )
 
     # The stored status only moves when the hourly sweep runs, so a shift that
@@ -2916,10 +2918,15 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
     # Read off the query result rather than the rows sent to the browser:
     # checked_in belongs to the Shift Assignment doctype, and only the counts
     # derived from it need to leave the server.
+    #
+    # Every shift in the range counts, ended ones included: these cards sit
+    # beside "Assignments in range", and counting only Active/Scheduled made a
+    # 7d or 30d range show the same handful as today - and dropped a morning
+    # First shift from "today" as soon as it had ended.
     shift_type_counts = {}
     shift_type_checked_in = {}
     for r in range_rows:
-        if r.get("status") in ("Active", "Scheduled"):
+        if r.get("status") != "Cancelled":
             st = r.get("shift_type")
             shift_type_counts[st] = shift_type_counts.get(st, 0) + 1
             if r.get("checked_in"):
