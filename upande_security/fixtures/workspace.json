@@ -89,6 +89,20 @@
     "url": null
    },
    {
+    "color": "Orange",
+    "doc_view": "List",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
+    "label": "Contractor Badges",
+    "link_to": "Contractor Badge",
+    "report_ref_doctype": null,
+    "restrict_to_domain": null,
+    "stats_filter": null,
+    "type": "DocType",
+    "url": null
+   },
+   {
     "color": "Green",
     "doc_view": "List",
     "format": null,

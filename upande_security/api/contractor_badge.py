@@ -275,3 +275,36 @@ def badges_for_visit(appointment):
 		if appt.custom_expected_exit
 		else str(frappe.utils.add_days(frappe.utils.getdate(), DEFAULT_VALID_DAYS)),
 	}
+
+
+_MAX_BULK = 500
+
+
+@frappe.whitelist(methods=["POST"])
+def create_contractor_badges(company, from_number, to_number):
+	"""Create the badge pool for a company: badges from_number..to_number
+	(each gets its QR). Numbers that already exist are skipped. Security
+	Head / System Manager only."""
+	if not any(r in frappe.get_roles() for r in ("Security Head", "System Manager")):
+		frappe.throw(_("Only a Security Head can create contractor badges."), frappe.PermissionError)
+	if not frappe.db.exists("Company", company):
+		frappe.throw(_("Company {0} not found.").format(company))
+	try:
+		start, end = int(from_number), int(to_number)
+	except (TypeError, ValueError):
+		frappe.throw(_("Badge numbers must be whole numbers."))
+	if start < 1 or end < start:
+		frappe.throw(_("Enter a range like 1 to 50."))
+	if end - start + 1 > _MAX_BULK:
+		frappe.throw(_("At most {0} badges at a time.").format(_MAX_BULK))
+
+	existing = set(frappe.get_all(BADGE, filters={"company": company}, pluck="badge_number"))
+	created = []
+	for number in range(start, end + 1):
+		if number in existing:
+			continue
+		doc = frappe.get_doc({"doctype": BADGE, "company": company, "badge_number": number, "status": "Available"})
+		doc.insert(ignore_permissions=True)
+		created.append(number)
+	frappe.db.commit()
+	return {"created": len(created), "skipped": (end - start + 1) - len(created), "first": created[0] if created else None, "last": created[-1] if created else None}
