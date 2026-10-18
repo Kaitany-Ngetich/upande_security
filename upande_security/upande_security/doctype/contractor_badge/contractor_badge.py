@@ -15,6 +15,13 @@ from frappe.model.document import Document
 
 
 class ContractorBadge(Document):
+	def autoname(self):
+		# Numbers run on per company: leave Badge Number blank and the badge
+		# gets the next one after the company's highest.
+		if not self.badge_number:
+			self.badge_number = next_badge_number(self.company)
+		self.name = "CB-" + str(self.company) + "-" + str(self.badge_number)
+
 	def validate(self):
 		if self.status == "Available":
 			self.holder_name = None
@@ -49,3 +56,11 @@ class ContractorBadge(Document):
 		)
 		file_doc.insert(ignore_permissions=True)
 		self.db_set("qr_image", file_doc.file_url, update_modified=False)
+
+
+def next_badge_number(company):
+	"""The number after this company's highest contractor badge (1 if none)."""
+	top = frappe.db.sql(
+		"SELECT MAX(badge_number) FROM `tabContractor Badge` WHERE company = %s", (company,)
+	)[0][0]
+	return int(top or 0) + 1

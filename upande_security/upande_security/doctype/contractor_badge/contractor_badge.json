@@ -25,9 +25,9 @@
    "fieldname": "badge_number",
    "fieldtype": "Int",
    "label": "Badge Number",
-   "reqd": 1,
    "in_list_view": 1,
-   "bold": 1
+   "bold": 1,
+   "description": "Left blank, the next number for the company is used."
   },
   {
    "fieldname": "company",
@@ -46,7 +46,8 @@
    "options": "Available\nIssued\nLost",
    "default": "Available",
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "description": "Lost: the holder is charged KES 300."
   },
   {
    "fieldname": "column_break_1",

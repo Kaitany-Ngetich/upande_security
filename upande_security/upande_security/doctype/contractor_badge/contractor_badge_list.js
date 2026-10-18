@@ -17,10 +17,10 @@ frappe.listview_settings["Contractor Badge"] = {
 				title: __("Create Contractor Badges"),
 				fields: [
 					{ fieldname: "company", fieldtype: "Link", options: "Company", label: __("Company"), reqd: 1,
-					  default: frappe.defaults.get_user_default("Company") },
-					{ fieldname: "col", fieldtype: "Column Break" },
-					{ fieldname: "from_number", fieldtype: "Int", label: __("From badge number"), reqd: 1, default: 1 },
-					{ fieldname: "to_number", fieldtype: "Int", label: __("To badge number"), reqd: 1, default: 50 },
+					  default: frappe.defaults.get_user_default("Company"), onchange: () => show_range() },
+					{ fieldname: "count", fieldtype: "Int", label: __("How many"), reqd: 1, default: 50,
+					  onchange: () => show_range() },
+					{ fieldname: "range", fieldtype: "HTML" },
 				],
 				primary_action_label: __("Create"),
 				primary_action(values) {
@@ -36,18 +36,28 @@ frappe.listview_settings["Contractor Badge"] = {
 							const m = r.message || {};
 							d.hide();
 							frappe.show_alert({
-								message: m.created
-									? __("{0} badges created ({1}-{2}){3}", [m.created, m.first, m.last,
-										m.skipped ? __(", {0} already existed", [m.skipped]) : ""])
-									: __("All of those badges already exist."),
-								indicator: m.created ? "green" : "orange",
+								message: __("{0} badges created, numbered {1} to {2}", [m.created, m.first, m.last]),
+								indicator: "green",
 							});
 							listview.refresh();
 						})
 						.always(() => d.enable_primary_action());
 				},
 			});
+			// Numbers carry on from the company's highest badge - show where.
+			const show_range = () => {
+				const { company, count } = d.get_values(true) || {};
+				const el = d.get_field("range").$wrapper;
+				if (!company || !count) return el.html("");
+				frappe
+					.call("upande_security.api.contractor_badge.next_contractor_badge_number", { company })
+					.then((r) => {
+						const first = r.message || 1;
+						el.html(`<p class="text-muted small">${__("They will be numbered {0} to {1}.", [first, first + count - 1])}</p>`);
+					});
+			};
 			d.show();
+			show_range();
 		});
 	},
 };

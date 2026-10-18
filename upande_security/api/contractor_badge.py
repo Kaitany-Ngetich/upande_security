@@ -281,30 +281,36 @@ _MAX_BULK = 500
 
 
 @frappe.whitelist(methods=["POST"])
-def create_contractor_badges(company, from_number, to_number):
-	"""Create the badge pool for a company: badges from_number..to_number
-	(each gets its QR). Numbers that already exist are skipped. Security
-	Head / System Manager only."""
+def create_contractor_badges(company, count):
+	"""Add `count` badges to a company's pool, numbered on from its highest
+	existing badge (each gets its QR). Security Head / System Manager only."""
+	from upande_security.upande_security.doctype.contractor_badge.contractor_badge import next_badge_number
+
 	if not any(r in frappe.get_roles() for r in ("Security Head", "System Manager")):
 		frappe.throw(_("Only a Security Head can create contractor badges."), frappe.PermissionError)
 	if not frappe.db.exists("Company", company):
 		frappe.throw(_("Company {0} not found.").format(company))
 	try:
-		start, end = int(from_number), int(to_number)
+		count = int(count)
 	except (TypeError, ValueError):
-		frappe.throw(_("Badge numbers must be whole numbers."))
-	if start < 1 or end < start:
-		frappe.throw(_("Enter a range like 1 to 50."))
-	if end - start + 1 > _MAX_BULK:
+		frappe.throw(_("How many badges? Enter a whole number."))
+	if count < 1:
+		frappe.throw(_("Create at least one badge."))
+	if count > _MAX_BULK:
 		frappe.throw(_("At most {0} badges at a time.").format(_MAX_BULK))
 
-	existing = set(frappe.get_all(BADGE, filters={"company": company}, pluck="badge_number"))
-	created = []
-	for number in range(start, end + 1):
-		if number in existing:
-			continue
-		doc = frappe.get_doc({"doctype": BADGE, "company": company, "badge_number": number, "status": "Available"})
-		doc.insert(ignore_permissions=True)
-		created.append(number)
+	first = next_badge_number(company)
+	for number in range(first, first + count):
+		frappe.get_doc({"doctype": BADGE, "company": company, "badge_number": number, "status": "Available"}).insert(
+			ignore_permissions=True
+		)
 	frappe.db.commit()
-	return {"created": len(created), "skipped": (end - start + 1) - len(created), "first": created[0] if created else None, "last": created[-1] if created else None}
+	return {"created": count, "first": first, "last": first + count - 1}
+
+
+@frappe.whitelist()
+def next_contractor_badge_number(company):
+	"""For the Create Badges dialog: where the next batch will start."""
+	from upande_security.upande_security.doctype.contractor_badge.contractor_badge import next_badge_number
+
+	return next_badge_number(company) if company else None
