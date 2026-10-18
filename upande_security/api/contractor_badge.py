@@ -64,6 +64,78 @@ def _open_movement(badge, farm=None):
 	)
 
 
+def _visit(appointment):
+	appt = frappe.db.get_value(
+		"Appointment",
+		appointment,
+		["name", "custom_visitor_type", "custom_contractor_ref", "custom_company", "custom_expected_exit", "customer_name"],
+		as_dict=True,
+	)
+	if not appt:
+		frappe.throw(_("Visit {0} not found.").format(appointment))
+	return appt
+
+
+def _visit_company(appt):
+	if appt.custom_company:
+		return appt.custom_company
+	farm = _guard_farm()
+	return frappe.db.get_value("Farm", farm, "company") if farm else None
+
+
+def _valid_until(appt, valid_until=None):
+	until = frappe.utils.getdate(valid_until) if valid_until else None
+	if not until and appt.custom_expected_exit:
+		until = frappe.utils.getdate(appt.custom_expected_exit)
+	if not until or until < frappe.utils.getdate():
+		until = frappe.utils.add_days(frappe.utils.getdate(), DEFAULT_VALID_DAYS)
+	return until
+
+
+def _crew(appt):
+	crew = frappe.get_all(
+		"Contractor Personnel",
+		filters={"parent": appt.name, "parenttype": "Appointment"},
+		fields=["full_name", "id_number", "is_team_leader"],
+		order_by="idx asc",
+	)
+	crew = [c for c in crew if (c.full_name or "").strip()]
+	if not crew and appt.customer_name:
+		crew = [frappe._dict(full_name=appt.customer_name, id_number="", is_team_leader=1)]
+	return crew
+
+
+def _issued_on(appt):
+	return frappe.get_all(
+		BADGE,
+		filters={"badge_type": TYPE, "current_appointment": appt.name, "status": "Issued"},
+		fields=["name", "badge_number", "holder_name"],
+		order_by="badge_number asc",
+	)
+
+
+def _assign(badge, appt, holder_name, holder_id_number=None, valid_until=None):
+	"""Give one pool badge to one crew member of this visit."""
+	if badge.status == "Lost":
+		frappe.throw(_("Badge {0} is marked Lost.").format(badge.badge_number))
+	if badge.status == "Issued" and (badge.holder_name or "").casefold() != holder_name.casefold():
+		frappe.throw(_("Badge {0} is already with {1}.").format(badge.badge_number, badge.holder_name))
+	badge.update(
+		{
+			"status": "Issued",
+			"holder_name": holder_name,
+			"holder_id_number": (holder_id_number or "").strip(),
+			"supplier": appt.custom_contractor_ref,
+			"current_appointment": appt.name,
+			"valid_until": _valid_until(appt, valid_until),
+			"issued_at": frappe.utils.now_datetime(),
+			"issued_by": frappe.session.user,
+		}
+	)
+	badge.save(ignore_permissions=True)
+	return badge
+
+
 @frappe.whitelist(methods=["POST"])
 def issue_contractor_badge(appointment, badge_number, holder_name, holder_id_number=None, valid_until=None):
 	"""Assign a pool badge (by its number) to one crew member of a contractor
@@ -72,19 +144,10 @@ def issue_contractor_badge(appointment, badge_number, holder_name, holder_id_num
 	holder_name = (holder_name or "").strip()
 	if not holder_name:
 		frappe.throw(_("Who is the badge for?"))
-	appt = frappe.db.get_value(
-		"Appointment",
-		appointment,
-		["name", "custom_contractor_ref", "custom_company", "custom_expected_exit", "customer_name"],
-		as_dict=True,
-	)
-	if not appt:
-		frappe.throw(_("Visit {0} not found.").format(appointment))
-	farm = _guard_farm()
-	company = appt.custom_company or (frappe.db.get_value("Farm", farm, "company") if farm else None)
+	appt = _visit(appointment)
+	company = _visit_company(appt)
 	if not company:
 		frappe.throw(_("Could not tell which company's badges to use for this visit."))
-
 	try:
 		number = int(str(badge_number).strip())
 	except (TypeError, ValueError):
@@ -92,33 +155,62 @@ def issue_contractor_badge(appointment, badge_number, holder_name, holder_id_num
 	name = frappe.db.get_value(BADGE, {"badge_type": TYPE, "company": company, "badge_number": number}, "name")
 	if not name:
 		frappe.throw(_("There is no contractor badge {0} for {1}.").format(number, company))
-	badge = frappe.get_doc(BADGE, name)
-	if badge.status == "Lost":
-		frappe.throw(_("Badge {0} is marked Lost.").format(number))
-	if badge.status == "Issued" and (badge.holder_name or "").casefold() != holder_name.casefold():
-		frappe.throw(_("Badge {0} is already with {1}.").format(number, badge.holder_name))
-
-	until = frappe.utils.getdate(valid_until) if valid_until else None
-	if not until and appt.custom_expected_exit:
-		until = frappe.utils.getdate(appt.custom_expected_exit)
-	if not until or until < frappe.utils.getdate():
-		until = frappe.utils.add_days(frappe.utils.getdate(), DEFAULT_VALID_DAYS)
-
-	badge.update(
-		{
-			"status": "Issued",
-			"holder_name": holder_name,
-			"holder_id_number": (holder_id_number or "").strip(),
-			"supplier": appt.custom_contractor_ref,
-			"current_appointment": appt.name,
-			"valid_until": until,
-			"issued_at": frappe.utils.now_datetime(),
-			"issued_by": frappe.session.user,
-		}
-	)
-	badge.save(ignore_permissions=True)
+	badge = _assign(frappe.get_doc(BADGE, name), appt, holder_name, holder_id_number, valid_until)
 	frappe.db.commit()
 	return _badge_info(badge)
+
+
+@frappe.whitelist(methods=["POST"])
+def issue_badges_to_crew(appointment):
+	"""Give every crew member of this visit who has no badge yet the lowest
+	numbered Available contractor badge of the company. Returns who got
+	which number, and how many are still without one if the pool ran out."""
+	appt = _visit(appointment)
+	company = _visit_company(appt)
+	if not company:
+		frappe.throw(_("Could not tell which company's badges to use for this visit."))
+	have = {(b.holder_name or "").casefold() for b in _issued_on(appt)}
+	need = [c for c in _crew(appt) if c.full_name.casefold() not in have]
+	free = frappe.get_all(
+		BADGE,
+		filters={"badge_type": TYPE, "company": company, "status": "Available"},
+		pluck="name",
+		order_by="badge_number asc",
+		limit=len(need) or 1,
+	)
+	issued = []
+	for person, name in zip(need, free):
+		badge = _assign(frappe.get_doc(BADGE, name), appt, person.full_name, person.id_number)
+		issued.append({"holder_name": person.full_name, "badge_number": badge.badge_number})
+	frappe.db.commit()
+	return {"issued": issued, "still_needed": max(len(need) - len(free), 0) if need else 0}
+
+
+def has_badge_pool(company):
+	return bool(company) and bool(frappe.db.exists(BADGE, {"badge_type": TYPE, "company": company}))
+
+
+def crew_without_badges(appointment):
+	"""Names on a contractor visit's crew list with no badge yet - empty when
+	it is not a contractor visit or the company keeps no contractor badges
+	(nothing to enforce there)."""
+	appt = _visit(appointment)
+	if appt.custom_visitor_type != "Contractor" or not has_badge_pool(_visit_company(appt)):
+		return []
+	have = {(b.holder_name or "").casefold() for b in _issued_on(appt)}
+	return [c.full_name for c in _crew(appt) if c.full_name.casefold() not in have]
+
+
+def record_check_in_entries(appointment, gate=None):
+	"""At contractor check-in, every badge holder on the visit has entered this
+	farm - record it, so their next scan here is their exit."""
+	appt = _visit(appointment)
+	farm = _guard_farm()
+	if not farm:
+		return
+	for b in _issued_on(appt):
+		if not _open_movement(b.name, farm):
+			_record_entry(frappe.get_doc(BADGE, b.name), farm, gate)
 
 
 def _badge_info(badge):
@@ -192,29 +284,37 @@ def scan_contractor_badge(reference, gate=None):
 				{"time_out": clock if str(other.movement_date) == str(now.date()) else "23:59:59", "remarks": "No exit scan - next seen entering " + farm},
 				update_modified=True,
 			)
-		doc = frappe.new_doc(MOVEMENT)
-		doc.update(
-			{
-				"party_type": "Contractor",
-				"employee_name": badge.holder_name,
-				"id_number": badge.holder_id_number,
-				"contractor": badge.supplier,
-				"contractor_badge": badge.name,
-				"company": company,
-				"farm": farm,
-				"movement_date": now.date(),
-				"time_in": clock,
-				"entry_gate": resolve_gate(gate, farm),
-				"recorded_by": frappe.session.user,
-			}
-		)
-		doc.insert(ignore_permissions=True)
+		doc = _record_entry(badge, farm, gate, company)
 		direction, movement = "Entry", doc.name
 
 	frappe.db.commit()
 	info = _badge_info(badge)
 	info.update({"accepted": True, "direction": direction, "movement": movement, "farm": farm})
 	return info
+
+
+def _record_entry(badge, farm, gate=None, company=None):
+	from upande_security.api.gate_movement import resolve_gate
+
+	now = frappe.utils.now_datetime()
+	doc = frappe.new_doc(MOVEMENT)
+	doc.update(
+		{
+			"party_type": "Contractor",
+			"employee_name": badge.holder_name,
+			"id_number": badge.holder_id_number,
+			"contractor": badge.supplier,
+			"contractor_badge": badge.name,
+			"company": company or frappe.db.get_value("Farm", farm, "company"),
+			"farm": farm,
+			"movement_date": now.date(),
+			"time_in": now.strftime("%H:%M:%S"),
+			"entry_gate": resolve_gate(gate, farm),
+			"recorded_by": frappe.session.user,
+		}
+	)
+	doc.insert(ignore_permissions=True)
+	return doc
 
 
 @frappe.whitelist(methods=["POST"])
@@ -248,32 +348,14 @@ def release_badges_for_visit(appointment):
 @frappe.whitelist()
 def badges_for_visit(appointment):
 	"""For the check-in screen: the crew on a contractor visit, the badges
-	already issued on it, and the default valid-until date."""
-	appt = frappe.db.get_value(
-		"Appointment", appointment, ["name", "customer_name", "custom_expected_exit"], as_dict=True
-	)
-	if not appt:
-		frappe.throw(_("Visit {0} not found.").format(appointment))
-	crew = frappe.get_all(
-		"Contractor Personnel",
-		filters={"parent": appt.name, "parenttype": "Appointment"},
-		fields=["full_name", "id_number", "is_team_leader"],
-		order_by="idx asc",
-	)
-	if not crew and appt.customer_name:
-		crew = [{"full_name": appt.customer_name, "id_number": "", "is_team_leader": 1}]
+	already issued on it, the default valid-until date, and whether badges
+	are required before check-in (the company keeps a contractor badge pool)."""
+	appt = _visit(appointment)
+	company = _visit_company(appt)
 	return {
-		"crew": crew,
-		"badges": [
-			_badge_info(frappe.get_doc(BADGE, n))
-			for n in frappe.get_all(
-				BADGE,
-				filters={"badge_type": TYPE, "current_appointment": appt.name, "status": "Issued"},
-				pluck="name",
-				order_by="badge_number asc",
-			)
-		],
-		"valid_until": str(frappe.utils.getdate(appt.custom_expected_exit))
-		if appt.custom_expected_exit
-		else str(frappe.utils.add_days(frappe.utils.getdate(), DEFAULT_VALID_DAYS)),
+		"crew": _crew(appt),
+		"badges": [_badge_info(frappe.get_doc(BADGE, b.name)) for b in _issued_on(appt)],
+		"valid_until": str(_valid_until(appt)),
+		"required": has_badge_pool(company),
+		"available": frappe.db.count(BADGE, {"badge_type": TYPE, "company": company, "status": "Available"}) if company else 0,
 	}

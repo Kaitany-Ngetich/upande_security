@@ -1426,6 +1426,17 @@ def check_in_visitor(name=None, transport=None, plate=None, colour=None, organiz
 						 ". Visitor must be approved by host first."
 			}
 
+		# A contractor crew gets its badges before it goes in - each person
+		# then moves between the company's farms on their own badge.
+		from upande_security.api import contractor_badge
+
+		unbadged = contractor_badge.crew_without_badges(name)
+		if unbadged:
+			return {
+				"error": "Give each person a contractor badge before checking in. No badge yet: "
+				+ ", ".join(unbadged)
+			}
+
 		now = frappe.utils.now_datetime()
 		updates = {
 			"workflow_state": "Visitor Checked In",
@@ -1461,6 +1472,14 @@ def check_in_visitor(name=None, transport=None, plate=None, colour=None, organiz
 		frappe.db.set_value("Appointment", name, updates)
 		frappe.db.commit()
 		watchlist.track("Appointment", name, "Visitor Check-in")
+
+		try:
+			# Badge holders are now inside this farm: their next scan here is
+			# their exit.
+			contractor_badge.record_check_in_entries(name, entry_gate)
+			frappe.db.commit()
+		except Exception:
+			frappe.log_error("check_in_visitor: contractor badge entries for " + name, frappe.get_traceback())
 
 		try:
 			otp_enabled = frappe.db.get_single_value("Security Ops Settings", "feature_visitor_sms_otp")
