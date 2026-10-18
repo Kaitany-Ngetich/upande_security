@@ -2646,6 +2646,12 @@ def contractor_gate_checkout():
 				{"status": "Available", "current_appointment": None, "supplier": None},
 			)
 
+		# Checking the visit out ends the job: its contractor badges go back
+		# to the pool, and anyone still recorded inside a farm is closed.
+		from upande_security.api.contractor_badge import release_badges_for_visit
+
+		release_badges_for_visit(appt_name)
+
 		frappe.db.commit()
 		watchlist.track("Appointment", appt_name, "Contractor Check-out")
 
@@ -4491,6 +4497,9 @@ def list_staff_movements(from_date=None, to_date=None):
 				"vehicle_plate",
 				"entry_gate",
 				"exit_gate",
+				"party_type",
+				"contractor",
+				"contractor_badge",
 			],
 			order_by="movement_date desc, time_in desc",
 			limit_page_length=0,
@@ -4515,6 +4524,16 @@ def list_staff_movements(from_date=None, to_date=None):
 					"plate": m["vehicle_plate"],
 					"entry_gate": m["entry_gate"],
 					"exit_gate": m["exit_gate"],
+					# Staff, or a contractor recorded by a badge scan.
+					"party_type": m["party_type"] or "Staff",
+					"contractor": (
+						frappe.db.get_value("Supplier", m["contractor"], "supplier_name") or m["contractor"]
+					)
+					if m["contractor"]
+					else None,
+					"badge": frappe.db.get_value("Contractor Badge", m["contractor_badge"], "badge_number")
+					if m["contractor_badge"]
+					else None,
 				}
 			)
 

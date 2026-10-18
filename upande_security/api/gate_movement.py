@@ -336,6 +336,8 @@ GATE_ACTIONS = {
 	"issue_visitor_badge",
 	"contractor_gate_checkin",
 	"contractor_gate_checkout",
+	"scan_contractor_badge",
+	"issue_contractor_badge",
 	"verify_vehicle_task_at_gate",
 	"verify_dispatch_at_gate",
 	"verify_dispatch_at_gate_bulk",

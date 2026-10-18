@@ -7,8 +7,12 @@
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
+  "party_type",
   "employee",
   "employee_name",
+  "contractor_badge",
+  "contractor",
+  "id_number",
   "company",
   "column_break_1",
   "movement_date",
@@ -25,6 +29,15 @@
  ],
  "fields": [
   {
+   "default": "Staff",
+   "fieldname": "party_type",
+   "fieldtype": "Select",
+   "label": "Who",
+   "options": "Staff\nContractor",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
    "fieldname": "naming_series",
    "fieldtype": "Select",
    "options": "SGM-.YYYY.-",
@@ -36,17 +49,19 @@
    "fieldtype": "Link",
    "options": "Employee",
    "label": "Employee",
-   "reqd": 1,
    "search_index": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "mandatory_depends_on": "eval:doc.party_type=='Staff'",
+   "depends_on": "eval:doc.party_type=='Staff'"
   },
   {
    "fetch_from": "employee.employee_name",
    "fieldname": "employee_name",
    "fieldtype": "Data",
-   "label": "Employee Name",
+   "label": "Name",
    "read_only": 1,
-   "hidden": 1
+   "hidden": 1,
+   "in_list_view": 1
   },
   {
    "fieldname": "company",
@@ -118,10 +133,34 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks"
+  },
+  {
+   "fieldname": "contractor_badge",
+   "fieldtype": "Link",
+   "label": "Contractor Badge",
+   "options": "Contractor Badge",
+   "depends_on": "eval:doc.party_type=='Contractor'",
+   "read_only": 1
+  },
+  {
+   "fieldname": "contractor",
+   "fieldtype": "Link",
+   "label": "Contractor",
+   "options": "Supplier",
+   "depends_on": "eval:doc.party_type=='Contractor'",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "id_number",
+   "fieldtype": "Data",
+   "label": "ID Number",
+   "depends_on": "eval:doc.party_type=='Contractor'",
+   "read_only": 1
   }
  ],
  "links": [],
- "modified": "2026-10-13 18:00:00.000000",
+ "modified": "2026-10-18 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Staff Gate Movement",
