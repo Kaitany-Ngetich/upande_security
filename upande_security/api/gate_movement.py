@@ -337,6 +337,7 @@ GATE_ACTIONS = {
 	"contractor_gate_checkin",
 	"contractor_gate_checkout",
 	"scan_contractor_badge",
+	"record_sticker_driver",
 	"issue_contractor_badge",
 	"verify_vehicle_task_at_gate",
 	"verify_dispatch_at_gate",

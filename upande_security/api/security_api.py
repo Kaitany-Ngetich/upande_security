@@ -4087,7 +4087,7 @@ def list_today_staff_attendance():
 
 
 @frappe.whitelist()
-def create_staff_attendance(employee=None, vehicle_plate=None, entry_gate=None):
+def create_staff_attendance(employee=None, vehicle_plate=None, entry_gate=None, sticker=None):
 	"""Record a staff member entering the gate.
 
 	Behaviour depends on the per-company "Staff Gate Mode" row in Security Ops
@@ -4182,6 +4182,16 @@ def create_staff_attendance(employee=None, vehicle_plate=None, entry_gate=None):
 
 			mv.entry_gate = resolve_gate(entry_gate, mv.farm) if mv.farm else entry_gate
 			mv.recorded_by = frappe.session.user
+			# Driving a colleague's vehicle: note whose it is.
+			from upande_security.api import sticker_driver
+
+			lent = sticker_driver.borrowed(sticker, emp.name)
+			if lent:
+				mv.vehicle_sticker = lent.name
+				mv.vehicle_plate = mv.vehicle_plate or lent.plate_number
+				mv.sticker_owner = lent.employee
+				mv.sticker_owner_name = lent.owner_name
+				mv.remarks = sticker_driver.note("in", lent)
 			mv.insert(ignore_permissions=True)
 			frappe.db.commit()
 			return {
@@ -4226,6 +4236,14 @@ def create_staff_attendance(employee=None, vehicle_plate=None, entry_gate=None):
 		if entry_gate:
 			doc.custom_entry_gate = entry_gate
 		doc.custom_gate_app_entry = 1
+		from upande_security.api import sticker_driver
+
+		lent = sticker_driver.borrowed(sticker, emp.name)
+		if lent:
+			doc.custom_vehicle_sticker = lent.name
+			doc.custom_sticker_owner = lent.employee
+			if not vehicle_plate:
+				doc.custom_vehicle_number_plate = lent.plate_number
 		doc.insert(ignore_permissions=True)
 		frappe.db.commit()
 		return {
@@ -4292,7 +4310,7 @@ def submit_staff_attendance(name=None):
 		frappe.log_error("submit_staff_attendance", str(e))
 		return {"error": str(e)}
 @frappe.whitelist()
-def staff_gate_checkout(attendance_name=None, exit_gate=None):
+def staff_gate_checkout(attendance_name=None, exit_gate=None, sticker=None):
 	"""Close a staff gate record opened by create_staff_attendance.
 
 	One endpoint closes both kinds of record: the client only holds the name it
@@ -4325,13 +4343,13 @@ def staff_gate_checkout(attendance_name=None, exit_gate=None):
 		movement = frappe.db.get_value(
 			"Gate Movement",
 			attendance_name,
-			["name", "movement_date", "time_in", "time_out", "farm"],
+			["name", "employee", "movement_date", "time_in", "time_out", "farm", "remarks", "sticker_owner"],
 			as_dict=True,
 		)
 		existing = None
 		if not movement:
 			existing = frappe.db.get_value(
-				"Attendance", attendance_name, ["name", "in_time", "out_time"], as_dict=True
+				"Attendance", attendance_name, ["name", "employee", "in_time", "out_time", "custom_sticker_owner"], as_dict=True
 			)
 
 		if movement and movement.time_out is not None:
@@ -4350,6 +4368,20 @@ def staff_gate_checkout(attendance_name=None, exit_gate=None):
 			out_parts = now_str.split(" ")
 			out_clock = out_parts[1] if len(out_parts) > 1 else now_str
 			mv_updates = {"time_out": out_clock}
+			# Leaving on a colleague's vehicle: note whose it is.
+			from upande_security.api import sticker_driver
+
+			lent = sticker_driver.borrowed(sticker, movement.employee)
+			if lent:
+				mv_updates["remarks"] = "; ".join(x for x in (movement.remarks, sticker_driver.note("out", lent)) if x)
+				if not movement.sticker_owner:
+					mv_updates.update(
+						{
+							"vehicle_sticker": lent.name,
+							"sticker_owner": lent.employee,
+							"sticker_owner_name": lent.owner_name,
+						}
+					)
 			if movement.farm:
 				from upande_security.api.gate_movement import resolve_gate
 
@@ -4385,6 +4417,12 @@ def staff_gate_checkout(attendance_name=None, exit_gate=None):
 				working_hours = None
 
 		updates = {"out_time": now_str}
+		from upande_security.api import sticker_driver
+
+		lent = sticker_driver.borrowed(sticker, existing.employee)
+		if lent and not existing.custom_sticker_owner:
+			updates["custom_vehicle_sticker"] = lent.name
+			updates["custom_sticker_owner"] = lent.employee
 		if working_hours is not None:
 			updates["working_hours"] = working_hours
 		if exit_gate:
@@ -4519,6 +4557,9 @@ def list_staff_movements(from_date=None, to_date=None):
 				"party_type",
 				"contractor",
 				"contractor_badge",
+				"sticker_owner_name",
+				"id_number",
+				"phone",
 			],
 			order_by="movement_date desc, time_in desc",
 			limit_page_length=0,
@@ -4553,6 +4594,11 @@ def list_staff_movements(from_date=None, to_date=None):
 					"badge": frappe.db.get_value("Gate Badge", m["contractor_badge"], "badge_number")
 					if m["contractor_badge"]
 					else None,
+					# Someone driving a colleague's (or, for a Driver, a staff
+					# member's) vehicle: whose it is.
+					"vehicle_owner": m["sticker_owner_name"],
+					"id_number": m["id_number"],
+					"phone": m["phone"],
 				}
 			)
 
@@ -7231,6 +7277,9 @@ def search_staff_vehicle_sticker(reference=None):
 			"vehicle_type": sticker.vehicle_type or "",
 			"plate_number": sticker.plate_number or "",
 			"color": sticker.color or "",
+			# Lets the app say which sticker was used when someone other than
+			# the owner is driving (api/sticker_driver.py).
+			"sticker": sticker.name,
 		}
 	except Exception as e:
 		frappe.log_error("search_staff_vehicle_sticker", str(e))

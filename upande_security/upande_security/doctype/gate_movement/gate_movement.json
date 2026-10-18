@@ -13,6 +13,7 @@
   "contractor_badge",
   "contractor",
   "id_number",
+  "phone",
   "company",
   "column_break_1",
   "movement_date",
@@ -24,6 +25,9 @@
   "exit_gate",
   "column_break_2",
   "vehicle_plate",
+  "vehicle_sticker",
+  "sticker_owner",
+  "sticker_owner_name",
   "recorded_by",
   "remarks"
  ],
@@ -33,7 +37,7 @@
    "fieldname": "party_type",
    "fieldtype": "Select",
    "label": "Who",
-   "options": "Staff\nContractor",
+   "options": "Staff\nContractor\nDriver",
    "in_list_view": 1,
    "in_standard_filter": 1
   },
@@ -155,8 +159,38 @@
    "fieldname": "id_number",
    "fieldtype": "Data",
    "label": "ID Number",
-   "depends_on": "eval:doc.party_type=='Contractor'",
+   "depends_on": "eval:doc.party_type!='Staff'",
    "read_only": 1
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "options": "Phone",
+   "read_only": 1,
+   "depends_on": "eval:doc.party_type=='Driver'"
+  },
+  {
+   "fieldname": "vehicle_sticker",
+   "fieldtype": "Link",
+   "label": "Vehicle Sticker",
+   "options": "Staff Vehicle Sticker",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sticker_owner",
+   "fieldtype": "Link",
+   "label": "Vehicle Owner",
+   "options": "Employee",
+   "read_only": 1,
+   "depends_on": "eval:doc.sticker_owner"
+  },
+  {
+   "fieldname": "sticker_owner_name",
+   "fieldtype": "Data",
+   "label": "Vehicle Owner Name",
+   "read_only": 1,
+   "depends_on": "eval:doc.sticker_owner"
   }
  ],
  "links": [],

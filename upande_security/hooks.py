@@ -615,6 +615,8 @@ fixtures = [
                     "Attendance-custom_gate_app_entry",
                     "Attendance-custom_entry_gate",
                     "Attendance-custom_exit_gate",
+                    "Attendance-custom_vehicle_sticker",
+                    "Attendance-custom_sticker_owner",
                     "Attendance-custom_temp_exit_time",
                     "Attendance-custom_temp_exit_log",
                     "Attendance-custom_farm",
