@@ -3817,7 +3817,7 @@ def get_today_attendance(employee=None):
 	treats a 403 as a dead session, so it looked like a forced logout for
 	what was really a missing read permission on one doctype.
 
-	Falls back to Staff Gate Movement: a company on "Movement Log Only"
+	Falls back to Gate Movement: a company on "Movement Log Only"
 	never creates an Attendance row, but the panel still needs to know the
 	person is on site so it can offer CHECK OUT.
 	"""
@@ -3853,7 +3853,7 @@ def get_today_attendance(employee=None):
 
 		if not found:
 			mv = frappe.get_all(
-				"Staff Gate Movement",
+				"Gate Movement",
 				filters=[["employee", "=", employee], ["movement_date", "=", today]],
 				fields=["name", "employee", "time_in", "time_out", "movement_date"],
 				order_by="creation desc",
@@ -3994,7 +3994,7 @@ def list_checked_in_staff():
 		# their people would be missing from the on-site list entirely. Same
 		# scoping, mapped onto the shape the client already reads.
 		mv_rows = frappe.get_all(
-			"Staff Gate Movement",
+			"Gate Movement",
 			filters=_scoped(
 				[["movement_date", "=", today], ["time_out", "is", "not set"]], "company", "farm"
 			),
@@ -4057,7 +4057,7 @@ def list_today_staff_attendance():
 			limit_page_length=200,
 		)
 		mv_rows = frappe.get_all(
-			"Staff Gate Movement",
+			"Gate Movement",
 			filters=[["movement_date", "=", today]],
 			fields=["name", "employee", "employee_name", "movement_date", "time_in", "time_out"],
 			order_by="time_in desc",
@@ -4093,7 +4093,7 @@ def create_staff_attendance(employee=None, vehicle_plate=None, entry_gate=None):
 	Behaviour depends on the per-company "Staff Gate Mode" row in Security Ops
 	Settings: "Mark Attendance" (default, also used when the company has no
 	row, so nothing changes until someone opts in) inserts an HR Attendance
-	draft; "Movement Log Only" inserts a Staff Gate Movement instead, leaving
+	draft; "Movement Log Only" inserts a Gate Movement instead, leaving
 	attendance to HR. The mobile client submits straight after creating and
 	treats any failure as fatal, so the movement branch still returns
 	docstatus=1 even though movement rows are not submittable.
@@ -4155,7 +4155,7 @@ def create_staff_attendance(employee=None, vehicle_plate=None, entry_gate=None):
 
 		if gate_mode == "Movement Log Only":
 			duplicate = frappe.db.get_value(
-				"Staff Gate Movement",
+				"Gate Movement",
 				{"employee": employee, "movement_date": today, "time_out": ["is", "not set"]},
 				"name",
 			)
@@ -4164,7 +4164,7 @@ def create_staff_attendance(employee=None, vehicle_plate=None, entry_gate=None):
 					"error": "This person is already signed in",
 					"existing": duplicate,
 				}
-			mv = frappe.new_doc("Staff Gate Movement")
+			mv = frappe.new_doc("Gate Movement")
 			mv.employee = emp.name
 			mv.employee_name = emp.employee_name
 			mv.company = emp.company
@@ -4244,7 +4244,7 @@ def create_staff_attendance(employee=None, vehicle_plate=None, entry_gate=None):
 def submit_staff_attendance(name=None):
 	"""Submit the Attendance draft created by create_staff_attendance.
 
-	Staff Gate Movement rows are not submittable, but the client always calls
+	Gate Movement rows are not submittable, but the client always calls
 	this right after create and treats any failure as fatal - so a movement
 	name reports success ("nothing to submit") instead of "not found". That
 	check must stay ahead of the Attendance lookup.
@@ -4264,7 +4264,7 @@ def submit_staff_attendance(name=None):
 
 		if not name:
 			return {"error": "name is required"}
-		if frappe.db.exists("Staff Gate Movement", name):
+		if frappe.db.exists("Gate Movement", name):
 			return {
 				"name": name,
 				"docstatus": 1,
@@ -4297,7 +4297,7 @@ def staff_gate_checkout(attendance_name=None, exit_gate=None):
 
 	One endpoint closes both kinds of record: the client only holds the name it
 	was given at check-in and does not know which mode the company is on, so a
-	Staff Gate Movement is tried first, then Attendance.
+	Gate Movement is tried first, then Attendance.
 
 	Writes with frappe.db.set_value rather than doc.save: Attendance may
 	already be submitted and set_value bypasses submitted-doc edit rules and
@@ -4323,7 +4323,7 @@ def staff_gate_checkout(attendance_name=None, exit_gate=None):
 			return {"error": "attendance_name is required"}
 
 		movement = frappe.db.get_value(
-			"Staff Gate Movement",
+			"Gate Movement",
 			attendance_name,
 			["name", "movement_date", "time_in", "time_out", "farm"],
 			as_dict=True,
@@ -4357,10 +4357,10 @@ def staff_gate_checkout(attendance_name=None, exit_gate=None):
 			if exit_gate:
 				mv_updates["exit_gate"] = exit_gate
 			frappe.db.set_value(
-				"Staff Gate Movement", attendance_name, mv_updates, update_modified=True
+				"Gate Movement", attendance_name, mv_updates, update_modified=True
 			)
 			frappe.db.commit()
-			watchlist.track("Staff Gate Movement", attendance_name, "Staff Check-out")
+			watchlist.track("Gate Movement", attendance_name, "Staff Check-out")
 			return {
 				"success": True,
 				"attendance_name": attendance_name,
@@ -4408,7 +4408,7 @@ def staff_gate_checkout(attendance_name=None, exit_gate=None):
 
 @frappe.whitelist()
 def list_staff_movements(from_date=None, to_date=None):
-	"""Staff Gate Movement list for a date range, newest first.
+	"""Gate Movement list for a date range, newest first.
 
 	Gated by the feature_staff_checkin flag in Security Ops Settings. The
 	disabled case is raised INSIDE the try on purpose, so it is caught, logged
@@ -4502,7 +4502,7 @@ def list_staff_movements(from_date=None, to_date=None):
 				mv_filters.append(["name", "=", "__no_match__"])
 
 		for m in frappe.get_all(
-			"Staff Gate Movement",
+			"Gate Movement",
 			filters=mv_filters,
 			fields=[
 				"name",

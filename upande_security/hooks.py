@@ -251,7 +251,7 @@ doc_events = {
 	# transactions for Security Heads. Every handler is a no-op while the
 	# watchlist is empty and never raises into the guard's request.
 	"Attendance": {"after_insert": "upande_security.api.watchlist.on_doc_event"},
-	"Staff Gate Movement": {"after_insert": "upande_security.api.watchlist.on_doc_event"},
+	"Gate Movement": {"after_insert": "upande_security.api.watchlist.on_doc_event"},
 	"Gate Vehicle Verification": {"after_insert": "upande_security.api.watchlist.on_doc_event", "on_update": "upande_security.api.watchlist.on_doc_event"},
 	"Gate Dispatch Verification": {"after_insert": "upande_security.api.watchlist.on_doc_event"},
 	"Gate Receiving Verification": {"after_insert": "upande_security.api.watchlist.on_doc_event"},

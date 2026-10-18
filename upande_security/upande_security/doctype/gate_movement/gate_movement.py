@@ -4,5 +4,5 @@
 from frappe.model.document import Document
 
 
-class StaffGateMovement(Document):
+class GateMovement(Document):
 	pass

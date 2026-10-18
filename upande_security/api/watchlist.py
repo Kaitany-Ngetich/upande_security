@@ -19,7 +19,7 @@ COVERT BY DESIGN. Guards must never learn that someone is being watched, so:
 
 Two ways in, because the gate endpoints are not uniform:
 - doc_events (hooks.py) for records created or saved normally: Appointment,
-  Attendance, Staff Gate Movement, the three Gate * Verification doctypes,
+  Attendance, Gate Movement, the three Gate * Verification doctypes,
   Incident Report;
 - track() called explicitly by the endpoints that write check-ins and
   check-outs with frappe.db.set_value (security_api.check_in_visitor and
@@ -213,7 +213,7 @@ def _subjects(doc):
 	if dt == "Attendance":
 		subject = {"employee": doc.get("employee"), "plate": doc.get("custom_vehicle_number_plate")}
 		return doc.get("custom_farm"), doc.get("custom_exit_gate") or doc.get("custom_entry_gate"), [(subject, doc.get("employee_name"))]
-	if dt == "Staff Gate Movement":
+	if dt == "Gate Movement":
 		subject = {"employee": doc.get("employee"), "plate": doc.get("vehicle_plate")}
 		return doc.get("farm"), doc.get("exit_gate") or doc.get("entry_gate"), [(subject, doc.get("employee_name"))]
 	if dt == "Gate Vehicle Verification":
@@ -324,7 +324,7 @@ def _handle_doc_event(doc, method):
 		# Only a gate check-in - not HRMS auto-attendance, leave or absences.
 		if method == "after_insert" and doc.get("status") == "Present" and doc.get("custom_gate_app_entry"):
 			_track_doc(doc, "Staff Check-in")
-	elif dt == "Staff Gate Movement":
+	elif dt == "Gate Movement":
 		if method == "after_insert":
 			_track_doc(doc, "Staff Check-in")
 	elif dt == "Gate Vehicle Verification":

@@ -15,7 +15,7 @@ Two independent Security Ops Settings flags:
   ticks each item off at exit. Anything not ticked is marked "Not seen
   leaving". Every item - visitor, customer, contractor, supplier, staff -
   is one Gate Carried Item linked to the gate record it came in on
-  (Appointment, Gate Receiving Verification, Staff Gate Movement or
+  (Appointment, Gate Receiving Verification, Gate Movement or
   Attendance), so all of them are in one list.
 
 Passenger child rows are written directly rather than through
@@ -314,7 +314,7 @@ def check_out_items(appointment, items_out=None):
 
 
 # --- Staff -------------------------------------------------------------------
-# Staff have no Appointment: staff check-in creates a Staff Gate Movement or
+# Staff have no Appointment: staff check-in creates a Gate Movement or
 # an HR Attendance depending on the company's Staff Gate Mode. Their items are
 # Gate Carried Items linked to whichever of the two it was, with the same exit
 # check as a visit. Gated by the same feature_carried_items flag.
@@ -326,14 +326,14 @@ def _staff_record(record):
 	if not record:
 		frappe.throw(_("record is required"))
 	mv = frappe.db.get_value(
-		"Staff Gate Movement",
+		"Gate Movement",
 		record,
 		["name", "employee", "employee_name", "company", "farm", "movement_date", "time_out"],
 		as_dict=True,
 	)
 	if mv:
 		return frappe._dict(
-			doctype="Staff Gate Movement",
+			doctype="Gate Movement",
 			name=mv.name,
 			employee=mv.employee,
 			employee_name=mv.employee_name,

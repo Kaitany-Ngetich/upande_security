@@ -8,7 +8,7 @@ farm of the company by scanning their badge.
   member a numbered pool badge (Gate Badge of type Contractor) for the job - holder,
   contractor, the visit, valid_until (default: the visit's expected exit).
 - scan_contractor_badge: at any gate of the issuing company, a scan records
-  the holder's movement in Staff Gate Movement (party_type "Contractor") -
+  the holder's movement in Gate Movement (party_type "Contractor") -
   the same log as staff. The direction is worked out: inside this farm ->
   exit, otherwise -> entry. Entering a farm while still recorded inside
   another closes that one first ("no exit scan"). A badge that is not
@@ -27,7 +27,7 @@ from upande_security.api.security_alerts import log_unauthorized_access
 
 BADGE = "Gate Badge"
 TYPE = "Contractor"
-MOVEMENT = "Staff Gate Movement"
+MOVEMENT = "Gate Movement"
 DEFAULT_VALID_DAYS = 7
 
 

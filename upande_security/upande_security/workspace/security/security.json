@@ -170,8 +170,8 @@
   },
   {
    "doc_view": "List",
-   "label": "Staff Gate Movement",
-   "link_to": "Staff Gate Movement",
+   "label": "Gate Movements",
+   "link_to": "Gate Movement",
    "type": "DocType"
   },
   {
