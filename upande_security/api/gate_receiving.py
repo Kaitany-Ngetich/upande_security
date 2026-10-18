@@ -25,7 +25,7 @@ import urllib.parse
 import frappe
 from frappe import _
 
-from upande_security.api.feature_flags import require_feature
+from upande_security.api.feature_flags import is_feature_enabled, require_feature
 from upande_security.api.security_alerts import log_unauthorized_access
 from upande_security.utils.notifications import resolve_notification_users
 
@@ -291,6 +291,42 @@ def _notify_receiving_team(doc, match):
 		frappe.log_error("gate_receiving _notify_receiving_team failed for " + doc.name, str(e))
 
 
+def _farm_for_this_guard():
+	from upande_security.api.gate_vehicle import _resolve_checking_farm
+
+	return _resolve_checking_farm(frappe.session.user)
+
+
+def _clean_items(items, carried_by):
+	"""Items the supplier brings in that are not part of the delivery
+	(feature_carried_items) - [{item, qty?, serial_notes?}] - as carried-item
+	rows. Ignored when the feature is off."""
+	if isinstance(items, str):
+		items = frappe.parse_json(items) if items.strip() else None
+	if not items or not is_feature_enabled("feature_carried_items"):
+		return []
+	rows = []
+	for it in items:
+		item = str(it.get("item") or "").strip()
+		if not item:
+			continue
+		try:
+			qty = max(int(it.get("qty") or 1), 1)
+		except (TypeError, ValueError):
+			qty = 1
+		rows.append(
+			{
+				"carried_by": carried_by,
+				"item": item,
+				"qty": qty,
+				"serial_notes": str(it.get("serial_notes") or "").strip(),
+				"declared_at": "Entry",
+				"exit_status": "Inside",
+			}
+		)
+	return rows
+
+
 def _gate_for_this_guard(gate):
 	"""The gate picked in the app, else the calling guard's farm's main gate,
 	else "Main Gate"."""
@@ -300,7 +336,16 @@ def _gate_for_this_guard(gate):
 	return resolve_gate(gate, _resolve_checking_farm(frappe.session.user))
 
 
-def _verify_receiving_one(reference, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None, gate=None):
+def _verify_receiving_one(
+	reference,
+	gate_verification_status,
+	vehicle_no=None,
+	driver_name=None,
+	remarks=None,
+	gate=None,
+	items=None,
+	delivery_group=None,
+):
 	"""Core single-PO verification: creates the actual audit record — a NEW
 	Gate Receiving Verification document, never an edit to the Purchase
 	Order. Re-resolves the PO fresh (rather than trusting whatever the
@@ -326,9 +371,15 @@ def _verify_receiving_one(reference, gate_verification_status, vehicle_no=None, 
 	doc.gate_verification_status = gate_verification_status
 	doc.gate_verified_by = frappe.session.user
 	doc.gate = _gate_for_this_guard(gate)
+	doc.farm = _farm_for_this_guard()
 	doc.gate_arrival_time = frappe.utils.now_datetime()
 	doc.remarks = remarks
+	doc.delivery_group = delivery_group
+	for row in _clean_items(items, driver_name or match.get("supplier_name") or match["supplier"]):
+		doc.append("carried_items", row)
 	doc.insert(ignore_permissions=True)
+	if not doc.delivery_group:
+		doc.db_set("delivery_group", doc.name, update_modified=False)
 	frappe.db.commit()
 
 	# Only a genuinely cleared truck is worth telling the store about - a
@@ -377,7 +428,9 @@ def _verify_receiving_one(reference, gate_verification_status, vehicle_no=None, 
 
 
 @frappe.whitelist()
-def verify_receiving_at_gate(reference, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None, gate=None):
+def verify_receiving_at_gate(
+	reference, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None, gate=None, items=None
+):
 	require_feature("feature_gate_receiving")
 	reference = (reference or "").strip()
 	gate_verification_status = (gate_verification_status or "").strip()
@@ -385,12 +438,14 @@ def verify_receiving_at_gate(reference, gate_verification_status, vehicle_no=Non
 		frappe.throw(_("gate_verification_status must be 'Verified' or 'Rejected'."))
 
 	frappe.response["message"] = _verify_receiving_one(
-		reference, gate_verification_status, vehicle_no, driver_name, remarks, gate
+		reference, gate_verification_status, vehicle_no, driver_name, remarks, gate, items=items
 	)
 
 
 @frappe.whitelist()
-def verify_receiving_at_gate_bulk(references, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None, gate=None):
+def verify_receiving_at_gate_bulk(
+	references, gate_verification_status, vehicle_no=None, driver_name=None, remarks=None, gate=None, items=None
+):
 	"""Same as verify_receiving_at_gate, but for every PO the guard selected
 	off one Supplier Badge scan in one action — one driver can be carrying
 	goods for several open POs, so instead of scanning/verifying each PO
@@ -415,15 +470,28 @@ def verify_receiving_at_gate_bulk(references, gate_verification_status, vehicle_
 		frappe.response["message"] = {"results": [], "error": "At least one reference is required."}
 		return
 
+	# One truck: its items go on the first record, and every record shares
+	# that record's name as delivery_group so they leave together.
 	results = []
+	group = None
 	for ref in references:
 		ref = (ref or "").strip()
 		if not ref:
 			continue
 		try:
-			results.append(
-				_verify_receiving_one(ref, gate_verification_status, vehicle_no, driver_name, remarks, gate)
+			result = _verify_receiving_one(
+				ref,
+				gate_verification_status,
+				vehicle_no,
+				driver_name,
+				remarks,
+				gate,
+				items=None if group else items,
+				delivery_group=group,
 			)
+			if not group and result.get("name"):
+				group = result["name"]
+			results.append(result)
 		except Exception as e:
 			frappe.log_error("verify_receiving_at_gate_bulk for " + str(ref), str(e))
 			results.append({"reference": ref, "error": str(e)})
@@ -431,37 +499,205 @@ def verify_receiving_at_gate_bulk(references, gate_verification_status, vehicle_
 	frappe.response["message"] = {"results": results}
 
 
+def _delivery_records(name):
+	"""Every Gate Receiving Verification released together with this one off
+	the same truck (same delivery_group), this one included."""
+	group = frappe.db.get_value("Gate Receiving Verification", name, "delivery_group")
+	if not group:
+		return [name] if frappe.db.exists("Gate Receiving Verification", name) else []
+	return frappe.get_all(
+		"Gate Receiving Verification", filters={"delivery_group": group}, pluck="name", order_by="creation asc"
+	)
+
+
+def _delivery_items(names):
+	return frappe.get_all(
+		"Appointment Carried Item",
+		filters={"parenttype": "Gate Receiving Verification", "parent": ["in", names or [""]]},
+		fields=[
+			"name", "parent", "carried_by", "item", "qty", "serial_notes", "declared_at", "exit_status",
+			"exit_time", "supporting_document", "supporting_document_file",
+		],
+		order_by="idx asc",
+	)
+
+
 @frappe.whitelist()
-def confirm_receiving_departure(name):
+def list_receivings_awaiting_departure():
+	"""Supplier trucks checked in (Verified) at this guard's farm in the last
+	7 days and not yet departed - one entry per truck. Read from the server,
+	so whichever guard is at the gate when the truck leaves sees it."""
+	require_feature("feature_gate_receiving")
+	farm = _farm_for_this_guard()
+	filters = {
+		"gate_verification_status": "Verified",
+		"gate_departure_time": ["is", "not set"],
+		"creation": [">=", frappe.utils.add_days(frappe.utils.now_datetime(), -7)],
+	}
+	if farm:
+		filters["farm"] = farm
+	rows = frappe.get_all(
+		"Gate Receiving Verification",
+		filters=filters,
+		fields=["name", "purchase_order", "supplier", "vehicle_no", "driver_name", "gate_arrival_time", "delivery_group"],
+		order_by="gate_arrival_time desc",
+	)
+	trucks = {}
+	for r in rows:
+		key = r.delivery_group or r.name
+		t = trucks.setdefault(
+			key,
+			{
+				"name": key,
+				"purchase_orders": [],
+				"supplier": r.supplier,
+				"supplier_name": frappe.db.get_value("Supplier", r.supplier, "supplier_name") or r.supplier,
+				"vehicle_no": r.vehicle_no,
+				"driver_name": r.driver_name,
+				"arrived_at": str(r.gate_arrival_time or ""),
+			},
+		)
+		t["purchase_orders"].append(r.purchase_order)
+	for key, t in trucks.items():
+		t["items_inside"] = len(
+			[i for i in _delivery_items(_delivery_records(key)) if i.exit_status == "Inside"]
+		)
+	return list(trucks.values())
+
+
+@frappe.whitelist()
+def get_receiving_departure(name):
+	"""What the exit check needs for one truck: its delivery records and the
+	items declared at entry that are still inside."""
+	require_feature("feature_gate_receiving")
+	names = _delivery_records(name)
+	if not names:
+		frappe.throw(_("Gate Receiving Verification {0} not found.").format(name))
+	first = frappe.db.get_value(
+		"Gate Receiving Verification", names[0], ["supplier", "vehicle_no", "driver_name", "gate_departure_time"], as_dict=True
+	)
+	items = _delivery_items(names) if is_feature_enabled("feature_carried_items") else []
+	return {
+		"name": names[0],
+		"records": names,
+		"supplier_name": frappe.db.get_value("Supplier", first.supplier, "supplier_name") or first.supplier,
+		"vehicle_no": first.vehicle_no,
+		"driver_name": first.driver_name,
+		"departed": bool(first.gate_departure_time),
+		"items": [i for i in items if i.exit_status == "Inside"],
+	}
+
+
+@frappe.whitelist()
+def confirm_receiving_departure(name, items_out=None, extra_items=None):
 	"""Confirms the truck has left after dropping off goods — offloading
 	takes time, so this is a separate call from verify_receiving_at_gate,
 	not a field set at arrival. name here is the Gate Receiving
-	Verification record's own name, not the Purchase Order's."""
+	Verification record's own name, not the Purchase Order's. Every record
+	released with it off the same truck departs too.
+
+	Exit check (feature_carried_items) - sent by app builds that have it;
+	an older build sends neither and items stay as they were:
+	- items_out: the declared items the guard saw leave. Every other
+	  declared item still Inside becomes "Not seen leaving".
+	- extra_items: anything leaving that was NOT declared at entry -
+	  [{item, qty?, serial_notes?, supporting_document?, supporting_document_file?}].
+	  Each needs a supporting document (a reference, a file, or both);
+	  without one the departure is refused, so nothing leaves unaccounted."""
 	require_feature("feature_gate_receiving")
-	grv = frappe.db.get_value(
-		"Gate Receiving Verification", name, ["name", "supplier_badge"], as_dict=True
-	)
-	if not grv:
+	names = _delivery_records(name)
+	if not names:
 		frappe.response["message"] = {"error": "Gate Receiving Verification " + str(name) + " not found."}
 		return
 
-	frappe.db.set_value(
-		"Gate Receiving Verification", name, "gate_departure_time", frappe.utils.now_datetime()
-	)
+	if isinstance(items_out, str):
+		items_out = frappe.parse_json(items_out) if items_out.strip() else None
+	if isinstance(extra_items, str):
+		extra_items = frappe.parse_json(extra_items) if extra_items.strip() else None
 
-	# Release any badge issued for this delivery back into the pool, same
-	# mechanic as Contractor Gate Checkout releasing a Supplier Badge on
-	# the contractor side - reusable across many different suppliers, not
-	# permanently tied to this one.
-	if grv.supplier_badge:
-		frappe.db.set_value(
-			"Supplier Badge",
-			grv.supplier_badge,
-			{"status": "Available", "current_receiving": None, "supplier": None},
-		)
+	now = frappe.utils.now_datetime()
+	not_seen = []
+	recorded_extra = []
+	if is_feature_enabled("feature_carried_items") and (items_out is not None or extra_items):
+		extras = []
+		for it in extra_items or []:
+			item = str(it.get("item") or "").strip()
+			if not item:
+				continue
+			doc_ref = str(it.get("supporting_document") or "").strip()
+			doc_file = str(it.get("supporting_document_file") or "").strip()
+			if not doc_ref and not doc_file:
+				frappe.throw(
+					_("{0} was not declared on the way in. Record its supporting document (reference or photo) before the truck leaves.").format(
+						frappe.bold(item)
+					)
+				)
+			try:
+				qty = max(int(it.get("qty") or 1), 1)
+			except (TypeError, ValueError):
+				qty = 1
+			extras.append((item, qty, str(it.get("serial_notes") or "").strip(), doc_ref, doc_file))
+
+		if items_out is not None:
+			seen = set(items_out)
+			for row in _delivery_items(names):
+				if row.exit_status != "Inside":
+					continue
+				status = "Left with owner" if row.name in seen else "Not seen leaving"
+				frappe.db.set_value(
+					"Appointment Carried Item",
+					row.name,
+					{"exit_status": status, "exit_time": now, "exit_checked_by": frappe.session.user},
+					update_modified=False,
+				)
+				if status == "Not seen leaving":
+					not_seen.append(row.item)
+
+		if extras:
+			grv = frappe.get_doc("Gate Receiving Verification", names[0])
+			carried_by = grv.driver_name or frappe.db.get_value("Supplier", grv.supplier, "supplier_name") or grv.supplier
+			for item, qty, notes, doc_ref, doc_file in extras:
+				grv.append(
+					"carried_items",
+					{
+						"carried_by": carried_by,
+						"item": item,
+						"qty": qty,
+						"serial_notes": notes,
+						"declared_at": "Exit",
+						"exit_status": "Left with document",
+						"exit_time": now,
+						"exit_checked_by": frappe.session.user,
+						"supporting_document": doc_ref,
+						"supporting_document_file": doc_file,
+					},
+				)
+				recorded_extra.append(item)
+			grv.flags.ignore_permissions = True
+			grv.save()
+
+	for record in names:
+		grv = frappe.db.get_value("Gate Receiving Verification", record, ["name", "supplier_badge"], as_dict=True)
+		frappe.db.set_value("Gate Receiving Verification", record, "gate_departure_time", now)
+		# Release any badge issued for this delivery back into the pool, same
+		# mechanic as Contractor Gate Checkout releasing a Supplier Badge on
+		# the contractor side - reusable across many different suppliers, not
+		# permanently tied to this one.
+		if grv.supplier_badge:
+			frappe.db.set_value(
+				"Supplier Badge",
+				grv.supplier_badge,
+				{"status": "Available", "current_receiving": None, "supplier": None},
+			)
 
 	frappe.db.commit()
-	frappe.response["message"] = {"name": name, "gate_departure_time": str(frappe.utils.now_datetime())}
+	frappe.response["message"] = {
+		"name": name,
+		"records": names,
+		"gate_departure_time": str(now),
+		"not_seen_leaving": not_seen,
+		"left_with_document": recorded_extra,
+	}
 
 
 @frappe.whitelist()

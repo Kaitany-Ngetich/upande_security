@@ -9,10 +9,13 @@
   "item",
   "qty",
   "serial_notes",
+  "declared_at",
   "column_break_exit",
   "exit_status",
   "exit_time",
-  "exit_checked_by"
+  "exit_checked_by",
+  "supporting_document",
+  "supporting_document_file"
  ],
  "fields": [
   {
@@ -52,7 +55,7 @@
    "fieldname": "exit_status",
    "fieldtype": "Select",
    "label": "Exit Status",
-   "options": "Inside\nLeft with owner\nNot seen leaving",
+   "options": "Inside\nLeft with owner\nNot seen leaving\nLeft with document",
    "read_only": 1,
    "in_list_view": 1
   },
@@ -68,11 +71,32 @@
    "label": "Exit Checked By",
    "options": "User",
    "read_only": 1
+  },
+  {
+   "default": "Entry",
+   "fieldname": "declared_at",
+   "fieldtype": "Select",
+   "label": "Declared At",
+   "options": "Entry\nExit",
+   "read_only": 1,
+   "description": "Exit: not declared on the way in - recorded as it left, against a supporting document."
+  },
+  {
+   "fieldname": "supporting_document",
+   "fieldtype": "Data",
+   "label": "Supporting Document",
+   "read_only": 1
+  },
+  {
+   "fieldname": "supporting_document_file",
+   "fieldtype": "Attach",
+   "label": "Supporting Document File",
+   "read_only": 1
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-10-08 23:45:00.000000",
+ "modified": "2026-10-18 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Appointment Carried Item",

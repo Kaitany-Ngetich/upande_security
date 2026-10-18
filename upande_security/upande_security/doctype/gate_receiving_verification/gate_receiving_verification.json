@@ -19,10 +19,14 @@
   "gate_verification_status",
   "gate_verified_by",
   "gate",
+  "farm",
   "column_break_2",
   "gate_departure_time",
   "supplier_badge",
-  "remarks"
+  "remarks",
+  "items_section",
+  "carried_items",
+  "delivery_group"
  ],
  "fields": [
   {
@@ -134,10 +138,40 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks"
+  },
+  {
+   "fieldname": "items_section",
+   "fieldtype": "Section Break",
+   "label": "Supplier's Own Items"
+  },
+  {
+   "fieldname": "carried_items",
+   "fieldtype": "Table",
+   "label": "Carried Items",
+   "options": "Appointment Carried Item",
+   "read_only": 1,
+   "description": "What the supplier brought in that is not part of this delivery, and how it left."
+  },
+  {
+   "fieldname": "delivery_group",
+   "fieldtype": "Data",
+   "label": "Delivery Group",
+   "read_only": 1,
+   "hidden": 1,
+   "description": "Same value on every record released together off one truck; the items are kept on that record."
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "label": "Farm",
+   "options": "Farm",
+   "read_only": 1,
+   "in_standard_filter": 1,
+   "description": "The farm whose gate checked the delivery in."
   }
  ],
  "links": [],
- "modified": "2026-10-13 18:30:00.000000",
+ "modified": "2026-10-18 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Gate Receiving Verification",
