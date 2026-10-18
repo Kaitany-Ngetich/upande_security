@@ -34,17 +34,17 @@
   "shortcuts": [
    {
     "color": "Pink",
-    "doc_view": "",
+    "doc_view": "List",
     "format": null,
     "icon": null,
     "kanban_board": null,
-    "label": "Visitor Badges",
-    "link_to": null,
+    "label": "Badges",
+    "link_to": "Gate Badge",
     "report_ref_doctype": null,
     "restrict_to_domain": null,
     "stats_filter": null,
-    "type": "URL",
-    "url": "/app/gate-badge?badge_type=Visitor"
+    "type": "DocType",
+    "url": null
    },
    {
     "color": "Purple",
@@ -87,20 +87,6 @@
     "stats_filter": null,
     "type": "DocType",
     "url": null
-   },
-   {
-    "color": "Orange",
-    "doc_view": "",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
-    "label": "Contractor Badges",
-    "link_to": null,
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "URL",
-    "url": "/app/gate-badge?badge_type=Contractor"
    },
    {
     "color": "Green",
@@ -213,20 +199,6 @@
     "stats_filter": null,
     "type": "DocType",
     "url": null
-   },
-   {
-    "color": "Teal",
-    "doc_view": "",
-    "format": null,
-    "icon": null,
-    "kanban_board": null,
-    "label": "Supplier Badges",
-    "link_to": null,
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "URL",
-    "url": "/app/gate-badge?badge_type=Supplier"
    },
    {
     "color": "Grey",

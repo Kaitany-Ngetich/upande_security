@@ -34,11 +34,11 @@
  "shortcuts": [
   {
    "color": "Pink",
-   "doc_view": "",
-   "label": "Visitor Badges",
-   "link_to": null,
-   "type": "URL",
-   "url": "/app/gate-badge?badge_type=Visitor"
+   "doc_view": "List",
+   "label": "Badges",
+   "link_to": "Gate Badge",
+   "type": "DocType",
+   "url": null
   },
   {
    "color": "Purple",
@@ -60,14 +60,6 @@
    "label": "Carried Items",
    "link_to": "Gate Carried Item",
    "type": "DocType"
-  },
-  {
-   "color": "Orange",
-   "doc_view": "",
-   "label": "Contractor Badges",
-   "link_to": null,
-   "type": "URL",
-   "url": "/app/gate-badge?badge_type=Contractor"
   },
   {
    "color": "Green",
@@ -124,14 +116,6 @@
    "label": "Guard Devices",
    "link_to": "Guard Device Token",
    "type": "DocType"
-  },
-  {
-   "color": "Teal",
-   "doc_view": "",
-   "label": "Supplier Badges",
-   "link_to": null,
-   "type": "URL",
-   "url": "/app/gate-badge?badge_type=Supplier"
   },
   {
    "color": "Grey",
