@@ -142,8 +142,7 @@
    "fieldtype": "Data",
    "label": "Delivery Group",
    "read_only": 1,
-   "hidden": 1,
-   "description": "Same value on every record released together off one truck; the items are kept on that record."
+   "hidden": 1
   },
   {
    "fieldname": "farm",
@@ -151,8 +150,7 @@
    "label": "Farm",
    "options": "Farm",
    "read_only": 1,
-   "in_standard_filter": 1,
-   "description": "The farm whose gate checked the delivery in."
+   "in_standard_filter": 1
   }
  ],
  "links": [],

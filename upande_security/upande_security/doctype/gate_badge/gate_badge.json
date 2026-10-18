@@ -41,8 +41,7 @@
    "label": "Badge Number",
    "in_list_view": 1,
    "bold": 1,
-   "set_only_once": 1,
-   "description": "Left blank, the next number is used - per company, and per farm for visitor badges."
+   "set_only_once": 1
   },
   {
    "fieldname": "company",
@@ -62,8 +61,7 @@
    "in_standard_filter": 1,
    "set_only_once": 1,
    "depends_on": "eval:doc.badge_type=='Visitor'",
-   "mandatory_depends_on": "eval:doc.badge_type=='Visitor'",
-   "description": "Visitor badges belong to one farm; supplier and contractor badges are valid at every farm of the company."
+   "mandatory_depends_on": "eval:doc.badge_type=='Visitor'"
   },
   {
    "fieldname": "column_break_1",
@@ -77,8 +75,7 @@
    "default": "Available",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1,
-   "description": "Lost: the holder is charged KES 300."
+   "in_standard_filter": 1
   },
   {
    "fieldname": "qr_image",

@@ -128,8 +128,7 @@
    "fieldtype": "Select",
    "label": "Declared At",
    "options": "Entry\nExit",
-   "in_standard_filter": 1,
-   "description": "Exit: not declared on the way in - recorded as it left, against a supporting document."
+   "in_standard_filter": 1
   },
   {
    "fieldname": "entry_time",

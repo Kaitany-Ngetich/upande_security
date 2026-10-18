@@ -126,8 +126,7 @@
    "options": "\nUp to date\nOutdated\nNeeds New Install\nUnknown (old app)",
    "read_only": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1,
-   "description": "Compared with the newest update any phone on the same channel has reported."
+   "in_standard_filter": 1
   },
   {
    "fieldname": "app_version",
@@ -147,8 +146,7 @@
    "fieldname": "update_created_at",
    "fieldtype": "Datetime",
    "label": "Update Published",
-   "read_only": 1,
-   "description": "When the update this phone is running was published. Blank when it runs the original install."
+   "read_only": 1
   },
   {
    "fieldname": "update_id",
@@ -160,8 +158,7 @@
    "fieldname": "is_embedded_launch",
    "fieldtype": "Check",
    "label": "Running Original Install",
-   "read_only": 1,
-   "description": "Has never applied an over-the-air update."
+   "read_only": 1
   },
   {
    "fieldname": "col_app_2",
