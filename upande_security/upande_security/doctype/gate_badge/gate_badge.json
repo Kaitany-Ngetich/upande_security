@@ -78,7 +78,7 @@
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "Lost: the holder is charged KES 300 (contractor badges)."
+   "description": "Lost: the holder is charged KES 300."
   },
   {
    "fieldname": "qr_image",
