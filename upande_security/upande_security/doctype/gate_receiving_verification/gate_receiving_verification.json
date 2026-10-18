@@ -24,7 +24,12 @@
   "gate_departure_time",
   "supplier_badge",
   "remarks",
-  "delivery_group"
+  "delivery_group",
+  "receipt_section",
+  "purchase_receipt",
+  "supplier_delivery_note",
+  "no_receipt_reason",
+  "receipt_alerted"
  ],
  "fields": [
   {
@@ -151,6 +156,38 @@
    "options": "Farm",
    "read_only": 1,
    "in_standard_filter": 1
+  },
+  {
+   "fieldname": "receipt_section",
+   "fieldtype": "Section Break",
+   "label": "Goods Receipt"
+  },
+  {
+   "fieldname": "purchase_receipt",
+   "fieldtype": "Link",
+   "label": "Purchase Receipt",
+   "options": "Purchase Receipt",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "no_receipt_reason",
+   "fieldtype": "Small Text",
+   "label": "Left Without a Receipt",
+   "read_only": 1
+  },
+  {
+   "fieldname": "supplier_delivery_note",
+   "fieldtype": "Data",
+   "label": "Supplier Delivery Note",
+   "read_only": 1
+  },
+  {
+   "fieldname": "receipt_alerted",
+   "fieldtype": "Check",
+   "label": "Receipt Alert Sent",
+   "read_only": 1,
+   "hidden": 1
   }
  ],
  "links": [],

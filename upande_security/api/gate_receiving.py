@@ -541,6 +541,86 @@ def list_receivings_awaiting_departure():
 	return list(trucks.values())
 
 
+def _receipt_name(reference):
+	"""A receipt from a scan (the gate copy's QR is .../app/purchase-receipt/<name>)
+	or a typed number."""
+	reference = (reference or "").strip()
+	if "/purchase-receipt/" in reference:
+		reference = urllib.parse.unquote(reference.split("/purchase-receipt/", 1)[1].split("?", 1)[0].strip("/"))
+	return reference
+
+
+def _check_receipt(names, reference):
+	"""The Purchase Receipt the driver shows on the way out, checked against
+	this truck: it must exist, not be cancelled, be for this supplier, cover
+	one of the truck's purchase orders and be dated on or after its arrival.
+	Returns its summary, or throws saying what is wrong."""
+	receipt = _receipt_name(reference)
+	if not receipt:
+		frappe.throw(_("Scan or enter the receipt note number."))
+	pr = frappe.db.get_value(
+		"Purchase Receipt", receipt, ["name", "supplier", "supplier_name", "docstatus", "posting_date"], as_dict=True
+	)
+	if not pr:
+		frappe.throw(_("No goods receipt {0} found.").format(frappe.bold(receipt)))
+	if pr.docstatus == 2:
+		frappe.throw(_("Goods receipt {0} was cancelled.").format(frappe.bold(pr.name)))
+	records = frappe.get_all(
+		"Gate Receiving Verification",
+		filters={"name": ["in", names]},
+		fields=["name", "purchase_order", "supplier", "gate_arrival_time"],
+	)
+	supplier = records[0].supplier if records else None
+	if supplier and pr.supplier != supplier:
+		frappe.throw(
+			_("Goods receipt {0} is for {1}, not {2}.").format(
+				frappe.bold(pr.name),
+				frappe.db.get_value("Supplier", pr.supplier, "supplier_name") or pr.supplier,
+				frappe.db.get_value("Supplier", supplier, "supplier_name") or supplier,
+			)
+		)
+	orders = set(
+		frappe.get_all("Purchase Receipt Item", filters={"parent": pr.name}, pluck="purchase_order")
+	)
+	matched = [r for r in records if r.purchase_order in orders]
+	if not matched:
+		frappe.throw(
+			_("Goods receipt {0} is not for this truck's order ({1}).").format(
+				frappe.bold(pr.name), ", ".join(sorted({r.purchase_order for r in records}))
+			)
+		)
+	arrived = min(frappe.utils.getdate(r.gate_arrival_time) for r in matched if r.gate_arrival_time) if any(
+		r.gate_arrival_time for r in matched
+	) else None
+	if arrived and frappe.utils.getdate(pr.posting_date) < arrived:
+		frappe.throw(
+			_("Goods receipt {0} is dated {1}, before this truck arrived ({2}).").format(
+				frappe.bold(pr.name), frappe.utils.formatdate(pr.posting_date), frappe.utils.formatdate(arrived)
+			)
+		)
+	return {
+		"receipt": pr.name,
+		"supplier_name": pr.supplier_name or pr.supplier,
+		"posting_date": str(pr.posting_date),
+		"submitted": pr.docstatus == 1,
+		"purchase_orders": sorted({r.purchase_order for r in matched}),
+		"records": [r.name for r in matched],
+		"items": frappe.db.count("Purchase Receipt Item", {"parent": pr.name}),
+	}
+
+
+@frappe.whitelist()
+def check_receiving_receipt(name, receipt):
+	"""Preview for the exit screen: does this receipt note belong to this
+	truck? Soft-fails with {error} so the guard can rescan."""
+	require_feature("feature_gate_receiving")
+	try:
+		return _check_receipt(_delivery_records(name), receipt)
+	except frappe.ValidationError as e:
+		frappe.clear_messages()
+		return {"error": frappe.utils.strip_html(str(e))}
+
+
 @frappe.whitelist()
 def get_receiving_departure(name):
 	"""What the exit check needs for one truck: its delivery records and the
@@ -561,11 +641,15 @@ def get_receiving_departure(name):
 		"driver_name": first.driver_name,
 		"departed": bool(first.gate_departure_time),
 		"items": [i for i in items if i.exit_status == "Inside"],
+		# The exit check also asks for the goods receipt (or why there is none).
+		"receipt_required": True,
 	}
 
 
 @frappe.whitelist()
-def confirm_receiving_departure(name, items_out=None, extra_items=None):
+def confirm_receiving_departure(
+	name, items_out=None, extra_items=None, receipts=None, no_receipt_reason=None, supplier_delivery_note=None
+):
 	"""Confirms the truck has left after dropping off goods — offloading
 	takes time, so this is a separate call from verify_receiving_at_gate,
 	not a field set at arrival. name here is the Gate Receiving
@@ -579,7 +663,19 @@ def confirm_receiving_departure(name, items_out=None, extra_items=None):
 	- extra_items: anything leaving that was NOT declared at entry -
 	  [{item, qty?, serial_notes?, supporting_document?, supporting_document_file?}].
 	  Each needs a supporting document (a reference, a file, or both);
-	  without one the departure is refused, so nothing leaves unaccounted."""
+	  without one the departure is refused, so nothing leaves unaccounted.
+
+	Goods receipt - also sent only by app builds that have it:
+	- receipts: the Purchase Receipt(s) the driver shows (scanned QR or
+	  number), each checked against this truck (_check_receipt) and saved on
+	  the delivery record of the order it covers.
+	- supplier_delivery_note: stores have not posted the receipt yet (on live
+	  about 1 in 4 is posted a day or more later) - the number on the
+	  driver's delivery note is kept, and match_pending_receipts links the
+	  receipt once stores post it with that number, or alerts security if
+	  none turns up within RECEIPT_GRACE_DAYS.
+	- no_receipt_reason: why there is none (load rejected, nothing
+	  offloaded...) - reported to security as Delivery Without Receipt."""
 	require_feature("feature_gate_receiving")
 	names = _delivery_records(name)
 	if not names:
@@ -590,6 +686,21 @@ def confirm_receiving_departure(name, items_out=None, extra_items=None):
 		items_out = frappe.parse_json(items_out) if items_out.strip() else None
 	if isinstance(extra_items, str):
 		extra_items = frappe.parse_json(extra_items) if extra_items.strip() else None
+	if isinstance(receipts, str):
+		receipts = frappe.parse_json(receipts) if receipts.strip().startswith("[") else ([receipts] if receipts.strip() else None)
+	no_receipt_reason = (no_receipt_reason or "").strip()
+	supplier_delivery_note = (supplier_delivery_note or "").strip()
+
+	# Proof of delivery first - nothing is written if it does not hold up.
+	receipt_by_record = {}
+	if receipts:
+		for reference in receipts:
+			checked = _check_receipt(names, reference)
+			for record in checked["records"]:
+				receipt_by_record.setdefault(record, checked["receipt"])
+	elif receipts is not None or no_receipt_reason or supplier_delivery_note:
+		if not no_receipt_reason and not supplier_delivery_note:
+			frappe.throw(_("Scan the goods receipt note, enter the supplier's delivery note number, or say why there is none."))
 
 	now = frappe.utils.now_datetime()
 	not_seen = []
@@ -645,7 +756,14 @@ def confirm_receiving_departure(name, items_out=None, extra_items=None):
 
 	for record in names:
 		grv = frappe.db.get_value("Gate Receiving Verification", record, ["name", "supplier_badge"], as_dict=True)
-		frappe.db.set_value("Gate Receiving Verification", record, "gate_departure_time", now)
+		updates = {"gate_departure_time": now}
+		if record in receipt_by_record:
+			updates["purchase_receipt"] = receipt_by_record[record]
+		elif supplier_delivery_note:
+			updates["supplier_delivery_note"] = supplier_delivery_note
+		elif no_receipt_reason:
+			updates["no_receipt_reason"] = no_receipt_reason
+		frappe.db.set_value("Gate Receiving Verification", record, updates)
 		# Release any badge issued for this delivery back into the pool, same
 		# mechanic as Contractor Gate Checkout releasing a Supplier Badge on
 		# the contractor side - reusable across many different suppliers, not
@@ -657,10 +775,33 @@ def confirm_receiving_departure(name, items_out=None, extra_items=None):
 				{"status": "Available", "current_receiving": None, "supplier": None},
 			)
 
+	if supplier_delivery_note and not receipt_by_record:
+		# Stores may have posted it already, with that delivery note number.
+		match_pending_receipts(names)
+	if no_receipt_reason and not receipt_by_record and not supplier_delivery_note:
+		first = frappe.db.get_value(
+			"Gate Receiving Verification", names[0], ["supplier", "farm", "purchase_order", "vehicle_no"], as_dict=True
+		)
+		log_unauthorized_access(
+			"Delivery Without Receipt",
+			names[0],
+			"Supplier truck "
+			+ (first.vehicle_no or "")
+			+ " ("
+			+ (frappe.db.get_value("Supplier", first.supplier, "supplier_name") or first.supplier or "")
+			+ ", PO "
+			+ ", ".join(sorted({frappe.db.get_value("Gate Receiving Verification", n, "purchase_order") for n in names}))
+			+ ") left without a goods receipt. Reason: "
+			+ no_receipt_reason,
+			frappe.db.get_value("Farm", first.farm, "company") if first.farm else None,
+			first.farm,
+		)
+
 	frappe.db.commit()
 	frappe.response["message"] = {
 		"name": name,
 		"records": names,
+		"purchase_receipts": sorted(set(receipt_by_record.values())),
 		"gate_departure_time": str(now),
 		"not_seen_leaving": not_seen,
 		"left_with_document": recorded_extra,
@@ -761,3 +902,66 @@ def issue_supplier_badge_for_receiving(name, badge_number):
 		"supplier": grv.supplier,
 		"supplier_name": supplier_name,
 	}
+
+
+# Goods receipts posted after the truck left -------------------------------
+
+RECEIPT_GRACE_DAYS = 3
+
+
+def match_pending_receipts(names=None):
+	"""Link deliveries that left on the supplier's delivery note number to the
+	Purchase Receipt stores post with that number (same supplier; the one for
+	the delivery's order when there are several). A delivery still without a
+	receipt RECEIPT_GRACE_DAYS after it left is reported to security, once.
+	Hourly (hooks.py), and straight away when a truck leaves on a delivery
+	note number."""
+	filters = {
+		"gate_departure_time": ["is", "set"],
+		"purchase_receipt": ["is", "not set"],
+		"supplier_delivery_note": ["is", "set"],
+	}
+	if names:
+		filters["name"] = ["in", names]
+	for grv in frappe.get_all(
+		"Gate Receiving Verification",
+		filters=filters,
+		fields=["name", "supplier", "purchase_order", "supplier_delivery_note", "gate_departure_time", "receipt_alerted", "farm", "vehicle_no"],
+	):
+		receipts = frappe.db.sql(
+			"""
+			SELECT pr.name, MAX(pri.purchase_order = %(po)s) AS same_order
+			FROM `tabPurchase Receipt` pr
+			LEFT JOIN `tabPurchase Receipt Item` pri ON pri.parent = pr.name
+			WHERE pr.supplier = %(supplier)s AND pr.docstatus < 2
+			  AND TRIM(LOWER(pr.supplier_delivery_note)) = TRIM(LOWER(%(dn)s))
+			GROUP BY pr.name
+			ORDER BY same_order DESC, pr.creation ASC
+			""",
+			{"po": grv.purchase_order, "supplier": grv.supplier, "dn": grv.supplier_delivery_note},
+			as_dict=True,
+		)
+		if receipts:
+			frappe.db.set_value("Gate Receiving Verification", grv.name, "purchase_receipt", receipts[0].name, update_modified=False)
+			continue
+		overdue = frappe.utils.add_days(grv.gate_departure_time, RECEIPT_GRACE_DAYS) < frappe.utils.now_datetime()
+		if overdue and not grv.receipt_alerted:
+			log_unauthorized_access(
+				"Delivery Without Receipt",
+				grv.name,
+				"No goods receipt posted "
+				+ str(RECEIPT_GRACE_DAYS)
+				+ " days after supplier truck "
+				+ (grv.vehicle_no or "")
+				+ " ("
+				+ (frappe.db.get_value("Supplier", grv.supplier, "supplier_name") or grv.supplier or "")
+				+ ", PO "
+				+ (grv.purchase_order or "")
+				+ ") left on delivery note "
+				+ grv.supplier_delivery_note
+				+ ".",
+				frappe.db.get_value("Farm", grv.farm, "company") if grv.farm else None,
+				grv.farm,
+			)
+			frappe.db.set_value("Gate Receiving Verification", grv.name, "receipt_alerted", 1, update_modified=False)
+	frappe.db.commit()

@@ -284,6 +284,9 @@ scheduler_events = {
         # A shift that merely elapses is never saved again, so its status has to
         # be advanced on a timer: Scheduled -> Active -> Ended.
         "upande_security.tasks.refresh_shift_statuses",
+        # Supplier trucks that left on a delivery note number: link the goods
+        # receipt once stores post it, or alert security when it never comes.
+        "upande_security.api.gate_receiving.match_pending_receipts",
     ],
     "daily": [
         # Pulls today's on-duty guards from HR's own roster (Shift Type +
@@ -693,7 +696,7 @@ fixtures = [
         # a new sibling entry.
         "dt": "Print Format",
         "filters": [
-            ["name", "in", ["Gate Badge Card", "Delivery Note - Gate Copy", "Staff Vehicle Sticker Card"]],
+            ["name", "in", ["Gate Badge Card", "Delivery Note - Gate Copy", "Purchase Receipt - Gate Copy", "Staff Vehicle Sticker Card"]],
         ],
     },
     {
