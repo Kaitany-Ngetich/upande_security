@@ -24,8 +24,6 @@
   "gate_departure_time",
   "supplier_badge",
   "remarks",
-  "items_section",
-  "carried_items",
   "delivery_group"
  ],
  "fields": [
@@ -138,19 +136,6 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks"
-  },
-  {
-   "fieldname": "items_section",
-   "fieldtype": "Section Break",
-   "label": "Supplier's Own Items"
-  },
-  {
-   "fieldname": "carried_items",
-   "fieldtype": "Table",
-   "label": "Carried Items",
-   "options": "Appointment Carried Item",
-   "read_only": 1,
-   "description": "What the supplier brought in that is not part of this delivery, and how it left."
   },
   {
    "fieldname": "delivery_group",

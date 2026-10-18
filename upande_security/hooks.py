@@ -613,7 +613,6 @@ fixtures = [
                     "Appointment-customer_organization",
                     "Appointment-custom_passengers_items_section",
                     "Appointment-custom_passengers",
-                    "Appointment-custom_carried_items",
                     "Timesheet-custom_entry_gate",
                     "Timesheet-custom_exit_gate",
                     "Timesheet-custom_gate_mismatch",

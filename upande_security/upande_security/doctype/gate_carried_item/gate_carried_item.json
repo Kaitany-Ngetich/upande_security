@@ -1,0 +1,228 @@
+{
+ "actions": [],
+ "autoname": "GCI-.YYYY.-.#####",
+ "creation": "2026-10-18 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "party_type",
+  "carried_by",
+  "employee",
+  "supplier",
+  "column_break_ref",
+  "reference_doctype",
+  "reference_name",
+  "farm",
+  "company",
+  "item_section",
+  "item",
+  "qty",
+  "serial_notes",
+  "column_break_in",
+  "declared_at",
+  "entry_time",
+  "recorded_by",
+  "exit_section",
+  "exit_status",
+  "exit_time",
+  "exit_checked_by",
+  "column_break_exit",
+  "supporting_document",
+  "supporting_document_file"
+ ],
+ "fields": [
+  {
+   "fieldname": "party_type",
+   "fieldtype": "Select",
+   "label": "Who",
+   "options": "Visitor\nCustomer\nContractor\nSupplier\nStaff",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "carried_by",
+   "fieldtype": "Data",
+   "label": "Carried By",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "depends_on": "eval:doc.party_type=='Staff'"
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier",
+   "options": "Supplier",
+   "depends_on": "eval:doc.party_type=='Supplier'"
+  },
+  {
+   "fieldname": "column_break_ref",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Select",
+   "label": "Gate Record Type",
+   "options": "Appointment\nGate Receiving Verification\nStaff Gate Movement\nAttendance",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Gate Record",
+   "options": "reference_doctype",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "label": "Farm",
+   "options": "Farm",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "item_section",
+   "fieldtype": "Section Break",
+   "label": "Item"
+  },
+  {
+   "fieldname": "item",
+   "fieldtype": "Data",
+   "label": "Item",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "qty",
+   "fieldtype": "Int",
+   "label": "Qty",
+   "default": "1"
+  },
+  {
+   "fieldname": "serial_notes",
+   "fieldtype": "Data",
+   "label": "Serial No. / Notes"
+  },
+  {
+   "fieldname": "column_break_in",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Entry",
+   "fieldname": "declared_at",
+   "fieldtype": "Select",
+   "label": "Declared At",
+   "options": "Entry\nExit",
+   "in_standard_filter": 1,
+   "description": "Exit: not declared on the way in - recorded as it left, against a supporting document."
+  },
+  {
+   "fieldname": "entry_time",
+   "fieldtype": "Datetime",
+   "label": "Recorded At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "recorded_by",
+   "fieldtype": "Link",
+   "label": "Recorded By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "exit_section",
+   "fieldtype": "Section Break",
+   "label": "Exit"
+  },
+  {
+   "default": "Inside",
+   "fieldname": "exit_status",
+   "fieldtype": "Select",
+   "label": "Exit Status",
+   "options": "Inside\nLeft with owner\nNot seen leaving\nLeft with document",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "exit_time",
+   "fieldtype": "Datetime",
+   "label": "Exit Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "exit_checked_by",
+   "fieldtype": "Link",
+   "label": "Exit Checked By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_exit",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supporting_document",
+   "fieldtype": "Data",
+   "label": "Supporting Document"
+  },
+  {
+   "fieldname": "supporting_document_file",
+   "fieldtype": "Attach",
+   "label": "Supporting Document File"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-18 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Gate Carried Item",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "item",
+ "track_changes": 1
+}

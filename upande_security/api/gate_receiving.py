@@ -26,6 +26,7 @@ import frappe
 from frappe import _
 
 from upande_security.api.feature_flags import is_feature_enabled, require_feature
+from upande_security.api.gate_belongings import clean_items, item_rows, mark_exit, replace_items
 from upande_security.api.security_alerts import log_unauthorized_access
 from upande_security.utils.notifications import resolve_notification_users
 
@@ -297,34 +298,16 @@ def _farm_for_this_guard():
 	return _resolve_checking_farm(frappe.session.user)
 
 
-def _clean_items(items, carried_by):
-	"""Items the supplier brings in that are not part of the delivery
-	(feature_carried_items) - [{item, qty?, serial_notes?}] - as carried-item
-	rows. Ignored when the feature is off."""
-	if isinstance(items, str):
-		items = frappe.parse_json(items) if items.strip() else None
-	if not items or not is_feature_enabled("feature_carried_items"):
-		return []
-	rows = []
-	for it in items:
-		item = str(it.get("item") or "").strip()
-		if not item:
-			continue
-		try:
-			qty = max(int(it.get("qty") or 1), 1)
-		except (TypeError, ValueError):
-			qty = 1
-		rows.append(
-			{
-				"carried_by": carried_by,
-				"item": item,
-				"qty": qty,
-				"serial_notes": str(it.get("serial_notes") or "").strip(),
-				"declared_at": "Entry",
-				"exit_status": "Inside",
-			}
-		)
-	return rows
+def _supplier_party(doc, match):
+	"""Who a delivery's carried items belong to: the driver, for the supplier."""
+	return {
+		"party_type": "Supplier",
+		"carried_by": doc.driver_name or match.get("supplier_name") or doc.supplier,
+		"supplier": doc.supplier,
+		"farm": doc.farm,
+		"company": (frappe.db.get_value("Farm", doc.farm, "company") if doc.farm else None)
+		or frappe.db.get_value("Purchase Order", doc.purchase_order, "company"),
+	}
 
 
 def _gate_for_this_guard(gate):
@@ -375,11 +358,12 @@ def _verify_receiving_one(
 	doc.gate_arrival_time = frappe.utils.now_datetime()
 	doc.remarks = remarks
 	doc.delivery_group = delivery_group
-	for row in _clean_items(items, driver_name or match.get("supplier_name") or match["supplier"]):
-		doc.append("carried_items", row)
 	doc.insert(ignore_permissions=True)
 	if not doc.delivery_group:
 		doc.db_set("delivery_group", doc.name, update_modified=False)
+	rows = clean_items(items) if items and is_feature_enabled("feature_carried_items") else []
+	if rows:
+		replace_items("Gate Receiving Verification", doc.name, rows, _supplier_party(doc, match))
 	frappe.db.commit()
 
 	# Only a genuinely cleared truck is worth telling the store about - a
@@ -511,15 +495,7 @@ def _delivery_records(name):
 
 
 def _delivery_items(names):
-	return frappe.get_all(
-		"Appointment Carried Item",
-		filters={"parenttype": "Gate Receiving Verification", "parent": ["in", names or [""]]},
-		fields=[
-			"name", "parent", "carried_by", "item", "qty", "serial_notes", "declared_at", "exit_status",
-			"exit_time", "supporting_document", "supporting_document_file",
-		],
-		order_by="idx asc",
-	)
+	return item_rows("Gate Receiving Verification", names)
 
 
 @frappe.whitelist()
@@ -639,42 +615,33 @@ def confirm_receiving_departure(name, items_out=None, extra_items=None):
 			extras.append((item, qty, str(it.get("serial_notes") or "").strip(), doc_ref, doc_file))
 
 		if items_out is not None:
-			seen = set(items_out)
-			for row in _delivery_items(names):
-				if row.exit_status != "Inside":
-					continue
-				status = "Left with owner" if row.name in seen else "Not seen leaving"
-				frappe.db.set_value(
-					"Appointment Carried Item",
-					row.name,
-					{"exit_status": status, "exit_time": now, "exit_checked_by": frappe.session.user},
-					update_modified=False,
-				)
-				if status == "Not seen leaving":
-					not_seen.append(row.item)
+			not_seen = [r.item for r in mark_exit(_delivery_items(names), items_out)]
 
 		if extras:
 			grv = frappe.get_doc("Gate Receiving Verification", names[0])
-			carried_by = grv.driver_name or frappe.db.get_value("Supplier", grv.supplier, "supplier_name") or grv.supplier
+			party = _supplier_party(grv, {"supplier_name": frappe.db.get_value("Supplier", grv.supplier, "supplier_name")})
 			for item, qty, notes, doc_ref, doc_file in extras:
-				grv.append(
-					"carried_items",
+				extra = frappe.new_doc("Gate Carried Item")
+				extra.update({k: v for k, v in party.items() if v})
+				extra.update(
 					{
-						"carried_by": carried_by,
+						"reference_doctype": "Gate Receiving Verification",
+						"reference_name": grv.name,
 						"item": item,
 						"qty": qty,
 						"serial_notes": notes,
 						"declared_at": "Exit",
+						"entry_time": now,
+						"recorded_by": frappe.session.user,
 						"exit_status": "Left with document",
 						"exit_time": now,
 						"exit_checked_by": frappe.session.user,
 						"supporting_document": doc_ref,
 						"supporting_document_file": doc_file,
-					},
+					}
 				)
+				extra.insert(ignore_permissions=True)
 				recorded_extra.append(item)
-			grv.flags.ignore_permissions = True
-			grv.save()
 
 	for record in names:
 		grv = frappe.db.get_value("Gate Receiving Verification", record, ["name", "supplier_badge"], as_dict=True)
