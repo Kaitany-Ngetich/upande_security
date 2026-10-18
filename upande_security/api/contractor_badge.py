@@ -245,8 +245,33 @@ def release_badges_for_visit(appointment):
 
 @frappe.whitelist()
 def badges_for_visit(appointment):
-	"""Badges currently issued on a contractor visit (for the check-in screen)."""
-	return [
-		_badge_info(frappe.get_doc(BADGE, n))
-		for n in frappe.get_all(BADGE, filters={"current_appointment": appointment, "status": "Issued"}, pluck="name", order_by="badge_number asc")
-	]
+	"""For the check-in screen: the crew on a contractor visit, the badges
+	already issued on it, and the default valid-until date."""
+	appt = frappe.db.get_value(
+		"Appointment", appointment, ["name", "customer_name", "custom_expected_exit"], as_dict=True
+	)
+	if not appt:
+		frappe.throw(_("Visit {0} not found.").format(appointment))
+	crew = frappe.get_all(
+		"Contractor Personnel",
+		filters={"parent": appt.name, "parenttype": "Appointment"},
+		fields=["full_name", "id_number", "is_team_leader"],
+		order_by="idx asc",
+	)
+	if not crew and appt.customer_name:
+		crew = [{"full_name": appt.customer_name, "id_number": "", "is_team_leader": 1}]
+	return {
+		"crew": crew,
+		"badges": [
+			_badge_info(frappe.get_doc(BADGE, n))
+			for n in frappe.get_all(
+				BADGE,
+				filters={"current_appointment": appt.name, "status": "Issued"},
+				pluck="name",
+				order_by="badge_number asc",
+			)
+		],
+		"valid_until": str(frappe.utils.getdate(appt.custom_expected_exit))
+		if appt.custom_expected_exit
+		else str(frappe.utils.add_days(frappe.utils.getdate(), DEFAULT_VALID_DAYS)),
+	}
