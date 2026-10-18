@@ -166,7 +166,7 @@ def search_receiving_by_supplier_badge(reference):
 		reference = (qs.get("badge") or [reference])[0]
 
 	badge = frappe.db.get_value(
-		"Supplier Badge", reference, ["name", "status", "supplier"], as_dict=True
+		"Gate Badge", {"name": reference, "badge_type": "Supplier"}, ["name", "status", "supplier"], as_dict=True
 	)
 	if not badge:
 		log_unauthorized_access(
@@ -406,7 +406,7 @@ def _verify_receiving_one(
 		# decision. Always true for a bulk (badge-scan-originated) verify,
 		# since reaching that path already required an Issued badge.
 		"has_badge": bool(
-			frappe.db.exists("Supplier Badge", {"supplier": doc.supplier, "status": "Issued"})
+			frappe.db.exists("Gate Badge", {"badge_type": "Supplier", "supplier": doc.supplier, "status": "Issued"})
 		),
 	}
 
@@ -652,7 +652,7 @@ def confirm_receiving_departure(name, items_out=None, extra_items=None):
 		# permanently tied to this one.
 		if grv.supplier_badge:
 			frappe.db.set_value(
-				"Supplier Badge",
+				"Gate Badge",
 				grv.supplier_badge,
 				{"status": "Available", "current_receiving": None, "supplier": None},
 			)
@@ -716,8 +716,8 @@ def issue_supplier_badge_for_receiving(name, badge_number):
 		return
 
 	badge = frappe.db.get_value(
-		"Supplier Badge",
-		{"company": company, "badge_number": badge_number},
+		"Gate Badge",
+		{"badge_type": "Supplier", "company": company, "badge_number": badge_number},
 		["name", "status", "current_receiving"],
 		as_dict=True,
 	)
@@ -734,7 +734,7 @@ def issue_supplier_badge_for_receiving(name, badge_number):
 
 	# Same optimistic-concurrency protection as issue_supplier_badge /
 	# issue_visitor_badge - load + save, not a raw set_value.
-	badge_doc = frappe.get_doc("Supplier Badge", badge.name)
+	badge_doc = frappe.get_doc("Gate Badge", badge.name)
 	badge_doc.status = "Issued"
 	badge_doc.current_receiving = name
 	badge_doc.current_appointment = None

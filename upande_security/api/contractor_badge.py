@@ -5,7 +5,7 @@
 farm of the company by scanning their badge.
 
 - issue_contractor_badge: at contractor check-in the guard gives each crew
-  member a numbered pool badge (Contractor Badge) for the job - holder,
+  member a numbered pool badge (Gate Badge of type Contractor) for the job - holder,
   contractor, the visit, valid_until (default: the visit's expected exit).
 - scan_contractor_badge: at any gate of the issuing company, a scan records
   the holder's movement in Staff Gate Movement (party_type "Contractor") -
@@ -25,7 +25,8 @@ from frappe import _
 
 from upande_security.api.security_alerts import log_unauthorized_access
 
-BADGE = "Contractor Badge"
+BADGE = "Gate Badge"
+TYPE = "Contractor"
 MOVEMENT = "Staff Gate Movement"
 DEFAULT_VALID_DAYS = 7
 
@@ -37,19 +38,20 @@ def _guard_farm():
 
 
 def _badge_name(reference):
-	"""Badge name from a scan (its QR is .../app/contractor-badge/<name>) or a
-	typed reference - the name itself, or a bare number at this guard's
+	"""Contractor badge name from a scan (its QR is .../app/gate-badge/<name>)
+	or a typed reference - the name itself, or a bare number at this guard's
 	company."""
 	reference = (reference or "").strip()
-	if "/contractor-badge/" in reference:
-		reference = urllib.parse.unquote(reference.split("/contractor-badge/", 1)[1].split("?", 1)[0].strip("/"))
-	if frappe.db.exists(BADGE, reference):
+	for marker in ("/gate-badge/", "/contractor-badge/"):
+		if marker in reference:
+			reference = urllib.parse.unquote(reference.split(marker, 1)[1].split("?", 1)[0].strip("/"))
+	if frappe.db.exists(BADGE, {"name": reference, "badge_type": TYPE}):
 		return reference
 	if reference.isdigit():
 		farm = _guard_farm()
 		company = frappe.db.get_value("Farm", farm, "company") if farm else None
 		if company:
-			return frappe.db.get_value(BADGE, {"company": company, "badge_number": int(reference)}, "name")
+			return frappe.db.get_value(BADGE, {"badge_type": TYPE, "company": company, "badge_number": int(reference)}, "name")
 	return None
 
 
@@ -87,7 +89,7 @@ def issue_contractor_badge(appointment, badge_number, holder_name, holder_id_num
 		number = int(str(badge_number).strip())
 	except (TypeError, ValueError):
 		frappe.throw(_("Badge number must be a number."))
-	name = frappe.db.get_value(BADGE, {"company": company, "badge_number": number}, "name")
+	name = frappe.db.get_value(BADGE, {"badge_type": TYPE, "company": company, "badge_number": number}, "name")
 	if not name:
 		frappe.throw(_("There is no contractor badge {0} for {1}.").format(number, company))
 	badge = frappe.get_doc(BADGE, name)
@@ -107,7 +109,7 @@ def issue_contractor_badge(appointment, badge_number, holder_name, holder_id_num
 			"status": "Issued",
 			"holder_name": holder_name,
 			"holder_id_number": (holder_id_number or "").strip(),
-			"contractor": appt.custom_contractor_ref,
+			"supplier": appt.custom_contractor_ref,
 			"current_appointment": appt.name,
 			"valid_until": until,
 			"issued_at": frappe.utils.now_datetime(),
@@ -126,8 +128,8 @@ def _badge_info(badge):
 		"company": badge.company,
 		"holder_name": badge.holder_name,
 		"holder_id_number": badge.holder_id_number,
-		"contractor": badge.contractor,
-		"contractor_name": frappe.db.get_value("Supplier", badge.contractor, "supplier_name") if badge.contractor else None,
+		"contractor": badge.supplier,
+		"contractor_name": frappe.db.get_value("Supplier", badge.supplier, "supplier_name") if badge.supplier else None,
 		"valid_until": str(badge.valid_until or ""),
 	}
 
@@ -196,7 +198,7 @@ def scan_contractor_badge(reference, gate=None):
 				"party_type": "Contractor",
 				"employee_name": badge.holder_name,
 				"id_number": badge.holder_id_number,
-				"contractor": badge.contractor,
+				"contractor": badge.supplier,
 				"contractor_badge": badge.name,
 				"company": company,
 				"farm": farm,
@@ -239,7 +241,7 @@ def _close_and_release(name):
 def release_badges_for_visit(appointment):
 	"""Every contractor badge issued on this visit back to the pool - called
 	when the contractor visit is checked out."""
-	for name in frappe.get_all(BADGE, filters={"current_appointment": appointment, "status": "Issued"}, pluck="name"):
+	for name in frappe.get_all(BADGE, filters={"badge_type": TYPE, "current_appointment": appointment, "status": "Issued"}, pluck="name"):
 		_close_and_release(name)
 
 
@@ -266,7 +268,7 @@ def badges_for_visit(appointment):
 			_badge_info(frappe.get_doc(BADGE, n))
 			for n in frappe.get_all(
 				BADGE,
-				filters={"current_appointment": appt.name, "status": "Issued"},
+				filters={"badge_type": TYPE, "current_appointment": appt.name, "status": "Issued"},
 				pluck="name",
 				order_by="badge_number asc",
 			)
@@ -275,42 +277,3 @@ def badges_for_visit(appointment):
 		if appt.custom_expected_exit
 		else str(frappe.utils.add_days(frappe.utils.getdate(), DEFAULT_VALID_DAYS)),
 	}
-
-
-_MAX_BULK = 500
-
-
-@frappe.whitelist(methods=["POST"])
-def create_contractor_badges(company, count):
-	"""Add `count` badges to a company's pool, numbered on from its highest
-	existing badge (each gets its QR). Security Head / System Manager only."""
-	from upande_security.upande_security.doctype.contractor_badge.contractor_badge import next_badge_number
-
-	if not any(r in frappe.get_roles() for r in ("Security Head", "System Manager")):
-		frappe.throw(_("Only a Security Head can create contractor badges."), frappe.PermissionError)
-	if not frappe.db.exists("Company", company):
-		frappe.throw(_("Company {0} not found.").format(company))
-	try:
-		count = int(count)
-	except (TypeError, ValueError):
-		frappe.throw(_("How many badges? Enter a whole number."))
-	if count < 1:
-		frappe.throw(_("Create at least one badge."))
-	if count > _MAX_BULK:
-		frappe.throw(_("At most {0} badges at a time.").format(_MAX_BULK))
-
-	first = next_badge_number(company)
-	for number in range(first, first + count):
-		frappe.get_doc({"doctype": BADGE, "company": company, "badge_number": number, "status": "Available"}).insert(
-			ignore_permissions=True
-		)
-	frappe.db.commit()
-	return {"created": count, "first": first, "last": first + count - 1}
-
-
-@frappe.whitelist()
-def next_contractor_badge_number(company):
-	"""For the Create Badges dialog: where the next batch will start."""
-	from upande_security.upande_security.doctype.contractor_badge.contractor_badge import next_badge_number
-
-	return next_badge_number(company) if company else None

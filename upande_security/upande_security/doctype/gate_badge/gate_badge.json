@@ -1,0 +1,215 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-10-18 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "badge_type",
+  "badge_number",
+  "company",
+  "farm",
+  "column_break_1",
+  "status",
+  "qr_image",
+  "holder_section",
+  "current_appointment",
+  "current_receiving",
+  "supplier",
+  "column_break_2",
+  "holder_name",
+  "holder_id_number",
+  "valid_until",
+  "issued_at",
+  "issued_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "badge_type",
+   "fieldtype": "Select",
+   "label": "Badge Type",
+   "options": "Visitor\nSupplier\nContractor",
+   "reqd": 1,
+   "default": "Visitor",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "badge_number",
+   "fieldtype": "Int",
+   "label": "Badge Number",
+   "in_list_view": 1,
+   "bold": 1,
+   "set_only_once": 1,
+   "description": "Left blank, the next number is used - per company, and per farm for visitor badges."
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "label": "Farm",
+   "options": "Farm",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "set_only_once": 1,
+   "depends_on": "eval:doc.badge_type=='Visitor'",
+   "mandatory_depends_on": "eval:doc.badge_type=='Visitor'",
+   "description": "Visitor badges belong to one farm; supplier and contractor badges are valid at every farm of the company."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Available\nIssued\nLost",
+   "default": "Available",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Lost: the holder is charged KES 300 (contractor badges)."
+  },
+  {
+   "fieldname": "qr_image",
+   "fieldtype": "Attach Image",
+   "label": "QR Code",
+   "read_only": 1
+  },
+  {
+   "fieldname": "holder_section",
+   "fieldtype": "Section Break",
+   "label": "Current Holder"
+  },
+  {
+   "fieldname": "current_appointment",
+   "fieldtype": "Link",
+   "label": "Visit",
+   "options": "Appointment",
+   "read_only": 1
+  },
+  {
+   "fieldname": "current_receiving",
+   "fieldtype": "Link",
+   "label": "Delivery",
+   "options": "Gate Receiving Verification",
+   "read_only": 1,
+   "depends_on": "eval:doc.badge_type=='Supplier'"
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier / Contractor",
+   "options": "Supplier",
+   "read_only": 1,
+   "in_standard_filter": 1,
+   "depends_on": "eval:doc.badge_type!='Visitor'"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "holder_name",
+   "fieldtype": "Data",
+   "label": "Holder",
+   "read_only": 1,
+   "depends_on": "eval:doc.badge_type=='Contractor'"
+  },
+  {
+   "fieldname": "holder_id_number",
+   "fieldtype": "Data",
+   "label": "Holder ID Number",
+   "read_only": 1,
+   "depends_on": "eval:doc.badge_type=='Contractor'"
+  },
+  {
+   "fieldname": "valid_until",
+   "fieldtype": "Date",
+   "label": "Valid Until",
+   "read_only": 1,
+   "depends_on": "eval:doc.badge_type=='Contractor'"
+  },
+  {
+   "fieldname": "issued_at",
+   "fieldtype": "Datetime",
+   "label": "Issued At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "issued_by",
+   "fieldtype": "Link",
+   "label": "Issued By",
+   "options": "User",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-18 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Gate Badge",
+ "naming_rule": "By script",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Gate Guard",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Secretary",
+   "print": 1,
+   "report": 1
+  }
+ ],
+ "default_print_format": "Gate Badge Card",
+ "search_fields": "badge_type,badge_number,company,farm",
+ "sort_field": "badge_number",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

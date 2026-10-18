@@ -830,7 +830,7 @@ def get_appointment(name=None):
 			       b.badge_number, b.company AS badge_company, b.farm AS badge_farm
 			FROM `tabAppointment` a
 			LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with
-			LEFT JOIN `tabVisitor Badge` b ON b.name = a.custom_visitor_badge
+			LEFT JOIN `tabGate Badge` b ON b.name = a.custom_visitor_badge
 			WHERE a.name = %s
 			LIMIT 1
 			""",
@@ -1264,7 +1264,7 @@ def approved_appointments():
 			       e.employee_name AS host_name
 			FROM `tabAppointment` a
 			LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with
-			LEFT JOIN `tabVisitor Badge` b ON b.name = a.custom_visitor_badge
+			LEFT JOIN `tabGate Badge` b ON b.name = a.custom_visitor_badge
 			WHERE a.workflow_state IN ('Approved by Host', 'Visitor Checked In')
 			ORDER BY
 			  CASE a.workflow_state
@@ -1546,7 +1546,7 @@ def check_out_visitor(name=None):
 		)
 		if existing.custom_visitor_badge:
 			frappe.db.set_value(
-				"Visitor Badge",
+				"Gate Badge",
 				existing.custom_visitor_badge,
 				{"status": "Available", "current_appointment": None},
 			)
@@ -2182,8 +2182,8 @@ def confirm_host_received(company=None, farm=None, badge_number=None):
 				return {"error": "badge_number must be a number"}
 			else:
 				current_appointment = frappe.db.get_value(
-					"Visitor Badge",
-					{"company": company, "farm": farm, "badge_number": badge_number},
+					"Gate Badge",
+					{"badge_type": "Visitor", "company": company, "farm": farm, "badge_number": badge_number},
 					"current_appointment",
 				)
 				if not current_appointment:
@@ -2320,14 +2320,14 @@ def confirm_host_received_by_number(badge_number=None):
 					current_appointment = None
 					if farm:
 						current_appointment = frappe.db.get_value(
-							"Visitor Badge",
-							{"company": company, "farm": farm, "badge_number": badge_number},
+							"Gate Badge",
+							{"badge_type": "Visitor", "company": company, "farm": farm, "badge_number": badge_number},
 							"current_appointment",
 						)
 					else:
 						candidates = frappe.db.get_all(
-							"Visitor Badge",
-							filters={"company": company, "badge_number": badge_number},
+							"Gate Badge",
+							filters={"badge_type": "Visitor", "company": company, "badge_number": badge_number},
 							fields=["current_appointment"],
 						)
 						for c in candidates:
@@ -2641,7 +2641,7 @@ def contractor_gate_checkout():
 		badge_name = frappe.db.get_value("Appointment", appt_name, "custom_supplier_badge")
 		if badge_name:
 			frappe.db.set_value(
-				"Supplier Badge",
+				"Gate Badge",
 				badge_name,
 				{"status": "Available", "current_appointment": None, "supplier": None},
 			)
@@ -3125,7 +3125,7 @@ def list_supplier_badges(status=None, company=None, limit=None):
 				row_limit = 200
 		row_limit = max(1, min(row_limit, 1000))
 
-		where_parts = ["1=1"]
+		where_parts = ["badge_type = 'Supplier'"]
 		params = {"row_limit": row_limit}
 		if status:
 			where_parts.append("status = %(status)s")
@@ -3136,7 +3136,7 @@ def list_supplier_badges(status=None, company=None, limit=None):
 
 		rows = frappe.db.sql(
 			"SELECT name, badge_number, company, supplier, status, qr_image, creation "
-			"FROM `tabSupplier Badge` "
+			"FROM `tabGate Badge` "
 			"WHERE " + " AND ".join(where_parts) + " "
 			"ORDER BY creation DESC "
 			"LIMIT %(row_limit)s",
@@ -3253,8 +3253,8 @@ def issue_visitor_badge(name=None, badge_number=None):
 			}
 
 		badge = frappe.db.get_value(
-			"Visitor Badge",
-			{"company": company, "farm": farm, "badge_number": badge_number},
+			"Gate Badge",
+			{"badge_type": "Visitor", "company": company, "farm": farm, "badge_number": badge_number},
 			["name", "status", "current_appointment"],
 			as_dict=True,
 		)
@@ -3280,7 +3280,7 @@ def issue_visitor_badge(name=None, badge_number=None):
 				+ ")"
 			}
 
-		badge_doc = frappe.get_doc("Visitor Badge", badge.name)
+		badge_doc = frappe.get_doc("Gate Badge", badge.name)
 		badge_doc.status = "Issued"
 		badge_doc.current_appointment = name
 		try:
@@ -3351,7 +3351,7 @@ def update_supplier_badge(name=None, supplier=None, company=None, status=None):
 
 		if not name:
 			return {"error": "name is required"}
-		if not frappe.db.exists("Supplier Badge", name):
+		if not frappe.db.exists("Gate Badge", {"name": name, "badge_type": "Supplier"}):
 			return {"error": "Supplier Badge not found."}
 
 		valid_statuses = ("Available", "Issued", "Lost")
@@ -3364,7 +3364,7 @@ def update_supplier_badge(name=None, supplier=None, company=None, status=None):
 		if has_status and status not in valid_statuses:
 			return {"error": "Invalid status."}
 
-		doc = frappe.get_doc("Supplier Badge", name)
+		doc = frappe.get_doc("Gate Badge", name)
 		applied = False
 		if has_supplier:
 			doc.supplier = supplier
@@ -3440,8 +3440,8 @@ def get_visitor_badge_info(company=None, farm=None, badge_number=None):
 				return {"error": "badge_number must be a number"}
 			else:
 				badge = frappe.db.get_value(
-					"Visitor Badge",
-					{"company": company, "farm": farm, "badge_number": badge_number},
+					"Gate Badge",
+					{"badge_type": "Visitor", "company": company, "farm": farm, "badge_number": badge_number},
 					["current_appointment", "status"],
 					as_dict=True,
 				)
@@ -3544,15 +3544,15 @@ def get_visitor_badge_info_by_number(badge_number=None):
 					badge = None
 					if farm:
 						badge = frappe.db.get_value(
-							"Visitor Badge",
-							{"company": company, "farm": farm, "badge_number": badge_number},
+							"Gate Badge",
+							{"badge_type": "Visitor", "company": company, "farm": farm, "badge_number": badge_number},
 							["current_appointment", "status", "farm"],
 							as_dict=True,
 						)
 					else:
 						candidates = frappe.db.get_all(
-							"Visitor Badge",
-							filters={"company": company, "badge_number": badge_number},
+							"Gate Badge",
+							filters={"badge_type": "Visitor", "company": company, "badge_number": badge_number},
 							fields=["current_appointment", "status", "farm"],
 						)
 						for c in candidates:
@@ -3636,8 +3636,8 @@ def get_supplier_badge_info(badge=None):
 			return {"error": "badge is required"}
 		else:
 			badge = frappe.db.get_value(
-				"Supplier Badge",
-				badge_name,
+				"Gate Badge",
+				{"name": badge_name, "badge_type": "Supplier"},
 				["name", "company", "supplier", "badge_number", "status"],
 				as_dict=True,
 			)
@@ -3731,8 +3731,8 @@ def issue_supplier_badge(name=None, badge_number=None):
 						}
 					else:
 						badge = frappe.db.get_value(
-							"Supplier Badge",
-							{"company": company, "badge_number": badge_number},
+							"Gate Badge",
+							{"badge_type": "Supplier", "company": company, "badge_number": badge_number},
 							["name", "status", "current_appointment"],
 							as_dict=True,
 						)
@@ -3751,7 +3751,7 @@ def issue_supplier_badge(name=None, badge_number=None):
 								+ ")"
 							}
 						else:
-							badge_doc = frappe.get_doc("Supplier Badge", badge.name)
+							badge_doc = frappe.get_doc("Gate Badge", badge.name)
 							badge_doc.status = "Issued"
 							badge_doc.current_appointment = name
 							badge_doc.supplier = appt.custom_contractor_ref or badge_doc.supplier
@@ -4531,7 +4531,7 @@ def list_staff_movements(from_date=None, to_date=None):
 					)
 					if m["contractor"]
 					else None,
-					"badge": frappe.db.get_value("Contractor Badge", m["contractor_badge"], "badge_number")
+					"badge": frappe.db.get_value("Gate Badge", m["contractor_badge"], "badge_number")
 					if m["contractor_badge"]
 					else None,
 				}

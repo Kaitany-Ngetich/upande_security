@@ -166,14 +166,6 @@ after_migrate = [
 ]
 
 doc_events = {
-	"Visitor Badge": {
-		"before_insert": "upande_security.api.visitor_badge_qr.auto_assign_badge_number",
-		"after_insert": "upande_security.api.visitor_badge_qr.generate_qr_for_badge",
-	},
-	"Supplier Badge": {
-		"after_insert": "upande_security.api.supplier_badge_qr.generate_qr_for_badge",
-		"validate": "upande_security.api.supplier_badge_qr.auto_sync_status",
-	},
 	"Staff Vehicle Sticker": {
 		"after_insert": "upande_security.api.staff_vehicle_sticker_qr.generate_qr_for_sticker",
 		"validate": "upande_security.api.staff_vehicle_sticker_qr.auto_sync_status",
@@ -669,16 +661,17 @@ fixtures = [
         "dt": "Incident Category",
     },
     {
-        # Security Asset, Visitor Badge, and Supplier Badge were built via
+        # Security Asset and the Staff Vehicle Sticker doctypes were built via
         # the Desk UI (DocType.custom = 1) rather than as an app-owned
-        # doctype .json, so unlike Patrol Report/Incident Report/etc. their
+        # doctype .json (the old Visitor/Supplier Badge ones have since become
+        # the app-owned Gate Badge), so unlike Patrol Report/Incident Report/etc. their
         # schema (fields, permissions) lives only in the DB. Without this
         # they — and any DocPerm fix made to them — would silently vanish
         # on a fresh deploy, the same class of bug the Security workspace
         # hit before.
         "dt": "DocType",
         "filters": [
-            ["name", "in", ["Security Asset", "Visitor Badge", "Supplier Badge", "Staff Vehicle Sticker", "Staff Vehicle Sticker Request"]],
+            ["name", "in", ["Security Asset", "Staff Vehicle Sticker", "Staff Vehicle Sticker Request"]],
         ],
     },
     {
@@ -700,7 +693,7 @@ fixtures = [
         # a new sibling entry.
         "dt": "Print Format",
         "filters": [
-            ["name", "in", ["Visitor Badge Card", "Supplier Badge Card", "Contractor Badge Card", "Delivery Note - Gate Copy", "Staff Vehicle Sticker Card"]],
+            ["name", "in", ["Gate Badge Card", "Delivery Note - Gate Copy", "Staff Vehicle Sticker Card"]],
         ],
     },
     {

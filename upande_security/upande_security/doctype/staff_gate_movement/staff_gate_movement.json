@@ -137,8 +137,8 @@
   {
    "fieldname": "contractor_badge",
    "fieldtype": "Link",
-   "label": "Contractor Badge",
-   "options": "Contractor Badge",
+   "label": "Badge",
+   "options": "Gate Badge",
    "depends_on": "eval:doc.party_type=='Contractor'",
    "read_only": 1
   },

@@ -128,7 +128,7 @@
   {
    "fieldname": "supplier_badge",
    "fieldtype": "Link",
-   "options": "Supplier Badge",
+   "options": "Gate Badge",
    "label": "Supplier Badge",
    "read_only": 1
   },

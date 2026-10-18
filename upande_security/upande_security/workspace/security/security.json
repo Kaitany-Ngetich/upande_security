@@ -34,10 +34,11 @@
  "shortcuts": [
   {
    "color": "Pink",
-   "doc_view": "List",
+   "doc_view": "",
    "label": "Visitor Badges",
-   "link_to": "Visitor Badge",
-   "type": "DocType"
+   "link_to": null,
+   "type": "URL",
+   "url": "/app/gate-badge?badge_type=Visitor"
   },
   {
    "color": "Purple",
@@ -62,10 +63,11 @@
   },
   {
    "color": "Orange",
-   "doc_view": "List",
+   "doc_view": "",
    "label": "Contractor Badges",
-   "link_to": "Contractor Badge",
-   "type": "DocType"
+   "link_to": null,
+   "type": "URL",
+   "url": "/app/gate-badge?badge_type=Contractor"
   },
   {
    "color": "Green",
@@ -125,10 +127,11 @@
   },
   {
    "color": "Teal",
-   "doc_view": "List",
+   "doc_view": "",
    "label": "Supplier Badges",
-   "link_to": "Supplier Badge",
-   "type": "DocType"
+   "link_to": null,
+   "type": "URL",
+   "url": "/app/gate-badge?badge_type=Supplier"
   },
   {
    "color": "Grey",

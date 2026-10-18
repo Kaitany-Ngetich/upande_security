@@ -15,55 +15,8 @@ only ever adds a new File + sets qr_image; never modifies/removes an
 existing one.
 """
 
-import frappe
-
-from upande_security.api.visitor_badge_qr import generate_qr_for_badge
-
 
 def execute():
-	logger = frappe.logger("upande_security", allow_site=True)
-
-	names = frappe.get_all(
-		"Visitor Badge",
-		filters={"qr_image": ["in", ["", None]]},
-		pluck="name",
-	)
-
-	examined = len(names)
-	generated = 0
-	skipped_incomplete = 0
-	errored = 0
-
-	for name in names:
-		try:
-			doc = frappe.get_doc("Visitor Badge", name)
-		except Exception:
-			errored += 1
-			frappe.log_error(
-				title="upande_security backfill_visitor_badge_qr (load)",
-				message=frappe.get_traceback(),
-			)
-			continue
-
-		if not doc.company or not doc.farm or not doc.badge_number:
-			skipped_incomplete += 1
-			continue
-
-		try:
-			generate_qr_for_badge(doc)
-			generated += 1
-		except Exception:
-			errored += 1
-			frappe.log_error(
-				title="upande_security backfill_visitor_badge_qr (generate)",
-				message=frappe.get_traceback(),
-			)
-
-	frappe.db.commit()
-
-	summary = (
-		"upande_security backfill_visitor_badge_qr: "
-		"examined={0} generated={1} skipped_incomplete={2} errored={3}"
-	).format(examined, generated, skipped_incomplete, errored)
-	logger.info(summary)
-	print(summary)
+	# Ran on every site long ago. Visitor Badge has since become Gate Badge,
+	# which generates its own QR on insert - nothing left to backfill.
+	return
