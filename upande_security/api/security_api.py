@@ -3883,23 +3883,23 @@ def get_today_attendance(employee=None):
 		return {"error": str(e)}
 
 
+def _permitted(doctype, **kwargs):
+	"""Rows of `doctype` the caller may see by the site's own permissions -
+	Role Permissions (incl. Custom DocPerm) and User Permissions, exactly as
+	in the Desk list. Someone with no read access gets an empty list, not an
+	error."""
+	if not frappe.has_permission(doctype, "read"):
+		return []
+	return frappe.get_list(doctype, **kwargs)
+
+
 @frappe.whitelist()
 def list_checked_in_staff():
-	"""Everyone currently on site, scoped to what the caller may see.
+	"""Everyone currently on site that the caller may see.
 
-	This is the one endpoint in this file that DOES scope by company/farm,
-	and it does so by hand rather than through User Permissions, because
-	`frappe.get_all` ignores those entirely. The rules:
-
-	  System Manager   -> everything
-	  Security Head    -> their own Company/Farm User Permission rows
-	  everyone else    -> their Employee's company/farm, or failing that
-	                      their Security Guard record's
-
-	A caller with no resolvable company or farm gets `name = __no_match__`,
-	which returns nothing. That is deliberate: falling through to "no
-	filter" would quietly show every company's staff to someone the system
-	could not place.
+	Follows the site's own permissions (_permitted): whoever can read
+	Attendance / Gate Movement in Desk sees those records here too, narrowed
+	by their User Permissions (Company / Farm) - no role names decide it.
 
 	Note the error shape: {"staff": [], "error": ...}. The app reads
 	`staff` unconditionally.
@@ -3909,75 +3909,14 @@ def list_checked_in_staff():
 			raise Exception("This feature is not enabled on this instance.")
 		today = frappe.utils.today()
 
-		current_user = frappe.session.user
-		role_rows = frappe.db.sql(
-			"SELECT role FROM `tabHas Role` WHERE parent = %s", (current_user,)
-		)
-		roles = [row[0] for row in role_rows if row and row[0]]
-
-		is_system_manager = "System Manager" in roles
-		is_security_head = "Security Head" in roles
-
-		scope_companies = []
-		scope_farms = []
-
-		if not is_system_manager:
-			if is_security_head:
-				perm_rows = frappe.db.sql(
-					"SELECT allow, for_value FROM `tabUser Permission` "
-					"WHERE user = %s AND allow IN ('Company', 'Farm')",
-					(current_user,),
-					as_dict=True,
-				)
-				for p in perm_rows:
-					if p.allow == "Company" and p.for_value:
-						scope_companies.append(p.for_value)
-					elif p.allow == "Farm" and p.for_value:
-						scope_farms.append(p.for_value)
-			else:
-				employee = frappe.db.get_value(
-					"Employee", {"user_id": current_user}, ["company", "custom_farm"], as_dict=True
-				)
-				if employee:
-					if employee.company:
-						scope_companies.append(employee.company)
-					if employee.custom_farm:
-						scope_farms.append(employee.custom_farm)
-				else:
-					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
-					if user_full:
-						guard = frappe.db.get_value(
-							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
-						)
-						if guard:
-							if guard.company:
-								scope_companies.append(guard.company)
-							if guard.farm:
-								scope_farms.append(guard.farm)
-
-		def _scoped(base, company_field, farm_field):
-			"""Company wins over farm when both resolve - same precedence the
-			original used for both queries."""
-			if is_system_manager:
-				return base
-			if scope_companies:
-				return base + [[company_field, "in", scope_companies]]
-			if scope_farms:
-				return base + [[farm_field, "in", scope_farms]]
-			return base + [["name", "=", "__no_match__"]]
-
-		rows = frappe.get_all(
+		rows = _permitted(
 			"Attendance",
-			filters=_scoped(
-				[
-					["attendance_date", "=", today],
-					["custom_gate_app_entry", "=", 1],
-					["out_time", "is", "not set"],
-					["docstatus", "<", 2],
-				],
-				"company",
-				"custom_farm",
-			),
+			filters=[
+				["attendance_date", "=", today],
+				["custom_gate_app_entry", "=", 1],
+				["out_time", "is", "not set"],
+				["docstatus", "<", 2],
+			],
 			fields=[
 				"name",
 				"employee",
@@ -3988,18 +3927,18 @@ def list_checked_in_staff():
 				"docstatus",
 			],
 			order_by="in_time desc",
+			limit_page_length=0,
 		)
 
 		# Companies on "Movement Log Only" never create an Attendance row, so
-		# their people would be missing from the on-site list entirely. Same
-		# scoping, mapped onto the shape the client already reads.
-		mv_rows = frappe.get_all(
+		# their people would be missing from the on-site list entirely. Mapped
+		# onto the shape the client already reads.
+		mv_rows = _permitted(
 			"Gate Movement",
-			filters=_scoped(
-				[["movement_date", "=", today], ["time_out", "is", "not set"]], "company", "farm"
-			),
+			filters=[["movement_date", "=", today], ["time_out", "is", "not set"]],
 			fields=["name", "employee", "employee_name", "movement_date", "time_in"],
 			order_by="time_in desc",
+			limit_page_length=0,
 		)
 		for m in mv_rows:
 			rows.append(
@@ -4448,24 +4387,14 @@ def staff_gate_checkout(attendance_name=None, exit_gate=None, sticker=None):
 def list_staff_movements(from_date=None, to_date=None):
 	"""Gate Movement list for a date range, newest first.
 
-	Gated by the feature_staff_checkin flag in Security Ops Settings. The
-	disabled case is raised INSIDE the try on purpose, so it is caught, logged
-	via log_error and returned as {"error": "This feature is not enabled on this
-	instance."} at HTTP 200 -- not a thrown HTTP error. Only an explicit 0
-	disables it (an unset/None value counts as enabled).
+	Gated by the feature_staff_checkin flag in Security Ops Settings (an
+	explicit 0 disables it; the disabled case returns {"error": ...} at HTTP
+	200). to_date defaults to today, from_date to to_date - 30 days.
 
-	to_date defaults to today, from_date to to_date - 30 days.
-
-	Scoping is the same as the gate app: System Manager sees everything, a
-	Security Head sees their User Permission grants, anyone else is pinned to
-	their own company/farm. UNLIKE list_patrol_reports, company and farm are NOT
-	OR-ed: if any company scope exists it wins and farm scope is ignored (elif).
-	With no scope at all the filter is name = "__no_match__" (show nothing).
-	Load bearing.
-
-	time_in/time_out are clock times, so each is joined with the row's own
-	movement_date into a full "YYYY-MM-DD HH:MM:SS" string for the client.
-	Unpaginated (limit_page_length=0). Read-only.
+	Follows the site's own permissions (_permitted): whoever can read Gate
+	Movement in Desk sees those records here, narrowed by their User
+	Permissions - no role names decide it. time_in/time_out are clock times,
+	joined with the row's movement_date into "YYYY-MM-DD HH:MM:SS".
 	"""
 	try:
 		if frappe.db.get_single_value("Security Ops Settings", "feature_staff_checkin") == 0:
@@ -4476,70 +4405,14 @@ def list_staff_movements(from_date=None, to_date=None):
 		if not from_date:
 			from_date = frappe.utils.add_days(to_date, -30)
 
-		current_user = frappe.session.user
-		role_rows = frappe.db.sql(
-			"SELECT role FROM `tabHas Role` WHERE parent = %s", (current_user,)
-		)
-		roles = []
-		for row in role_rows:
-			if row and row[0]:
-				roles.append(row[0])
-
-		is_system_manager = "System Manager" in roles
-		is_security_head = "Security Head" in roles
-
-		scope_companies = []
-		scope_farms = []
-
-		if not is_system_manager:
-			if is_security_head:
-				perm_rows = frappe.db.sql(
-					"SELECT allow, for_value FROM `tabUser Permission` "
-					"WHERE user = %s AND allow IN ('Company', 'Farm')",
-					(current_user,),
-					as_dict=True,
-				)
-				for p in perm_rows:
-					if p.allow == "Company" and p.for_value:
-						scope_companies.append(p.for_value)
-					elif p.allow == "Farm" and p.for_value:
-						scope_farms.append(p.for_value)
-			else:
-				employee = frappe.db.get_value(
-					"Employee", {"user_id": current_user}, ["company", "custom_farm"], as_dict=True
-				)
-				if employee:
-					if employee.company:
-						scope_companies.append(employee.company)
-					if employee.custom_farm:
-						scope_farms.append(employee.custom_farm)
-				else:
-					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
-					if user_full:
-						guard = frappe.db.get_value(
-							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
-						)
-						if guard:
-							if guard.company:
-								scope_companies.append(guard.company)
-							if guard.farm:
-								scope_farms.append(guard.farm)
-
 		rows = []
 
 		mv_filters = [
 			["movement_date", ">=", from_date],
 			["movement_date", "<=", to_date],
 		]
-		if not is_system_manager:
-			if scope_companies:
-				mv_filters.append(["company", "in", scope_companies])
-			elif scope_farms:
-				mv_filters.append(["farm", "in", scope_farms])
-			else:
-				mv_filters.append(["name", "=", "__no_match__"])
 
-		for m in frappe.get_all(
+		for m in _permitted(
 			"Gate Movement",
 			filters=mv_filters,
 			fields=[
