@@ -2119,6 +2119,59 @@ def _incident_filter_options():
     }
 
 
+INCIDENT_SEVERITY_COLORS = {"Critical": "#A32D2D", "High": "#E24B4A", "Medium": "#BA7517", "Low": "#888780"}
+
+
+@frappe.whitelist()
+def incident_calendar_events(start, end, filters=None, field_map=None):
+    """Events for the Incident Report calendar in Desk: each incident at its
+    incident time, titled with the category and farm, coloured by severity."""
+    filters = frappe.parse_json(filters) if filters else []
+    if isinstance(filters, dict):
+        filters = [[k, "=", v] for k, v in filters.items()]
+    filters = list(filters) + [
+        ["incident_datetime", ">=", start],
+        ["incident_datetime", "<=", end],
+    ]
+    rows = frappe.get_list(
+        "Incident Report",
+        filters=filters,
+        fields=["name", "nature_of_incident", "incident_datetime", "severity", "farm"],
+        limit_page_length=0,
+    )
+    for r in rows:
+        r.nature_of_incident = " · ".join(x for x in (r.nature_of_incident, r.farm) if x)
+        r.color = INCIDENT_SEVERITY_COLORS.get(r.severity, "#888780")
+        r.all_day = 0
+    return rows
+
+
+@frappe.whitelist()
+def incident_pattern(category="Theft", from_date=None, to_date=None, farm=None, company=None):
+    """Incidents of one category with their time, for the dashboard's
+    calendar and when-does-it-happen charts. Permission-aware."""
+    filters = [["nature_of_incident", "=", category or "Theft"]]
+    if from_date:
+        filters.append(["incident_datetime", ">=", str(frappe.utils.getdate(from_date)) + " 00:00:00"])
+    if to_date:
+        filters.append(["incident_datetime", "<=", str(frappe.utils.getdate(to_date)) + " 23:59:59"])
+    if farm:
+        filters.append(["farm", "=", farm])
+    elif company:
+        filters.append(["farm", "in", _farms_of_company(company)])
+    rows = frappe.get_list(
+        "Incident Report",
+        filters=filters,
+        fields=["name", "incident_datetime", "farm", "location", "severity", "status", "description"],
+        order_by="incident_datetime asc",
+        limit_page_length=5000,
+    )
+    for r in rows:
+        r.incident_datetime = str(r.incident_datetime) if r.incident_datetime else None
+        r.description = (r.description or "")[:160]
+    return {"category": category, "rows": rows}
+
+
 def _patrol_reports_by_tag(tags):
     """Map patrol tag -> its Patrol Report, fetched in one query.
 
