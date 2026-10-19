@@ -1954,12 +1954,18 @@ def fetchSecurityDasboardData(
     shift_type=None,
     status=None,
     company=None,
+    severity=None,
+    category=None,
+    search=None,
 ):
     tab = (tab or "").strip().lower()
     range_from, range_to = _resolve_range(period, from_date, to_date)
 
     if tab == "incidents":
-        return _fetch_incidents_tab(range_from, range_to, farm=farm, company=company)
+        return _fetch_incidents_tab(
+            range_from, range_to, farm=farm, company=company,
+            status=status, severity=severity, category=category, search=search,
+        )
     if tab == "patrols":
         return _fetch_patrols_tab(range_from, range_to, farm=farm, company=company)
     if tab == "shifts":
@@ -1984,10 +1990,14 @@ def _farms_of_company(company):
     return names or ["__no_match__"]
 
 
-def _fetch_incidents_tab(range_from, range_to, farm=None, company=None):
+def _fetch_incidents_tab(
+    range_from, range_to, farm=None, company=None,
+    status=None, severity=None, category=None, search=None,
+):
     data = get_incidents_dashboard(
         date_from=str(range_from), date_to=str(range_to), limit=2000,
         farm=farm, company=company,
+        status=status, severity=severity, category=category, search=search,
     )
     rows = data.get("rows", [])
     summary = data.get("summary", {})
@@ -2090,6 +2100,22 @@ def _fetch_incidents_tab(range_from, range_to, farm=None, company=None):
         ],
         "incidents_gallery": gallery[:24],
         "incidents_recent": recent,
+        "filter_options": _incident_filter_options(),
+    }
+
+
+def _incident_filter_options():
+    """The incident filter dropdowns: each Select field's own choices."""
+    meta = frappe.get_meta("Incident Report")
+
+    def choices(fieldname):
+        field = meta.get_field(fieldname)
+        return [o.strip() for o in (field.options or "").split("\n") if o.strip()] if field else []
+
+    return {
+        "statuses": choices("status"),
+        "severities": choices("severity"),
+        "categories": sorted(set(choices("nature_of_incident"))),
     }
 
 
