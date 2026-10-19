@@ -92,6 +92,68 @@ def _s(value):
 	if value is None:
 		return ""
 	return str(value).strip()
+# A guard who gets an error after the walk-in actually saved (slow network,
+# a failed SMS/WhatsApp hook) taps SAVE again. App builds before the
+# idempotency key resend nothing to tell the retry apart, and a re-opened form
+# mints a fresh key, so the server also matches on what the visit is: the same
+# guard booking the same visitor (name + phone) for the same host within
+# WALK_IN_REPEAT_MINUTES, while that booking is still live.
+WALK_IN_REPEAT_MINUTES = 10
+WALK_IN_DEAD_STATES = ("Rejected by Host", "Rejected by Secretary", "Visitor Checked Out", "Cancelled")
+
+
+def _phone_tail(value):
+	digits = "".join(ch for ch in str(value or "") if ch.isdigit())
+	return digits[-9:]
+
+
+def _recent_walk_in(customer_name, phone, host):
+	"""Name of this guard's live walk-in for the same visitor and host, booked
+	in the last few minutes, or None."""
+	since = frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-WALK_IN_REPEAT_MINUTES)
+	rows = frappe.get_all(
+		"Appointment",
+		filters={
+			"owner": frappe.session.user,
+			"custom_meet_with": host,
+			"creation": [">=", since],
+			"custom_check_out_time": ["is", "not set"],
+		},
+		fields=["name", "customer_name", "customer_phone_number", "workflow_state", "status"],
+		order_by="creation desc",
+	)
+	name_key = " ".join((customer_name or "").lower().split())
+	phone_key = _phone_tail(phone)
+	for row in rows:
+		if row.workflow_state in WALK_IN_DEAD_STATES or row.status in ("Closed", "Cancelled"):
+			continue
+		if " ".join((row.customer_name or "").lower().split()) != name_key:
+			continue
+		if phone_key and _phone_tail(row.customer_phone_number) != phone_key:
+			continue
+		return row.name
+	return None
+
+
+def _walk_in_lock(customer_name, phone, host):
+	"""Serialise two near-simultaneous requests for the same walk-in, so the
+	second sees the first's insert instead of both missing it. MariaDB named
+	lock, released by _walk_in_unlock or when the connection ends."""
+	key = "walkin:" + frappe.session.user + ":" + str(host) + ":" + _phone_tail(phone)
+	key = key + ":" + " ".join((customer_name or "").lower().split())
+	key = key[:64]
+	frappe.db.sql("SELECT GET_LOCK(%s, 15)", (key,))
+	return key
+
+
+def _walk_in_unlock(key):
+	if key:
+		try:
+			frappe.db.sql("SELECT RELEASE_LOCK(%s)", (key,))
+		except Exception:
+			pass
+
+
 def _normalise_ke_phone(raw):
 	"""Digits-only, Kenyan country code (254) prefixed. Returns "" if no digits.
 
@@ -1628,6 +1690,7 @@ def create_walk_in(customer_name=None, id_number=None, phone=None, email=None, h
 	The OTP SMS is sent after commit and cannot fail the call. Unlike
 	check_in_visitor it does not check whether an OTP already exists.
 	"""
+	lock = None
 	try:
 		customer_name = _s(customer_name)
 		id_number = _s(id_number)
@@ -1655,6 +1718,23 @@ def create_walk_in(customer_name=None, id_number=None, phone=None, email=None, h
 		host_ok = frappe.db.get_value("Employee", host, "name")
 		if not host_ok:
 			return {"error": "Host " + host + " not found"}
+
+		lock = _walk_in_lock(customer_name, phone, host)
+		existing_name = _recent_walk_in(customer_name, phone, host)
+		if existing_name:
+			_walk_in_unlock(lock)
+			existing = frappe.db.get_value(
+				"Appointment", existing_name,
+				["customer_name", "custom_reporting_status", "custom_check_in_time"], as_dict=True,
+			)
+			return {
+				"name": existing_name,
+				"customer_name": existing.customer_name,
+				"host_id": host,
+				"custom_reporting_status": existing.custom_reporting_status,
+				"custom_check_in_time": str(existing.custom_check_in_time or ""),
+				"duplicate_suppressed": True,
+			}
 
 		now = frappe.utils.now_datetime()
 		doc = frappe.new_doc("Appointment")
@@ -1692,6 +1772,7 @@ def create_walk_in(customer_name=None, id_number=None, phone=None, email=None, h
 
 		doc.insert(ignore_permissions=True)
 		frappe.db.commit()
+		_walk_in_unlock(lock)
 
 		try:
 			otp_enabled = frappe.db.get_single_value("Security Ops Settings", "feature_visitor_sms_otp")
@@ -1726,6 +1807,7 @@ def create_walk_in(customer_name=None, id_number=None, phone=None, email=None, h
 		}
 	except Exception as e:
 		frappe.db.rollback()
+		_walk_in_unlock(lock)
 		frappe.log_error("create_walk_in", str(e))
 		return {"error": str(e)}
 @frappe.whitelist()
@@ -1760,6 +1842,7 @@ def create_walk_in_notify(customer_name=None, id_number=None, phone=None, email=
 	Upande's own dev team on real walk-ins. The email send is best-effort:
 	failure leaves notified=0 but the appointment still stands.
 	"""
+	lock = None
 	try:
 		customer_name = _s(customer_name)
 		id_number = _s(id_number)
@@ -1781,13 +1864,20 @@ def create_walk_in_notify(customer_name=None, id_number=None, phone=None, email=
 		if not host:
 			return {"error": "host is required"}
 
+		lock = _walk_in_lock(customer_name, phone, host)
+		lock = _walk_in_lock(customer_name, phone, host)
 		existing_name = ""
 		if idempotency_key:
 			existing_name = frappe.db.get_value(
 				"Appointment", {"custom_idempotency_key": idempotency_key}, "name"
 			) or ""
+		if not existing_name:
+			existing_name = _recent_walk_in(customer_name, phone, host) or ""
+		if not existing_name:
+			existing_name = _recent_walk_in(customer_name, phone, host) or ""
 
 		if existing_name:
+			_walk_in_unlock(lock)
 			existing = frappe.db.get_value(
 				"Appointment",
 				existing_name,
@@ -1807,6 +1897,7 @@ def create_walk_in_notify(customer_name=None, id_number=None, phone=None, email=
 
 		host_rec = frappe.db.get_value("Employee", host, ["name", "user_id", "employee_name", "company"], as_dict=True)
 		if not host_rec:
+			_walk_in_unlock(lock)
 			return {"error": "Host " + host + " not found"}
 
 		# Leftover debug log from the original; it writes the full payload
@@ -1853,6 +1944,7 @@ def create_walk_in_notify(customer_name=None, id_number=None, phone=None, email=
 			},
 		)
 		frappe.db.commit()
+		_walk_in_unlock(lock)
 
 		host_user_id = host_rec.user_id or ""
 		host_name = host_rec.employee_name or host
@@ -1904,6 +1996,7 @@ def create_walk_in_notify(customer_name=None, id_number=None, phone=None, email=
 		}
 	except Exception as e:
 		frappe.db.rollback()
+		_walk_in_unlock(lock)
 		frappe.log_error("create_walk_in_notify", str(e))
 		return {"error": str(e)}
 @frappe.whitelist()
