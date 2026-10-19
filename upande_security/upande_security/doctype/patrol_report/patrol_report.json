@@ -343,5 +343,6 @@
  "sort_order": "DESC",
  "states": [],
  "title_field": "patrol",
- "track_changes": 1
+ "track_changes": 1,
+ "allow_import": 1
 }
