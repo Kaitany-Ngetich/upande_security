@@ -137,38 +137,53 @@ def appointment_host_wa_number(doc, method=None):
 		doc.custom_host_whatsapp_no = digits
 
 
+# Roles that only make someone a host: on their own they give access to the
+# visits that person is hosting, never to everyone's.
+HOST_ONLY_ROLES = ("Host", "Visit Approver")
+
+
 def host_sees_own_appointments(user):
 	"""permission_query_conditions for Appointment. RETURNS an SQL fragment.
 
-	Branches (identical to the original script):
-	  - user has role Secretary                      -> None (no restriction)
-	  - (Host or Visit Approver) and NOT System Manager:
-	      - has an Employee with user_id == user     -> "`tabAppointment`.custom_meet_with = <escaped employee name>"
-	      - no Employee record                       -> "1=0" (sees nothing)
-	  - anyone else (Gate Guard, System Manager, Administrator via no
-	    Host role, etc.)                             -> None (no restriction)
+	A host sees only the visits they host - but only when hosting is their
+	sole way in. Whether anyone may see more is decided by the site's own
+	permissions, not by role names here:
 
-	The original left `conditions` unset in the unrestricted cases, which
-	resolves to no extra condition; returning None is the equivalent here.
-	The employee name is interpolated into SQL, so it goes through
-	frappe.db.escape (same safety property as the original); the user is passed
-	as a bound parameter to the role lookup.
+	  - no Host / Visit Approver role                    -> None (Desk permissions apply as they are)
+	  - Host / Visit Approver, AND another of the user's roles can read
+	    Appointment (Role Permissions / Custom DocPerm, level 0, not
+	    "only if creator") - e.g. CEO, Auditor, Secretary, Security Head,
+	    System Manager                                   -> None (that role's access applies)
+	  - Host / Visit Approver only:
+	      - has an Employee with user_id == user         -> "`tabAppointment`.custom_meet_with = <their employee>"
+	      - no Employee record                           -> "1=0" (sees nothing)
+
+	Frappe's own "only if creator" cannot express this - the creator of an
+	appointment is usually the gate guard, not the host - which is why the
+	host restriction itself stays here. The employee name is interpolated
+	into SQL, so it goes through frappe.db.escape.
 	"""
-	user_roles = [r[0] for r in frappe.db.sql(
-		"SELECT role FROM `tabHas Role` WHERE parent = %s AND parenttype = 'User'",
-		(user,),
-	)]
+	from frappe.permissions import get_valid_perms
 
-	if "Secretary" in user_roles:
+	user = user or frappe.session.user
+	if user == "Administrator":
+		return None
+	roles = set(frappe.get_roles(user))
+	if not roles.intersection(HOST_ONLY_ROLES):
 		return None
 
-	if ("Host" in user_roles or "Visit Approver" in user_roles) and "System Manager" not in user_roles:
-		employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
-		if employee:
-			return "`tabAppointment`.custom_meet_with = " + frappe.db.escape(employee)
-		return "1=0"
+	wider = [
+		p
+		for p in get_valid_perms("Appointment", user)
+		if p.read and not p.if_owner and p.role not in HOST_ONLY_ROLES
+	]
+	if wider:
+		return None
 
-	return None
+	employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+	if employee:
+		return "`tabAppointment`.custom_meet_with = " + frappe.db.escape(employee)
+	return "1=0"
 
 
 # ---------------------------------------------------------------------------

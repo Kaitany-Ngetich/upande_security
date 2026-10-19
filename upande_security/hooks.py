@@ -362,10 +362,10 @@ doctype_js = {
 # so a future deletion fails a test instead of a gate.
 # Keep this grouped by the section banners in api/security_api.py, in the
 # same order, so the two files read as one list.
-# Ported from the 'Host Sees Own Appointments' Permission Query Server
-# Script. Returns None (no restriction) for Secretary and for anyone
-# without a Host/Visit Approver role — Gate Guards and System Managers
-# included — which is the original's behaviour, not a change made here.
+# A host (Host / Visit Approver) sees only the visits they host, unless
+# another of their roles can read Appointment in Desk (Role Permissions) -
+# then that access applies. No role names are special-cased beyond the two
+# host roles; see appointment_events.host_sees_own_appointments.
 permission_query_conditions = {
 	"Appointment": "upande_security.api.appointment_events.host_sees_own_appointments",
 }
