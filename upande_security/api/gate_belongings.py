@@ -477,6 +477,76 @@ def save_staff_items(record, items=None):
 	return get_staff_items(rec.name)
 
 
+def _staff_party(rec):
+	return {
+		"party_type": "Staff",
+		"carried_by": _employee_name(rec),
+		"employee": rec.employee,
+		"farm": rec.farm,
+		"company": rec.company,
+	}
+
+
+@frappe.whitelist()
+def step_out_staff_items(record, items_out=None, extra_items=None):
+	"""A staff member stepping out for a while: the items they take with them
+	(ticked) become "Left with owner"; the rest stay inside - it is not a
+	check-out. extra_items: unregistered items going out, each with proof."""
+	_require_gate_user()
+	require_feature("feature_carried_items")
+	rec = _staff_record(record)
+	going = set(_as_list(items_out) or [])
+	now = frappe.utils.now_datetime()
+	for row in _staff_item_rows(rec):
+		if row.name in going and row.exit_status == EXIT_INSIDE:
+			frappe.db.set_value(
+				ITEM_DOCTYPE, row.name,
+				{"exit_status": EXIT_LEFT, "exit_time": now, "exit_checked_by": frappe.session.user},
+				update_modified=False,
+			)
+	extras = record_exit_extras(rec.doctype, rec.name, _staff_party(rec), extra_items)
+	frappe.db.commit()
+	return {"record": rec.name, "taken_out": len(going), "left_with_document": extras}
+
+
+@frappe.whitelist()
+def step_in_staff_items(record, items_in=None, new_items=None):
+	"""A staff member returning from a step-out: ticked items they took out
+	are back inside; new_items are registered as brought in now."""
+	_require_gate_user()
+	require_feature("feature_carried_items")
+	rec = _staff_record(record)
+	coming = set(_as_list(items_in) or [])
+	for row in _staff_item_rows(rec):
+		if row.name in coming and row.exit_status == EXIT_LEFT:
+			frappe.db.set_value(
+				ITEM_DOCTYPE, row.name, {"exit_status": EXIT_INSIDE, "exit_time": None, "exit_checked_by": None},
+				update_modified=False,
+			)
+	added = []
+	now = frappe.utils.now_datetime()
+	for row in clean_items(new_items):
+		doc = frappe.new_doc(ITEM_DOCTYPE)
+		doc.update({k: v for k, v in _staff_party(rec).items() if v})
+		doc.update(
+			{
+				"reference_doctype": rec.doctype,
+				"reference_name": rec.name,
+				"item": row["item"],
+				"qty": row["qty"],
+				"serial_notes": row["serial_notes"],
+				"declared_at": "Entry",
+				"entry_time": now,
+				"recorded_by": frappe.session.user,
+				"exit_status": EXIT_INSIDE,
+			}
+		)
+		doc.insert(ignore_permissions=True)
+		added.append(row["item"])
+	frappe.db.commit()
+	return {"record": rec.name, "back_inside": len(coming), "added": added}
+
+
 @frappe.whitelist()
 def check_out_staff_items(record, items_out=None, extra_items=None):
 	"""Exit check for staff, like check_out_items: items_out names the items
@@ -487,18 +557,7 @@ def check_out_staff_items(record, items_out=None, extra_items=None):
 	_require_gate_user()
 	require_feature("feature_carried_items")
 	rec = _staff_record(record)
-	extras = record_exit_extras(
-		rec.doctype,
-		rec.name,
-		{
-			"party_type": "Staff",
-			"carried_by": _employee_name(rec),
-			"employee": rec.employee,
-			"farm": rec.farm,
-			"company": rec.company,
-		},
-		extra_items,
-	)
+	extras = record_exit_extras(rec.doctype, rec.name, _staff_party(rec), extra_items)
 	not_seen = mark_exit(_staff_item_rows(rec), _as_list(items_out))
 	frappe.db.commit()
 	return {"record": rec.name, "not_seen_leaving": [r.item for r in not_seen], "left_with_document": extras}
