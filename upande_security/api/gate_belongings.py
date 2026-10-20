@@ -14,7 +14,7 @@ Two independent Security Ops Settings flags:
 - feature_carried_items: the guard notes what each person brings in, and
   ticks each item off at exit. Anything not ticked is marked "Not seen
   leaving". Every item - visitor, customer, contractor, supplier, staff -
-  is one Gate Carried Item linked to the gate record it came in on
+  is one Registered Personal Item linked to the gate record it came in on
   (Appointment, Gate Receiving Verification, Gate Movement or
   Attendance), so all of them are in one list.
 
@@ -35,7 +35,7 @@ from upande_security.api.identity import GUARD_LEVEL_ROLES
 
 PASSENGER_FIELD = "custom_passengers"
 PASSENGER_DOCTYPE = "Appointment Passenger"
-ITEM_DOCTYPE = "Gate Carried Item"
+ITEM_DOCTYPE = "Registered Personal Item"
 
 EXIT_INSIDE = "Inside"
 EXIT_LEFT = "Left with owner"
@@ -48,7 +48,7 @@ _ITEM_FIELDS = [
 ]
 
 
-# --- Gate Carried Item, shared by every kind of gate record ------------------
+# --- Registered Personal Item, shared by every kind of gate record ------------------
 
 
 def item_rows(reference_doctype, reference_names):
@@ -316,7 +316,7 @@ def check_out_items(appointment, items_out=None):
 # --- Staff -------------------------------------------------------------------
 # Staff have no Appointment: staff check-in creates a Gate Movement or
 # an HR Attendance depending on the company's Staff Gate Mode. Their items are
-# Gate Carried Items linked to whichever of the two it was, with the same exit
+# Registered Personal Items linked to whichever of the two it was, with the same exit
 # check as a visit. Gated by the same feature_carried_items flag.
 
 

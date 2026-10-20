@@ -4,5 +4,5 @@
 from frappe.model.document import Document
 
 
-class GateCarriedItem(Document):
+class RegisteredPersonalItem(Document):
 	pass

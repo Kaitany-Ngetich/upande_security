@@ -311,7 +311,7 @@
    "default": "1",
    "fieldname": "feature_carried_items",
    "fieldtype": "Check",
-   "label": "Carried Items (with exit check)",
+   "label": "Registered Personal Items (with exit check)",
    "permlevel": 1
   },
   {

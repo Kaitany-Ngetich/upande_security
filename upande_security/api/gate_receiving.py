@@ -732,7 +732,7 @@ def confirm_receiving_departure(
 			grv = frappe.get_doc("Gate Receiving Verification", names[0])
 			party = _supplier_party(grv, {"supplier_name": frappe.db.get_value("Supplier", grv.supplier, "supplier_name")})
 			for item, qty, notes, doc_ref, doc_file in extras:
-				extra = frappe.new_doc("Gate Carried Item")
+				extra = frappe.new_doc("Registered Personal Item")
 				extra.update({k: v for k, v in party.items() if v})
 				extra.update(
 					{

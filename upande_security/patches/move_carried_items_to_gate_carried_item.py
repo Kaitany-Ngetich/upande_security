@@ -1,11 +1,11 @@
 # Copyright (c) 2026, dev@upande.com and contributors
 # For license information, please see license.txt
 
-"""One-time move: every carried item now lives in Gate Carried Item, linked
+"""One-time move: every carried item now lives in Registered Personal Item, linked
 to the gate record it came in on, instead of a child table per doctype.
 
 Copies each Appointment Carried Item row (Appointment.custom_carried_items)
-into a Gate Carried Item linked to its Appointment - exit status, times and
+into a Registered Personal Item linked to its Appointment - exit status, times and
 who checked it kept - then removes what is left of the old child table, the
 same way drop_contractor_compliance_document does:
 
@@ -21,7 +21,7 @@ creation) is not copied twice, and only what is still there is deleted.
 import frappe
 
 OLD = "Appointment Carried Item"
-NEW = "Gate Carried Item"
+NEW = "Registered Personal Item"
 CUSTOM_FIELD = "Appointment-custom_carried_items"
 
 
