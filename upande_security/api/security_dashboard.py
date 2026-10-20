@@ -3066,7 +3066,10 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
         "filter_options": {
             "farms": [f["farm"] for f in company_farms],
             "shift_types": SHIFT_TYPE_ORDER,
-            "statuses": ["Active", "Cancelled"],
+            # The field's own choices (Scheduled, Active, Ended, Cancelled).
+            "statuses": [
+                o for o in (frappe.get_meta(doctype).get_field("status").options or "").split("\n") if o
+            ],
             "companies": [
                 c.name
                 for c in frappe.get_list("Company", fields=["name"], order_by="name asc", page_length=200)
