@@ -1114,26 +1114,7 @@ def get_incidents_dashboard(
                 person_counts[parent][parentfield] += 1
                 person_counts[parent]["total_persons"] += 1
 
-    # Nature of Incident is a Select on Incident Report, so the filter options
-    # are the field's own choices. Reading them from meta keeps the dropdown in
-    # step with the field automatically; the old Incident Category master is no
-    # longer what incidents are classified against.
-    nature_options = (
-        frappe.get_meta("Incident Report").get_field("nature_of_incident").options
-        or ""
-    )
-
-    categories = [
-        {
-            "name": option,
-            "category_name": option,
-            # Only the master carried these; a Select has no per-option metadata.
-            "default_severity": None,
-            "color": None,
-        }
-        for option in (line.strip() for line in nature_options.split("\n"))
-        if option
-    ]
+    categories = incident_categories()
 
     category_details = {}
 
@@ -2105,8 +2086,41 @@ def _fetch_incidents_tab(
     }
 
 
+def incident_categories():
+    """The incident categories as [{name, category_name, default_severity,
+    color}], whichever way the site defines Nature of Incident: a Select
+    (the field's own choices) or - as on live, through a Property Setter - a
+    Link to Incident Category (its active records, with their default
+    severity and colour). Reading the field's options as choices on a Link
+    gave one bogus category, the doctype's name."""
+    field = frappe.get_meta("Incident Report").get_field("nature_of_incident")
+    if not field:
+        return []
+    if field.fieldtype == "Link" and field.options:
+        master = field.options
+        meta = frappe.get_meta(master)
+        fields = ["name"] + [f for f in ("category_name", "default_severity", "color") if meta.get_field(f)]
+        filters = {"is_active": 1} if meta.get_field("is_active") else {}
+        rows = frappe.get_all(master, filters=filters, fields=fields, order_by="name asc")
+        return [
+            {
+                "name": r.name,
+                "category_name": r.get("category_name") or r.name,
+                "default_severity": r.get("default_severity"),
+                "color": r.get("color"),
+            }
+            for r in rows
+        ]
+    return [
+        {"name": o, "category_name": o, "default_severity": None, "color": None}
+        for o in (line.strip() for line in (field.options or "").split("\n"))
+        if o
+    ]
+
+
 def _incident_filter_options():
-    """The incident filter dropdowns: each Select field's own choices."""
+    """The incident filter dropdowns: each Select field's own choices, and
+    the incident categories whichever way the site defines them."""
     meta = frappe.get_meta("Incident Report")
 
     def choices(fieldname):
@@ -2116,7 +2130,7 @@ def _incident_filter_options():
     return {
         "statuses": choices("status"),
         "severities": choices("severity"),
-        "categories": sorted(set(choices("nature_of_incident"))),
+        "categories": sorted({c["name"] for c in incident_categories()}),
     }
 
 
