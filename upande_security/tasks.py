@@ -457,11 +457,11 @@ def check_patrol_geofence_and_gaps():
 
 	for shift in active_shifts:
 		if shift.security_guard == "Internal Guard":
-			guard_filter = {"personel": "Internal Guard", "internal_guard": shift.internal_guard}
+			guard_filter = {"personel": "Internal Guard", "internal_guard": shift.internal_guard, "tracking_mode": ["!=", "On Duty"]}
 			guard_label = shift.internal_guard
 			company = frappe.db.get_value("Employee", shift.internal_guard, "company")
 		else:
-			guard_filter = {"personel": "External Guard", "external_guard": shift.external_guard}
+			guard_filter = {"personel": "External Guard", "external_guard": shift.external_guard, "tracking_mode": ["!=", "On Duty"]}
 			guard_label = shift.external_guard
 			company = frappe.db.get_value("Security Guard", shift.external_guard, "company")
 
@@ -609,10 +609,10 @@ def check_unscanned_checkpoints():
 			continue
 
 		if shift.security_guard == "Internal Guard":
-			guard_filter = {"personel": "Internal Guard", "internal_guard": shift.internal_guard}
+			guard_filter = {"personel": "Internal Guard", "internal_guard": shift.internal_guard, "tracking_mode": ["!=", "On Duty"]}
 			guard_label = shift.internal_guard
 		else:
-			guard_filter = {"personel": "External Guard", "external_guard": shift.external_guard}
+			guard_filter = {"personel": "External Guard", "external_guard": shift.external_guard, "tracking_mode": ["!=", "On Duty"]}
 			guard_label = shift.external_guard
 
 		if not guard_label:

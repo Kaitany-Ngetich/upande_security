@@ -10,6 +10,7 @@
   "nearby_guard_alert_radius_m",
   "nearby_alert_stale_minutes",
   "geofence_section",
+  "on_duty_interval_minutes",
   "missed_checkin_minutes",
   "escalation_minutes",
   "coverage_grid_section",
@@ -43,6 +44,7 @@
   "feature_flags_section_2",
   "feature_sos_alert",
   "feature_patrol_geofence_alerts",
+  "feature_on_duty_tracking",
   "feature_patrol_coverage_grid",
   "feature_patrol_boundary_filter",
   "feature_security_alerts",
@@ -116,6 +118,14 @@
    "fieldname": "feature_patrol_geofence_alerts",
    "fieldtype": "Check",
    "label": "Patrol Geofence / Missed Check-in Alerts",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "description": "After a guard stops patrol, the app keeps sending their position until they log out, logged as On Duty (not patrol work). Guards see an 'On duty' notification while it runs.",
+   "fieldname": "feature_on_duty_tracking",
+   "fieldtype": "Check",
+   "label": "On-Duty Location Tracking",
    "permlevel": 1
   },
   {
@@ -293,8 +303,8 @@
   {
    "fieldname": "staff_gate_modes",
    "fieldtype": "Table",
-   "options": "Staff Gate Mode",
    "label": "Staff Gate Mode by Company",
+   "options": "Staff Gate Mode",
    "permlevel": 1
   },
   {
@@ -312,8 +322,8 @@
   {
    "fieldname": "fallback_contacts",
    "fieldtype": "Table",
-   "options": "Security Fallback Contact",
-   "label": "Per-Company Fallback Contacts"
+   "label": "Per-Company Fallback Contacts",
+   "options": "Security Fallback Contact"
   },
   {
    "fieldname": "nearby_alert_section",
@@ -336,6 +346,13 @@
    "fieldname": "geofence_section",
    "fieldtype": "Section Break",
    "label": "Patrol Geofence / Missed Check-in"
+  },
+  {
+   "default": "5",
+   "description": "How often the app sends a guard's position while on duty but not patrolling.",
+   "fieldname": "on_duty_interval_minutes",
+   "fieldtype": "Int",
+   "label": "On-Duty Position Interval (minutes)"
   },
   {
    "default": "30",
@@ -402,8 +419,8 @@
   {
    "fieldname": "notification_rules",
    "fieldtype": "Table",
-   "options": "Security Notification Rule",
-   "label": "Notification Rules"
+   "label": "Notification Rules",
+   "options": "Security Notification Rule"
   },
   {
    "fieldname": "visitor_sms_section",
@@ -435,8 +452,8 @@
   {
    "fieldname": "appointment_notification_recipients",
    "fieldtype": "Table",
-   "options": "Appointment Notification Recipient",
    "label": "Also Notify On New Appointments",
+   "options": "Appointment Notification Recipient",
    "permlevel": 1
   },
   {
@@ -447,8 +464,8 @@
   {
    "fieldname": "farm_gates",
    "fieldtype": "Table",
-   "options": "Security Gate Config",
-   "label": "Gates"
+   "label": "Gates",
+   "options": "Security Gate Config"
   },
   {
    "fieldname": "dispatch_section",
@@ -458,8 +475,8 @@
   {
    "fieldname": "dispatch_sources",
    "fieldtype": "Table",
-   "options": "Dispatch Source",
-   "label": "Dispatch Sources"
+   "label": "Dispatch Sources",
+   "options": "Dispatch Source"
   },
   {
    "fieldname": "vehicle_task_section",
@@ -469,8 +486,8 @@
   {
    "fieldname": "vehicle_task_sources",
    "fieldtype": "Table",
-   "options": "Vehicle Task Source",
-   "label": "Vehicle Task Sources"
+   "label": "Vehicle Task Sources",
+   "options": "Vehicle Task Source"
   },
   {
    "fieldname": "command_center_section",
@@ -480,14 +497,14 @@
   {
    "fieldname": "command_center_extra_users",
    "fieldtype": "Table",
-   "options": "Security Command Center User",
-   "label": "Additional Users (beyond Security Head / System Manager)"
+   "label": "Additional Users (beyond Security Head / System Manager)",
+   "options": "Security Command Center User"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-08 23:45:00.000000",
+ "modified": "2026-10-20 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",
@@ -517,8 +534,8 @@
   {
    "permlevel": 1,
    "read": 1,
-   "write": 1,
-   "role": "System Manager"
+   "role": "System Manager",
+   "write": 1
   }
  ],
  "sort_field": "modified",

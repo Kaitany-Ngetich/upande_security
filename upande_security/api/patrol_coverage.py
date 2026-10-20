@@ -208,13 +208,14 @@ def get_patrol_coverage_grid(farm, date=None):
 	# rows scattered across a table bigger than the buffer pool.
 	force = ""
 	if frappe.db.db_type == "mariadb":
-		for index in ("captured_at_coverage", "captured_at_index"):
+		for index in ("captured_at_coverage_mode", "captured_at_coverage", "captured_at_index"):
 			if frappe.db.has_index("tabPatrol GPS Log", index):
 				force = " force index (" + index + ")"
 				break
 	points = frappe.db.sql(
 		"select captured_at, latitude, longitude, gps_accuracy"
-		" from `tabPatrol GPS Log`" + force + " where captured_at between %s and %s",
+		" from `tabPatrol GPS Log`" + force + " where captured_at between %s and %s"
+		" and ifnull(tracking_mode, 'Patrol') != 'On Duty'",
 		(since, as_of),
 		as_dict=True,
 	)

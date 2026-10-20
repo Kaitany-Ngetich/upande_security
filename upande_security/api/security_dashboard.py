@@ -605,6 +605,7 @@ def get_patrols_dashboard(
             "between",
             [day_start, day_end],
         ],
+        "tracking_mode": ["!=", "On Duty"],
     }
 
     if personnel and personnel not in {
@@ -2277,6 +2278,7 @@ def _fetch_patrols_tab(range_from, range_to, farm=None, company=None):
     while day <= last_day:
         day_filters = dict(scope)
         day_filters["captured_at"] = ["between", [f"{day} 00:00:00", f"{day} 23:59:59"]]
+        day_filters["tracking_mode"] = ["!=", "On Duty"]
         points.extend(frappe.get_list(
             doctype,
             filters=day_filters,
@@ -2459,7 +2461,7 @@ def fetchPatrolData(date=None, farm=None):
         fields=[
             "name", "patrol", "personel", "internal_guard",
             "external_guard", "captured_at", "latitude", "longitude", "farm",
-            "gps_accuracy", "owner",
+            "gps_accuracy", "owner", "tracking_mode",
         ],
         order_by="captured_at asc",
         page_length=0,
@@ -2543,6 +2545,9 @@ def fetchPatrolData(date=None, farm=None):
             groups[key] = {
                 "guard_id": guard_id, "guard_name": guard_name, "farm": guard_farm,
                 "patrol_tag": patrol_id, "points": [], "timestamps": [], "breaks": [],
+                # On Duty: logged in but not patrolling - drawn apart on the
+                # map and left out of patrol distance / counts.
+                "on_duty": p.get("tracking_mode") == "On Duty",
             }
 
         pts_so_far = groups[key]["points"]
@@ -2604,30 +2609,35 @@ def fetchPatrolData(date=None, farm=None):
             "last_fix": str(last_fix) if last_fix else None,
             "is_active": is_active,
             "last_point": pts[-1] if pts else None,
+            "on_duty": g["on_duty"],
         })
-
-        total_distance += distance_km
-        total_duration += duration_min
 
         gt = guard_totals.setdefault(g["guard_id"], {
             "guard_id": g["guard_id"], "guard_name": g["guard_name"],
             "farm": g.get("farm") or "", "distance_km": 0.0, "is_active": False,
+            "patrolled": False,
         })
+        if g["on_duty"]:
+            continue
+        total_distance += distance_km
+        total_duration += duration_min
         gt["distance_km"] += distance_km
         gt["is_active"] = gt["is_active"] or is_active
+        gt["patrolled"] = True
 
     guards = [
         {**v, "distance_km": round(v["distance_km"], 2)} for v in guard_totals.values()
     ]
-    avg_duration = (total_duration / len(patrol_paths)) if patrol_paths else 0
+    patrol_count = sum(1 for p in patrol_paths if not p["on_duty"])
+    avg_duration = (total_duration / patrol_count) if patrol_count else 0
 
     return {
         "success": True,
         "patrol_paths": patrol_paths,
         "guards": guards,
         "summary": {
-            "total_guards": len(guards),
-            "total_patrols": len(patrol_paths),
+            "total_guards": sum(1 for g in guards if g["patrolled"]),
+            "total_patrols": patrol_count,
             "total_distance_km": round(total_distance, 2),
             "average_duration_min": round(avg_duration, 1),
         },
