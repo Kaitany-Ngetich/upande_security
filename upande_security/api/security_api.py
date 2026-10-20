@@ -2732,52 +2732,7 @@ def contractor_gate_checkout():
 		frappe.throw("This feature is not enabled on this instance.")
 
 	try:
-		now_str = frappe.utils.now()
-
-		# The Server Script had a `from frappe.model.workflow import
-		# apply_workflow` here, wrapped in try/except Exception: pass, to
-		# "also" transition the workflow. That branch was DEAD: safe_exec
-		# forbids every import ("ImportError: __import__ not found"), so the
-		# import raised on the first line and the except swallowed it on
-		# every single call. No contractor checkout has ever transitioned a
-		# workflow, only written the fields below.
-		#
-		# Porting it literally would have started running it for real,
-		# because a plain app module CAN import - silently adding a workflow
-		# transition and a doc.save() (with every Appointment on_update hook
-		# that fires behind it) to an endpoint that never did either. It is
-		# left out so this keeps doing exactly what production does today.
-		# Adding the transition back is a deliberate feature change, not a
-		# migration detail.
-
-		# Always write checkout fields via set_value (bypasses link validation)
-		frappe.db.set_value(
-			"Appointment",
-			appt_name,
-			{"custom_check_out_time": now_str, "custom_reporting_status": "Checked out"},
-			update_modified=True,
-		)
-
-		# Release any Supplier Badge issued for this visit back into the pool
-		# - same mechanic as check_out_visitor releasing a Visitor Badge,
-		# deliberately overriding Supplier Badge's older "stays with one
-		# supplier long-term" design (see supplier_badge_qr.py) so a badge is
-		# reusable across suppliers rather than permanently assigned.
-		badge_name = frappe.db.get_value("Appointment", appt_name, "custom_supplier_badge")
-		if badge_name:
-			frappe.db.set_value(
-				"Gate Badge",
-				badge_name,
-				{"status": "Available", "current_appointment": None, "supplier": None},
-			)
-
-		# Checking the visit out ends the job: its contractor badges go back
-		# to the pool, and anyone still recorded inside a farm is closed.
-		from upande_security.api.contractor_badge import release_badges_for_visit
-
-		release_badges_for_visit(appt_name)
-
-		frappe.db.commit()
+		now_str = check_out_contractor_visit(appt_name)
 		watchlist.track("Appointment", appt_name, "Contractor Check-out")
 
 		return {"success": True, "appointment": appt_name, "check_out_time": now_str}
@@ -2793,6 +2748,60 @@ def contractor_gate_checkout():
 			+ str(e),
 		)
 		frappe.throw("Contractor check-out failed: " + str(e))
+
+
+def check_out_contractor_visit(appt_name):
+	"""End a contractor visit: stamp the check-out, release its badges and
+	close anyone still recorded inside a farm. Shared by the gate's contractor
+	check-out and the last crew member leaving for good on a badge scan.
+	Commits; returns the check-out time."""
+	now_str = frappe.utils.now()
+
+	# The Server Script had a `from frappe.model.workflow import
+	# apply_workflow` here, wrapped in try/except Exception: pass, to
+	# "also" transition the workflow. That branch was DEAD: safe_exec
+	# forbids every import ("ImportError: __import__ not found"), so the
+	# import raised on the first line and the except swallowed it on
+	# every single call. No contractor checkout has ever transitioned a
+	# workflow, only written the fields below.
+	#
+	# Porting it literally would have started running it for real,
+	# because a plain app module CAN import - silently adding a workflow
+	# transition and a doc.save() (with every Appointment on_update hook
+	# that fires behind it) to an endpoint that never did either. It is
+	# left out so this keeps doing exactly what production does today.
+	# Adding the transition back is a deliberate feature change, not a
+	# migration detail.
+
+	# Always write checkout fields via set_value (bypasses link validation)
+	frappe.db.set_value(
+		"Appointment",
+		appt_name,
+		{"custom_check_out_time": now_str, "custom_reporting_status": "Checked out"},
+		update_modified=True,
+	)
+
+	# Release any Supplier Badge issued for this visit back into the pool
+	# - same mechanic as check_out_visitor releasing a Visitor Badge,
+	# deliberately overriding Supplier Badge's older "stays with one
+	# supplier long-term" design (see supplier_badge_qr.py) so a badge is
+	# reusable across suppliers rather than permanently assigned.
+	badge_name = frappe.db.get_value("Appointment", appt_name, "custom_supplier_badge")
+	if badge_name:
+		frappe.db.set_value(
+			"Gate Badge",
+			badge_name,
+			{"status": "Available", "current_appointment": None, "supplier": None},
+		)
+
+	# Checking the visit out ends the job: its contractor badges go back
+	# to the pool, and anyone still recorded inside a farm is closed.
+	from upande_security.api.contractor_badge import release_badges_for_visit
+
+	release_badges_for_visit(appt_name)
+
+	frappe.db.commit()
+	return now_str
 
 
 @frappe.whitelist()

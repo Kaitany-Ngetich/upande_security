@@ -287,26 +287,29 @@ def scan_contractor_badge(reference, gate=None):
 		doc = _record_entry(badge, farm, gate, company)
 		direction, movement = "Entry", doc.name
 
-	if direction == "Entry":
-		_items_back_inside(badge)
 	frappe.db.commit()
 	info = _badge_info(badge)
 	info.update({"accepted": True, "direction": direction, "movement": movement, "farm": farm})
-	if direction == "Exit":
-		# The holder's registered items still inside - the app ticks them off.
-		info["items"] = [
-			{"name": r.name, "item": r.item, "qty": r.qty, "serial_notes": r.serial_notes,
-			 "carried_by": r.carried_by, "exit_status": r.exit_status}
-			for r in _holder_items(badge, inside_only=True)
-		]
+	# The holder's registered items: on an exit those still inside, for the
+	# app to tick off; on an entry those that left with them, for the app to
+	# tick back in (plus anything new they bring).
+	rows = _holder_items(badge, inside_only=True) if direction == "Exit" else [
+		r for r in _holder_items(badge) if r.exit_status == "Left with owner"
+	]
+	info["items"] = [
+		{"name": r.name, "item": r.item, "qty": r.qty, "serial_notes": r.serial_notes,
+		 "carried_by": r.carried_by, "exit_status": r.exit_status}
+		for r in rows
+	]
 	return info
 
 
 # --- The holder's Registered Personal Items on a badge scan -----------------
 # Items are registered on the contractor visit, each under the crew member who
 # carries it (carried_by). An exit scan checks that person's items out like a
-# visit check-out; an entry scan at another farm brings the ones that left
-# with them back inside, so their next exit checks them again.
+# visit check-out; an entry scan at another farm checks them back in (the
+# guard ticks what came back, and can add new items), so the next exit checks
+# them again.
 def _holder_items(badge, inside_only=False):
 	from upande_security.api.feature_flags import is_feature_enabled
 	from upande_security.api.gate_belongings import item_rows
@@ -320,28 +323,16 @@ def _holder_items(badge, inside_only=False):
 	return rows
 
 
-def _items_back_inside(badge):
-	from upande_security.api.gate_belongings import ITEM_DOCTYPE
-
-	for r in _holder_items(badge):
-		if r.exit_status == "Left with owner":
-			frappe.db.set_value(
-				ITEM_DOCTYPE, r.name, {"exit_status": "Inside", "exit_time": None, "exit_checked_by": None},
-				update_modified=False,
-			)
-
-
 @frappe.whitelist(methods=["POST"])
-def check_out_badge_items(badge, items_out=None):
+def check_out_badge_items(badge, items_out=None, extra_items=None):
 	"""Exit check for one badge holder's items after an exit scan: ticked
-	items left with them, the rest were not seen leaving."""
+	items left with them, the rest were not seen leaving; extra_items are
+	unregistered items leaving with proof."""
 	from upande_security.api.gate_belongings import _as_list, _require_gate_user, mark_exit
 
 	_require_gate_user()
-	name = _badge_name(badge) or badge
-	if not frappe.db.exists(BADGE, name):
-		frappe.throw(_("Badge {0} not found").format(badge))
-	doc = frappe.get_doc(BADGE, name)
+	doc = _holder_badge(badge)
+	_badge_exit_extras(doc, extra_items)
 	not_seen = mark_exit(_holder_items(doc, inside_only=True), _as_list(items_out))
 	frappe.db.commit()
 	return {"badge": doc.name, "not_seen_leaving": [r.item + " (" + (r.carried_by or doc.holder_name) + ")" for r in not_seen]}
@@ -413,3 +404,107 @@ def badges_for_visit(appointment):
 		"required": has_badge_pool(company),
 		"available": frappe.db.count(BADGE, {"badge_type": TYPE, "company": company, "status": "Available"}) if company else 0,
 	}
+
+
+@frappe.whitelist(methods=["POST"])
+def check_in_badge_items(badge, items_in=None, new_items=None):
+	"""Entry check for one badge holder at a farm: ticked items (that had
+	left with them) are back inside; new_items are registered under them on
+	the contractor visit."""
+	from upande_security.api.gate_belongings import ITEM_DOCTYPE, _as_list, _require_gate_user, clean_items
+
+	_require_gate_user()
+	doc = _holder_badge(badge)
+	coming = set(_as_list(items_in) or [])
+	for r in _holder_items(doc):
+		if r.name in coming and r.exit_status == "Left with owner":
+			frappe.db.set_value(
+				ITEM_DOCTYPE, r.name, {"exit_status": "Inside", "exit_time": None, "exit_checked_by": None},
+				update_modified=False,
+			)
+	added = []
+	farm = _guard_farm()
+	for row in clean_items(_as_list(new_items) or []):
+		item = frappe.new_doc(ITEM_DOCTYPE)
+		item.update(row)
+		item.update(
+			{
+				"party_type": "Contractor",
+				"carried_by": doc.holder_name,
+				"supplier": doc.supplier,
+				"reference_doctype": "Appointment",
+				"reference_name": doc.current_appointment,
+				"farm": farm,
+				"company": doc.company,
+				"declared_at": "Entry",
+				"exit_status": "Inside",
+				"recorded_by": frappe.session.user,
+			}
+		)
+		item.insert(ignore_permissions=True)
+		added.append(item.item)
+	frappe.db.commit()
+	return {"badge": doc.name, "back_inside": len(coming), "added": added}
+
+
+@frappe.whitelist(methods=["POST"])
+def leave_for_good(badge, items_out=None, extra_items=None):
+	"""The holder is leaving and not coming back before the job's end date:
+	their items still inside are checked out (ticked left with them, the rest
+	not seen leaving) and the badge goes back to the pool. When nobody on the
+	visit holds a badge any more, the contractor visit is checked out."""
+	from upande_security.api.gate_belongings import _as_list, _require_gate_user, mark_exit
+	from upande_security.api.security_api import check_out_contractor_visit
+
+	_require_gate_user()
+	doc = _holder_badge(badge)
+	appointment = doc.current_appointment
+	holder = doc.holder_name
+	# Before the release - releasing clears the holder and the visit.
+	_badge_exit_extras(doc, extra_items)
+	not_seen = mark_exit(_holder_items(doc, inside_only=True), _as_list(items_out))
+	_close_and_release(doc.name)
+	still_badged = frappe.db.count(
+		BADGE, {"badge_type": TYPE, "current_appointment": appointment, "status": "Issued"}
+	) if appointment else 0
+	visit_checked_out = False
+	if appointment and not still_badged and not frappe.db.get_value("Appointment", appointment, "custom_check_out_time"):
+		check_out_contractor_visit(appointment)
+		visit_checked_out = True
+	frappe.db.commit()
+	return {
+		"badge": doc.name,
+		"holder_name": holder,
+		"not_seen_leaving": [r.item + " (" + (r.carried_by or holder) + ")" for r in not_seen],
+		"still_on_site": still_badged,
+		"visit_checked_out": visit_checked_out,
+	}
+
+
+def _badge_exit_extras(doc, extra_items):
+	from upande_security.api.gate_belongings import record_exit_extras
+
+	return record_exit_extras(
+		"Appointment",
+		doc.current_appointment,
+		{
+			"party_type": "Contractor",
+			"carried_by": doc.holder_name,
+			"supplier": doc.supplier,
+			"farm": _guard_farm(),
+			"company": doc.company,
+		},
+		extra_items,
+	)
+
+
+def _holder_badge(badge):
+	"""The issued contractor badge named by a scan or number."""
+	name = _badge_name(badge) or badge
+	if not frappe.db.exists(BADGE, name):
+		frappe.throw(_("Badge {0} not found").format(badge))
+	doc = frappe.get_doc(BADGE, name)
+	if doc.status != "Issued" or not doc.current_appointment:
+		frappe.throw(_("Badge {0} is not issued on a contractor visit.").format(doc.badge_number))
+	return doc
+

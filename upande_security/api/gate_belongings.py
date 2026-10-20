@@ -129,6 +129,64 @@ def mark_exit(rows, items_out):
 	return not_seen
 
 
+# Proof a document number can be checked against: a staff member buying from
+# the company leaves with a delivery note or sales invoice.
+EXIT_PROOF_DOCTYPES = ("Delivery Note", "Sales Invoice")
+
+
+def record_exit_extras(reference_doctype, reference_name, party, extra_items):
+	"""Items leaving that were not registered on the way in - something
+	bought from the company, a return, a gate pass. Each needs proof: a
+	document number (scanned or typed) or a photo of it. A number that is a
+	Delivery Note or Sales Invoice here must be a submitted one. Recorded as
+	Registered Personal Items "Left with document" on the gate record.
+	Returns the item names recorded."""
+	recorded = []
+	now = frappe.utils.now_datetime()
+	for it in _as_list(extra_items) or []:
+		item = _clean(it.get("item"))
+		if not item:
+			continue
+		doc_ref = _clean(it.get("supporting_document"))
+		doc_file = _clean(it.get("supporting_document_file"))
+		if not doc_ref and not doc_file:
+			frappe.throw(
+				_("{0} was not registered on the way in. Scan or enter its delivery note / document number, or photograph the document.").format(
+					frappe.bold(item)
+				)
+			)
+		for dt in EXIT_PROOF_DOCTYPES:
+			status = frappe.db.get_value(dt, doc_ref, "docstatus") if doc_ref else None
+			if status is not None and int(status) != 1:
+				frappe.throw(_("{0} {1} is not submitted - it cannot cover goods leaving.").format(dt, doc_ref))
+		try:
+			qty = max(int(it.get("qty") or 1), 1)
+		except (TypeError, ValueError):
+			qty = 1
+		row = frappe.new_doc(ITEM_DOCTYPE)
+		row.update({k: v for k, v in party.items() if v})
+		row.update(
+			{
+				"reference_doctype": reference_doctype,
+				"reference_name": reference_name,
+				"item": item,
+				"qty": qty,
+				"serial_notes": _clean(it.get("serial_notes")),
+				"declared_at": "Exit",
+				"entry_time": now,
+				"recorded_by": frappe.session.user,
+				"exit_status": EXIT_WITH_DOCUMENT,
+				"exit_time": now,
+				"exit_checked_by": frappe.session.user,
+				"supporting_document": doc_ref,
+				"supporting_document_file": doc_file,
+			}
+		)
+		row.insert(ignore_permissions=True)
+		recorded.append(item)
+	return recorded
+
+
 def _visit_party(appt):
 	party_type = appt.custom_visitor_type if appt.custom_visitor_type in ("Visitor", "Customer", "Contractor") else "Visitor"
 	farm = appt.custom_farmunit or appt.custom_meet_with_farm
@@ -301,16 +359,22 @@ def save_visit_people_and_items(appointment, passengers=None, items=None):
 
 
 @frappe.whitelist()
-def check_out_items(appointment, items_out=None):
+def check_out_items(appointment, items_out=None, extra_items=None):
 	"""Exit check: items_out is the list of carried-item row names the guard
 	saw leaving. Every other item still marked Inside becomes "Not seen
-	leaving". Call this before check_out_visitor."""
+	leaving". extra_items: unregistered items leaving, each with proof
+	(record_exit_extras). Call this before check_out_visitor."""
 	_require_gate_user()
 	require_feature("feature_carried_items")
 	appt = _get_appointment(appointment)
+	extras = record_exit_extras("Appointment", appt.name, _visit_party(appt), extra_items)
 	not_seen = mark_exit(_item_rows(appt.name), _as_list(items_out))
 	frappe.db.commit()
-	return {"appointment": appt.name, "not_seen_leaving": [r.item + " (" + r.carried_by + ")" for r in not_seen]}
+	return {
+		"appointment": appt.name,
+		"not_seen_leaving": [r.item + " (" + r.carried_by + ")" for r in not_seen],
+		"left_with_document": extras,
+	}
 
 
 # --- Staff -------------------------------------------------------------------
@@ -414,13 +478,27 @@ def save_staff_items(record, items=None):
 
 
 @frappe.whitelist()
-def check_out_staff_items(record, items_out=None):
+def check_out_staff_items(record, items_out=None, extra_items=None):
 	"""Exit check for staff, like check_out_items: items_out names the items
 	seen leaving; every other item still Inside becomes "Not seen leaving".
+	extra_items: things leaving that were not registered - e.g. bought from
+	the company - each with its delivery note / document or a photo.
 	Call this before staff_gate_checkout."""
 	_require_gate_user()
 	require_feature("feature_carried_items")
 	rec = _staff_record(record)
+	extras = record_exit_extras(
+		rec.doctype,
+		rec.name,
+		{
+			"party_type": "Staff",
+			"carried_by": _employee_name(rec),
+			"employee": rec.employee,
+			"farm": rec.farm,
+			"company": rec.company,
+		},
+		extra_items,
+	)
 	not_seen = mark_exit(_staff_item_rows(rec), _as_list(items_out))
 	frappe.db.commit()
-	return {"record": rec.name, "not_seen_leaving": [r.item for r in not_seen]}
+	return {"record": rec.name, "not_seen_leaving": [r.item for r in not_seen], "left_with_document": extras}
