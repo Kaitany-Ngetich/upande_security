@@ -151,7 +151,9 @@ def _as_of(date):
 
 
 @frappe.whitelist()
-def get_patrol_coverage_grid(farm, date=None):
+def get_patrol_coverage_grid(
+	farm, date=None, from_datetime=None, to_datetime=None, include_on_duty=0
+):
 	"""Coverage is a continuous surface, not a per-cell value: every pixel
 	(a few meters across) gets an effective age from the nearest pings, so
 	the half of a cell beside a patrol path reads fresh and the far half
@@ -200,8 +202,17 @@ def get_patrol_coverage_grid(farm, date=None):
 			),
 		}
 
-	as_of = _as_of(date)
-	since = frappe.utils.add_to_date(as_of, hours=-stale_hours)
+	# Playback passes an explicit window and coverage is built only from
+	# what happened inside it: `since` is the window start, not as_of minus
+	# stale_hours. That is the whole point of a replay - at 21:00 on the
+	# 20th the map must be blank, not pre-painted with the afternoon's
+	# patrols, or the thing you are trying to see is already covered up.
+	if from_datetime and to_datetime:
+		since = frappe.utils.get_datetime(from_datetime)
+		as_of = frappe.utils.get_datetime(to_datetime)
+	else:
+		as_of = _as_of(date)
+		since = frappe.utils.add_to_date(as_of, hours=-stale_hours)
 	# Read through the captured_at_coverage covering index (see
 	# patrol_gps_log.on_doctype_update): ~0.1 s for a 2-day window on ~500k
 	# rows, versus 20-80 s when MariaDB picks a full scan or has to fetch
@@ -212,10 +223,18 @@ def get_patrol_coverage_grid(farm, date=None):
 			if frappe.db.has_index("tabPatrol GPS Log", index):
 				force = " force index (" + index + ")"
 				break
+	# On Duty points are excluded from normal coverage - standing at a post
+	# is not patrol work and would paint the post permanently green. A
+	# playback is asking a different question ("where was anyone?"), so it
+	# can opt them back in.
+	mode_clause = (
+		"" if frappe.utils.cint(include_on_duty)
+		else " and ifnull(tracking_mode, 'Patrol') != 'On Duty'"
+	)
 	points = frappe.db.sql(
 		"select captured_at, latitude, longitude, gps_accuracy"
 		" from `tabPatrol GPS Log`" + force + " where captured_at between %s and %s"
-		" and ifnull(tracking_mode, 'Patrol') != 'On Duty'",
+		+ mode_clause,
 		(since, as_of),
 		as_dict=True,
 	)
