@@ -178,19 +178,38 @@ def _push(names):
 		fields=["name", "expo_push_token", "update_status"],
 	)
 	targets = [r for r in rows if r.expo_push_token]
-	messages = [
-		{
-			"to": r.expo_push_token,
-			"title": "App update available",
-			"body": "Tap to install the latest Security Gate update.",
-			"data": {"type": "app_update"},
-			"priority": "high",
-			"sound": "default",
-			"channelId": "visitor-approved",
-		}
-		for r in targets
-	]
-	result = _send_expo_push(messages)
+	messages = []
+	for r in targets:
+		# Shown to the guard - and the only thing older app builds react to
+		# (by a tap).
+		messages.append(
+			{
+				"to": r.expo_push_token,
+				"title": "App update",
+				"body": "The latest Security Gate update is installing.",
+				"data": {"type": "app_update"},
+				"priority": "high",
+				"sound": "default",
+				"channelId": "visitor-approved",
+			}
+		)
+		# Data-only: Android hands this to the app's background task even
+		# when it is not on screen or not running, so the update downloads
+		# and installs itself without a tap (appVersion.ts).
+		messages.append(
+			{
+				"to": r.expo_push_token,
+				"data": {"type": "app_update"},
+				"priority": "high",
+				"_contentAvailable": True,
+			}
+		)
+	# Expo takes at most 100 messages a request, and each phone gets two.
+	result = {}
+	for i in range(0, len(messages), 100):
+		part = _send_expo_push(messages[i : i + 100])
+		if part.get("error"):
+			result["error"] = part["error"]
 	now = frappe.utils.now_datetime()
 	for r in targets:
 		frappe.db.set_value(
