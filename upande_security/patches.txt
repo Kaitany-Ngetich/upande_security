@@ -26,3 +26,4 @@ upande_security.patches.rename_watchlist_company_field
 upande_security.patches.move_carried_items_to_gate_carried_item
 upande_security.patches.move_badges_to_gate_badge
 upande_security.patches.enable_on_duty_tracking
+upande_security.patches.add_patrol_farm_time_index

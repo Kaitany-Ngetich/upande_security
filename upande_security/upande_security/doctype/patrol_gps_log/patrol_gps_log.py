@@ -22,3 +22,13 @@ def on_doctype_update():
 		["captured_at", "latitude", "longitude", "gps_accuracy", "tracking_mode"],
 		"captured_at_coverage_mode",
 	)
+	# Playback asks for one FARM over a time range, and farm is not in the
+	# index above - so MariaDB had to range-scan every point in the window
+	# and throw away the other farms' rows: EXPLAIN reported 449,502 rows
+	# examined for a 40-day window on a farm holding 2,162 of them, which
+	# timed the request out. Farm first makes that a seek.
+	frappe.db.add_index(
+		"Patrol GPS Log",
+		["farm", "captured_at"],
+		"farm_captured_at",
+	)

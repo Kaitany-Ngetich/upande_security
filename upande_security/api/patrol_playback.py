@@ -37,6 +37,9 @@ from upande_security.api.feature_flags import is_feature_enabled
 #: early and look like the guards went home.
 MAX_POINTS = 12000
 
+#: Longest replay window accepted, in hours (7 days).
+MAX_WINDOW_HOURS = 24 * 7
+
 
 def _guard_label(row):
 	if row.get("personel") == "Internal Guard" and row.get("internal_guard"):
@@ -71,6 +74,15 @@ def get_patrol_playback(farm, from_datetime, to_datetime, guard=None, include_on
 		return {"error": _("Could not read the from/to times.")}
 	if end <= start:
 		return {"error": _("The end of the window must be after its start.")}
+	# A replay is for an evening, not a season. Past this the response stops
+	# being something you can watch and becomes a very slow data export -
+	# 40 days at the fastest speed is still sixteen minutes of staring.
+	if frappe.utils.time_diff_in_hours(end, start) > MAX_WINDOW_HOURS:
+		return {
+			"error": _("Pick a window of {0} days or less - this one is {1:.0f} days.").format(
+				int(MAX_WINDOW_HOURS / 24), frappe.utils.time_diff_in_hours(end, start) / 24
+			)
+		}
 
 	conditions = ["farm = %(farm)s", "captured_at between %(start)s and %(end)s"]
 	params = {"farm": farm, "start": start, "end": end}
@@ -82,12 +94,22 @@ def get_patrol_playback(farm, from_datetime, to_datetime, guard=None, include_on
 		conditions.append("(internal_guard = %(guard)s or external_guard = %(guard)s)")
 		params["guard"] = guard
 
+	# Index choice matters more here than anywhere else in this module.
+	# This query is "one farm, one time range". Forcing the captured_at
+	# covering index makes MariaDB walk every point in the window and
+	# discard the other farms' rows - 449,502 rows examined for a 40-day
+	# window on a farm holding 2,162 of them, which times the request out.
+	# farm_captured_at turns that into a seek. Only fall back to the
+	# captured_at index when no farm narrows the query.
 	force = ""
 	if frappe.db.db_type == "mariadb":
-		for index in ("captured_at_coverage_mode", "captured_at_coverage", "captured_at_index"):
-			if frappe.db.has_index("tabPatrol GPS Log", index):
-				force = " force index (" + index + ")"
-				break
+		if farm and frappe.db.has_index("tabPatrol GPS Log", "farm_captured_at"):
+			force = " force index (farm_captured_at)"
+		elif not farm:
+			for index in ("captured_at_coverage_mode", "captured_at_coverage", "captured_at_index"):
+				if frappe.db.has_index("tabPatrol GPS Log", index):
+					force = " force index (" + index + ")"
+					break
 
 	rows = frappe.db.sql(
 		"select captured_at, latitude, longitude, gps_accuracy, personel,"
@@ -172,3 +194,35 @@ def get_playback_guards(farm, from_datetime, to_datetime):
 		if gid:
 			out.append({"guard": gid, "kind": kind, "name": _display_name(kind, gid)})
 	return sorted(out, key=lambda g: g["name"] or "")
+
+
+@frappe.whitelist()
+def get_playback_extent(farm=None):
+	"""Oldest and newest position on record, so the page can offer a window
+	that actually contains something.
+
+	Defaulting to "last night" is the right instinct and the wrong default
+	on a site whose tracking only started today: the user picks a sensible
+	looking range, gets an empty replay, and reasonably concludes the page
+	is broken.
+	"""
+	if not frappe.has_permission("Patrol GPS Log", ptype="read"):
+		frappe.throw(_("You do not have permission to view Patrol GPS Logs."), frappe.PermissionError)
+	conditions, params = [], {}
+	if farm:
+		conditions.append("farm = %(farm)s")
+		params["farm"] = farm
+	where = (" where " + " and ".join(conditions)) if conditions else ""
+	row = frappe.db.sql(
+		"select min(captured_at) as first_at, max(captured_at) as last_at,"
+		" count(*) as points from `tabPatrol GPS Log`" + where,
+		params,
+		as_dict=True,
+	)
+	r = row[0] if row else {}
+	return {
+		"farm": farm,
+		"first_at": str(r.get("first_at")) if r.get("first_at") else None,
+		"last_at": str(r.get("last_at")) if r.get("last_at") else None,
+		"points": r.get("points") or 0,
+	}
