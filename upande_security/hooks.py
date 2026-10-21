@@ -278,6 +278,11 @@ scheduler_events = {
             # matching Entry anywhere since, past vehicle_overdue_minutes -
             # gated by feature_vehicle_gate_tracking.
             "upande_security.tasks.check_vehicle_overdue",
+            # Sibling check, same cadence and same GPS feed as the farm
+            # geofence above, but a finer grain: which SECTION of the farm
+            # is this guard in, and are they cleared for it - gated by
+            # feature_zone_breach_alerts.
+            "upande_security.tasks.check_zone_breaches",
         ],
     },
     "hourly": [

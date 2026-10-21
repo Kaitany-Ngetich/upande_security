@@ -1,0 +1,137 @@
+{
+ "actions": [],
+ "autoname": "field:zone_name",
+ "creation": "2026-10-21 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "zone_name",
+  "farm",
+  "column_break_1",
+  "active",
+  "severity",
+  "default_access",
+  "section_break_boundary",
+  "boundary_geojson",
+  "description",
+  "section_break_rules",
+  "access_rules"
+ ],
+ "fields": [
+  {
+   "fieldname": "zone_name",
+   "fieldtype": "Data",
+   "label": "Zone Name",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "label": "Farm",
+   "options": "Farm",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "active",
+   "fieldtype": "Check",
+   "label": "Active",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "default": "Medium",
+   "description": "Carried onto the Unauthorized Access Attempt a breach raises.",
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "label": "Severity",
+   "options": "Low\nMedium\nHigh\nCritical",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "default": "Deny",
+   "description": "Deny: nobody may be here unless a rule below allows them (a restricted section). Allow: anyone may, unless a rule denies them (a monitored section).",
+   "fieldname": "default_access",
+   "fieldtype": "Select",
+   "label": "Default Access",
+   "options": "Deny\nAllow",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "section_break_boundary",
+   "fieldtype": "Section Break",
+   "label": "Boundary"
+  },
+  {
+   "description": "GeoJSON polygon for this section. Without one the zone is never tested - there is nothing to be inside of.",
+   "fieldname": "boundary_geojson",
+   "fieldtype": "Attach",
+   "label": "Boundary GeoJSON"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "section_break_rules",
+   "fieldtype": "Section Break",
+   "label": "Who May Be Here"
+  },
+  {
+   "description": "Checked in order; the first rule that matches the person and the time decides. No match falls back to Default Access.",
+   "fieldname": "access_rules",
+   "fieldtype": "Table",
+   "label": "Access Rules",
+   "options": "Zone Access Rule"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-21 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Security Zone",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

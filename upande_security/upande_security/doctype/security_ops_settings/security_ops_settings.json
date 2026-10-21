@@ -72,13 +72,15 @@
   "feature_host_receipt_confirmation",
   "staff_gate_mode_section",
   "staff_gate_modes",
-  "feature_carried_items"
+  "feature_carried_items",
+  "feature_zone_breach_alerts",
+  "zone_breach_grace_minutes"
  ],
  "fields": [
   {
    "fieldname": "feature_flags_section",
    "fieldtype": "Section Break",
-   "label": "Feature Flags — Visitor Workflow",
+   "label": "Feature Flags \u2014 Visitor Workflow",
    "permlevel": 1
   },
   {
@@ -103,7 +105,7 @@
   {
    "fieldname": "feature_flags_section_2",
    "fieldtype": "Section Break",
-   "label": "Feature Flags — Alerts",
+   "label": "Feature Flags \u2014 Alerts",
    "permlevel": 1
   },
   {
@@ -171,7 +173,7 @@
   {
    "fieldname": "feature_flags_section_3",
    "fieldtype": "Section Break",
-   "label": "Feature Flags — Gate Verification",
+   "label": "Feature Flags \u2014 Gate Verification",
    "permlevel": 1
   },
   {
@@ -217,7 +219,7 @@
   {
    "fieldname": "feature_flags_section_4",
    "fieldtype": "Section Break",
-   "label": "Feature Flags — Admin",
+   "label": "Feature Flags \u2014 Admin",
    "permlevel": 1
   },
   {
@@ -244,7 +246,7 @@
   {
    "fieldname": "feature_flags_section_5",
    "fieldtype": "Section Break",
-   "label": "Feature Flags — Gate Modules",
+   "label": "Feature Flags \u2014 Gate Modules",
    "permlevel": 1
   },
   {
@@ -499,6 +501,20 @@
    "fieldtype": "Table",
    "label": "Additional Users (beyond Security Head / System Manager)",
    "options": "Security Command Center User"
+  },
+  {
+   "default": "1",
+   "description": "Check each on-duty guard's last position against the Security Zones of their farm.",
+   "fieldname": "feature_zone_breach_alerts",
+   "fieldtype": "Check",
+   "label": "Restricted Zone Breach Alerts"
+  },
+  {
+   "default": "55",
+   "description": "One alert per guard per zone inside this window. The check runs every 15 minutes, so a guard who stays put should be flagged once, not four times an hour.",
+   "fieldname": "zone_breach_grace_minutes",
+   "fieldtype": "Int",
+   "label": "Zone Breach Repeat Window (minutes)"
   }
  ],
  "index_web_pages_for_search": 1,

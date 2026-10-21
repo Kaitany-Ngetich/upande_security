@@ -10,26 +10,31 @@
   "column_break_1",
   "company",
   "farm",
+  "severity",
+  "person_name",
+  "zone",
   "attempt_time",
   "section_break_1",
   "detail",
-  "attempted_by"
+  "attempted_by",
+  "latitude",
+  "longitude"
  ],
  "fields": [
   {
    "fieldname": "attempt_type",
    "fieldtype": "Select",
-   "label": "Attempt Type",
-   "options": "Gate Dispatch Rejected\nGate Receiving Rejected\nGate Vehicle Rejected\nInvalid Badge Scan\nInvalid Asset Scan\nOff-Shift Account Use\nContractor Badge Refused\nDelivery Without Receipt",
-   "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "label": "Attempt Type",
+   "options": "Gate Dispatch Rejected\nGate Receiving Rejected\nGate Vehicle Rejected\nInvalid Badge Scan\nInvalid Asset Scan\nOff-Shift Account Use\nContractor Badge Refused\nDelivery Without Receipt\nRestricted Zone Entry",
+   "reqd": 1
   },
   {
    "fieldname": "reference",
    "fieldtype": "Data",
-   "label": "Reference",
-   "in_list_view": 1
+   "in_list_view": 1,
+   "label": "Reference"
   },
   {
    "fieldname": "column_break_1",
@@ -38,25 +43,25 @@
   {
    "fieldname": "company",
    "fieldtype": "Link",
-   "options": "Company",
-   "label": "Company",
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company"
   },
   {
    "fieldname": "farm",
    "fieldtype": "Link",
-   "options": "Farm",
-   "label": "Farm",
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "label": "Farm",
+   "options": "Farm"
   },
   {
    "fieldname": "attempt_time",
    "fieldtype": "Datetime",
+   "in_list_view": 1,
    "label": "Attempt Time",
-   "reqd": 1,
-   "in_list_view": 1
+   "reqd": 1
   },
   {
    "fieldname": "section_break_1",
@@ -71,8 +76,43 @@
   {
    "fieldname": "attempted_by",
    "fieldtype": "Link",
-   "options": "User",
-   "label": "Attempted By (Session User)"
+   "label": "Attempted By (Session User)",
+   "options": "User"
+  },
+  {
+   "description": "Set for a Restricted Zone Entry; blank for gate-side refusals.",
+   "fieldname": "zone",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Zone",
+   "options": "Security Zone"
+  },
+  {
+   "description": "Who was placed here. attempted_by is the login, which several external guards share.",
+   "fieldname": "person_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Person"
+  },
+  {
+   "fieldname": "latitude",
+   "fieldtype": "Data",
+   "label": "Latitude"
+  },
+  {
+   "fieldname": "longitude",
+   "fieldtype": "Data",
+   "label": "Longitude"
+  },
+  {
+   "description": "Copied from the zone at the time of the breach.",
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Severity",
+   "options": "\nLow\nMedium\nHigh\nCritical"
   }
  ],
  "index_web_pages_for_search": 1,

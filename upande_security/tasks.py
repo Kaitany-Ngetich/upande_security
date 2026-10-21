@@ -768,3 +768,136 @@ def check_vehicle_overdue():
 		frappe.db.commit()
 
 	return {"overdue_vehicles_checked": len(overdue_rows), "alerts_sent": flagged}
+
+
+def check_zone_breaches():
+	"""Flag an on-duty guard whose last position falls inside a Security
+	Zone they are not cleared for.
+
+	The sibling of check_patrol_geofence_and_gaps: that one asks "is this
+	guard outside the farm?", this one asks "which section of it are they
+	in?". Both read the same Patrol GPS Log feed, so this works through a
+	whole shift rather than only during a patrol - see api/zones.py.
+
+	Runs every 15 minutes. Gated by feature_zone_breach_alerts.
+
+	ONE bounded query, not one per guard. The obvious shape - for each
+	active shift, SELECT ... WHERE internal_guard = %s ORDER BY captured_at
+	DESC LIMIT 1 - has no index to seek on (there is none on
+	(guard, captured_at)), so MariaDB walks the captured_at index looking
+	for that guard and reads the whole table for anyone with no recent
+	points. Measured on this bench: 21 active shifts did not finish in ten
+	minutes. Reading the last `stale_minutes` of points instead is a short
+	range scan on the covering index, and the newest row per guard is
+	picked out in Python.
+	"""
+	from upande_security.api.feature_flags import is_feature_enabled
+	from upande_security.api.zones import active_zones, is_allowed, record_breach
+
+	if not is_feature_enabled("feature_zone_breach_alerts"):
+		return
+
+	# Only points recent enough to say where someone IS. An older point says
+	# where they were, and alerting on it flags a guard who left long ago.
+	stale_minutes = 30
+	cutoff = frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-stale_minutes)
+
+	rows = frappe.db.sql(
+		"""
+		SELECT personel, internal_guard, external_guard, farm,
+		       captured_at, latitude, longitude
+		FROM `tabPatrol GPS Log`
+		WHERE captured_at >= %s
+		ORDER BY captured_at DESC
+		""",
+		(cutoff,),
+		as_dict=True,
+	)
+
+	# Newest row per guard; the query is already newest-first.
+	latest = {}
+	for r in rows:
+		key = (r.personel, r.internal_guard or r.external_guard)
+		if not key[1] or key in latest:
+			continue
+		latest[key] = r
+
+	if not latest:
+		return {"guards_seen": 0, "breaches_flagged": 0}
+
+	# Only guards actually on an Active shift are judged: someone off shift
+	# has no post to be away from, and off-shift use is its own alert
+	# (gate_movement._report_off_shift).
+	on_shift = {}
+	for s in frappe.get_all(
+		"Security Guard Shift Assignment",
+		filters={"status": "Active"},
+		fields=["name", "security_guard", "internal_guard", "external_guard", "farm"],
+	):
+		if s.security_guard == "Internal Guard" and s.internal_guard:
+			on_shift[("Internal Guard", s.internal_guard)] = s
+		elif s.external_guard:
+			on_shift[("External Guard", s.external_guard)] = s
+
+	zones_by_farm = {}
+	flagged = 0
+
+	for key, point in latest.items():
+		shift = on_shift.get(key)
+		if not shift:
+			continue
+		# The shift's rostered farm decides which zones apply, not the farm
+		# stamped on the ping - a mis-stamped point should not let a guard
+		# out of the zones of the farm they are posted to.
+		farm = shift.farm or point.farm
+		if not farm:
+			continue
+		if farm not in zones_by_farm:
+			zones_by_farm[farm] = active_zones(farm)
+		zones = zones_by_farm[farm]
+		if not zones:
+			continue
+
+		kind, guard_id = key
+		if kind == "Internal Guard":
+			person = {
+				"employee": guard_id,
+				"security_guard": None,
+				"user": frappe.db.get_value("Employee", guard_id, "user_id"),
+				"name": frappe.db.get_value("Employee", guard_id, "employee_name") or guard_id,
+			}
+		else:
+			person = {
+				"employee": None,
+				"security_guard": guard_id,
+				"user": None,
+				"name": frappe.db.get_value("Security Guard", guard_id, "full_name") or guard_id,
+			}
+
+		try:
+			lat = float(point.latitude)
+			lng = float(point.longitude)
+		except (TypeError, ValueError):
+			continue
+
+		when = frappe.utils.get_datetime(point.captured_at)
+		for zone in zones:
+			if not _point_in_polygon(lat, lng, zone["ring"]):
+				continue
+			if is_allowed(zone["name"], person, when):
+				continue
+			if record_breach(zone, person, point):
+				flagged += 1
+				_notify_security_ops(
+					shift.name,
+					"Restricted zone",
+					person["name"]
+					+ " is inside "
+					+ (zone.get("zone_name") or zone["name"])
+					+ " at "
+					+ str(point.captured_at)
+					+ ", which they are not cleared for.",
+					"security",
+				)
+
+	return {"guards_seen": len(latest), "breaches_flagged": flagged}

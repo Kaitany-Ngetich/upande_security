@@ -29,6 +29,7 @@ FEATURE_FIELDS = [
 	"feature_patrol_boundary_filter",
 	"feature_security_alerts",
 	"feature_watchlist",
+	"feature_zone_breach_alerts",
 	"feature_asset_scanning",
 	"feature_gate_dispatch",
 	"feature_gate_receiving",

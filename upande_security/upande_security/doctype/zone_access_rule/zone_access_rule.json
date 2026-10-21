@@ -1,0 +1,113 @@
+{
+ "actions": [],
+ "creation": "2026-10-21 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "effect",
+  "applies_to",
+  "role",
+  "employee",
+  "security_guard",
+  "column_break_1",
+  "days",
+  "from_time",
+  "to_time",
+  "note"
+ ],
+ "fields": [
+  {
+   "default": "Allow",
+   "fieldname": "effect",
+   "fieldtype": "Select",
+   "label": "Effect",
+   "options": "Allow\nDeny",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "default": "Anyone",
+   "description": "Who this rule is about. 'Anyone' makes it a blanket rule for the window below.",
+   "fieldname": "applies_to",
+   "fieldtype": "Select",
+   "label": "Applies To",
+   "options": "Anyone\nRole\nEmployee\nSecurity Guard",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "depends_on": "eval:doc.applies_to=='Role'",
+   "fieldname": "role",
+   "fieldtype": "Link",
+   "label": "Role",
+   "options": "Role",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "depends_on": "eval:doc.applies_to=='Employee'",
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "depends_on": "eval:doc.applies_to=='Security Guard'",
+   "fieldname": "security_guard",
+   "fieldtype": "Link",
+   "label": "Security Guard",
+   "options": "Security Guard"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "All Days",
+   "fieldname": "days",
+   "fieldtype": "Select",
+   "label": "Days",
+   "options": "All Days\nWeekdays\nWeekends",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "description": "Leave both times blank for the whole day. An end before the start runs past midnight.",
+   "fieldname": "from_time",
+   "fieldtype": "Time",
+   "label": "From",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "to_time",
+   "fieldtype": "Time",
+   "label": "To",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Data",
+   "label": "Note"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-21 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Zone Access Rule",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

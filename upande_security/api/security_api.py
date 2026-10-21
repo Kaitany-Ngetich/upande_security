@@ -381,6 +381,7 @@ def get_session_info():
 			"feature_patrol_geofence_alerts",
 			"feature_security_alerts",
 			"feature_watchlist",
+			"feature_zone_breach_alerts",
 			"feature_asset_scanning",
 			"feature_gate_dispatch",
 			"feature_gate_receiving",
