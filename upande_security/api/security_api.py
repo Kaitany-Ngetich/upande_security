@@ -2015,12 +2015,19 @@ def create_walk_in_notify(customer_name=None, id_number=None, phone=None, email=
 		return {"error": str(e)}
 @frappe.whitelist()
 def book_customer_appointment(customer=None, person_name=None, id_number=None, host=None,
-		scheduled_time=None, purpose=None):
+		scheduled_time=None, purpose=None, phone=None):
 	"""Pre-book a visit for a person sent by an existing Customer
 	(Server Script 'Book Customer Appointment', allow_guest=0).
 
-	Phone and email always come from the linked Customer record, never from
-	the caller; only the person's name and ID number are captured per visit.
+	Phone is the visiting PERSON's own number, typed in per visit - a
+	Customer commonly sends a different representative each time, and the
+	check-in/check-out SMS (visitor_sms.py / the inline OTP code in
+	check_in_visitor) needs to reach whoever is actually at the gate, not
+	the Customer account's main switchboard number. Falls back to the
+	Customer record's mobile_no only when the caller doesn't supply one, so
+	existing callers that never send `phone` keep today's behaviour instead
+	of ending up with no number at all. Email still always comes from the
+	Customer record - only phone changed.
 
 	The doc is inserted in the workflow's own initial state and only THEN
 	moved to "Pending Host Review" with a second db.set_value. Do not set
@@ -2037,6 +2044,7 @@ def book_customer_appointment(customer=None, person_name=None, id_number=None, h
 		host = _s(host)
 		scheduled_time = _s(scheduled_time)
 		purpose = _s(purpose)
+		phone = _s(phone)
 
 		if not customer:
 			return {"error": "customer is required"}
@@ -2062,7 +2070,7 @@ def book_customer_appointment(customer=None, person_name=None, id_number=None, h
 		doc.customer_name = person_name
 		doc.custom_id_number = id_number
 		doc.custom_customer = customer_doc.name
-		doc.customer_phone_number = customer_doc.mobile_no or ""
+		doc.customer_phone_number = phone or customer_doc.mobile_no or ""
 		doc.customer_email = customer_doc.email_id or ""
 		doc.custom_meet_with = host
 		doc.scheduled_time = scheduled_time
