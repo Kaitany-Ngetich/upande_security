@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from typing import Any
 
 import frappe
@@ -2780,6 +2781,122 @@ def search_guards_for_shift(guard_type, query):
     return rows
 
 
+# Biometric attendance on the Shift Assignments tab: external guards punch
+# into Security Checkin (the gate devices), internal guards are Employees and
+# punch into HRMS's own Employee Checkin.
+#
+# The IN/OUT key on a punch is not trusted. On live, Third-shift guards press
+# OUT when they arrive at 22:00 (median "OUT" lands ~8h before the shift
+# ends) and many First-shift "IN" punches come at 14:00, when they leave. So
+# arrival and departure are read from WHEN the punch happened: the earliest
+# punch in the first half of the shift is the arrival, the latest in the
+# second half the departure.
+BIOMETRIC_GRACE_MIN = 15
+# How far outside the shift a punch still counts for it - guards arrive early
+# and the devices sync a few minutes late.
+BIOMETRIC_MARGIN_H = 2
+
+
+def _shift_window(r):
+    """(start, end) datetimes of a shift, end rolled into the next day when the
+    clock wraps past midnight - the same reading derive_status uses."""
+    start = combine_date_time(r.get("start_date"), r.get("start_time"))
+    end = combine_date_time(r.get("end_date"), r.get("end_time"))
+    if start and end and end <= start:
+        end = end + datetime.timedelta(days=1)
+    return start, end
+
+
+# Where each kind of guard punches: (shift field, doctype, guard column).
+BIOMETRIC_SOURCES = (
+    ("external_guard", "Security Checkin", "security_guard"),
+    ("internal_guard", "Employee Checkin", "employee"),
+)
+
+
+def _biometric_sources():
+    """The punch sources this site has and the current user may read - a site
+    without HRMS has no Employee Checkin, and a role without read on either
+    simply gets no attendance for that kind of guard."""
+    return [
+        src for src in BIOMETRIC_SOURCES
+        if frappe.db.table_exists(src[1]) and frappe.has_permission(src[1], ptype="read")
+    ]
+
+
+def _biometric_attendance(range_rows, windows, now, sources):
+    """{shift name: attendance dict} for every shift whose guard punches into
+    one of `sources`. A guard with no source - or a user who cannot read it -
+    gets nothing here, which the tab shows as "Not on biometric"."""
+    margin = datetime.timedelta(hours=BIOMETRIC_MARGIN_H)
+    shifts, punches = [], {}
+    for shift_field, doctype, guard_column in sources:
+        mine = [
+            r for r in range_rows
+            if r.get(shift_field) and r.get("status") != "Cancelled"
+            and all(windows.get(r["name"]) or (None,))
+        ]
+        if not mine:
+            continue
+        shifts.extend((r, shift_field) for r in mine)
+        lo = min(windows[r["name"]][0] for r in mine) - margin
+        hi = max(windows[r["name"]][1] for r in mine) + margin
+        # One read per source for the whole range, grouped per guard in
+        # memory - not one query per shift. Duplicate punches (the HR devices
+        # often post the same one twice) collapse in the set.
+        for p in frappe.db.sql(
+            f"""
+            SELECT `{guard_column}` AS guard, time FROM `tab{doctype}`
+            WHERE `{guard_column}` IN %(guards)s AND time BETWEEN %(lo)s AND %(hi)s
+            """,
+            {"guards": tuple(sorted({r[shift_field] for r in mine})), "lo": lo, "hi": hi},
+            as_dict=True,
+        ):
+            punches.setdefault((shift_field, p.guard), set()).add(get_datetime(p.time))
+    punches = {k: sorted(v) for k, v in punches.items()}
+
+    grace = datetime.timedelta(minutes=BIOMETRIC_GRACE_MIN)
+    out = {}
+    for r, shift_field in shifts:
+        start, end = windows[r["name"]]
+        mid = start + (end - start) / 2
+        mine = punches.get((shift_field, r[shift_field]), [])
+        arrivals = [t for t in mine if start - margin <= t < mid]
+        departures = [t for t in mine if mid <= t <= end + margin]
+        clock_in = arrivals[0] if arrivals else None
+        clock_out = departures[-1] if departures else None
+
+        late_min = None
+        if now < start:
+            result = "Not started"
+        elif clock_in:
+            late_min = int((clock_in - start).total_seconds() // 60)
+            result = "Late" if clock_in > start + grace else "On time"
+        elif clock_out:
+            result = "No clock-in"
+        elif now <= start + grace:
+            result = "Awaiting clock-in"
+        else:
+            result = "Absent"
+
+        departure = None
+        if now > end and result in ("On time", "Late", "No clock-in"):
+            if not clock_out:
+                departure = "No clock-out"
+            elif clock_out < end - grace:
+                departure = "Left early"
+
+        out[r["name"]] = {
+            "clock_in": str(clock_in) if clock_in else None,
+            "clock_out": str(clock_out) if clock_out else None,
+            "result": result,
+            "late_min": late_min if result == "Late" else None,
+            "departure": departure,
+            "early_min": int((end - clock_out).total_seconds() // 60) if departure == "Left early" else None,
+        }
+    return out
+
+
 def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=None, company=None):
     doctype = "Security Guard Shift Assignment"
     farm_name_field = _farm_name_field()
@@ -2924,10 +3041,14 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
 
     farm_colors = _shift_farm_colors([a.get("farm") for a in range_rows])
 
+    windows = {r["name"]: _shift_window(r) for r in range_rows}
+    attendance = _biometric_attendance(range_rows, windows, frappe.utils.now_datetime(), _biometric_sources())
+
     rows = []
     for r in range_rows:
         farm_name = r.get("farm") or ""
         color = farm_colors.get(farm_name, {"bg": "#F1EFE8", "text": "#444441"})
+        start_dt, end_dt = windows[r["name"]]
         rows.append({
             "name": r["name"],
             "guard_key": _shift_guard_key(r),
@@ -2942,10 +3063,14 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
             # midnight, then localized, which showed every shift starting and
             # ending at the same wrong clock time (03:00 in Kenya, UTC+3)
             # regardless of its real start_time/end_time.
-            "start_date": str(combine_date_time(r.get("start_date"), r.get("start_time")) or "") or None,
-            "end_date": str(combine_date_time(r.get("end_date"), r.get("end_time")) or "") or None,
+            # End rolled into the next morning for an overnight shift: a Third
+            # shift is stored 22:00 -> 06:00 on one date and used to display
+            # ending sixteen hours before it began.
+            "start_date": str(start_dt or "") or None,
+            "end_date": str(end_dt or "") or None,
             "status": r.get("status"),
             "remarks": r.get("remarks") or "",
+            "biometric": attendance.get(r["name"]),
         })
 
     # Today's coverage board: farm -> {shift_type: guard_name}. Not every farm
