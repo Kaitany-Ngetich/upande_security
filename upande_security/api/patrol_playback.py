@@ -30,6 +30,7 @@ import frappe
 from frappe import _
 
 from upande_security.api.feature_flags import is_feature_enabled
+from upande_security.api.patrol_coverage import MAX_ACCURACY_M
 
 #: A 12-hour night across a handful of guards is a few thousand points.
 #: Past this the answer stops being a replay and starts being a data dump,
@@ -120,6 +121,11 @@ def get_patrol_playback(farm, from_datetime, to_datetime, guard=None, include_on
 		as_dict=True,
 	)
 
+	# Drop fixes the coverage surface also refuses. A network-based fix is
+	# 600-1200 m out, and drawn into a trail it reads as the guard sprinting
+	# across the farm and back in a few seconds.
+	rows = [r for r in rows if not _too_inaccurate(r.gps_accuracy)]
+
 	# Thin evenly rather than cut: a replay that stops early reads as "the
 	# guards left", which is exactly the wrong conclusion to hand someone
 	# investigating an incident.
@@ -162,6 +168,14 @@ def get_patrol_playback(farm, from_datetime, to_datetime, guard=None, include_on
 		"total_points": sum(len(g["points"]) for g in guards.values()),
 		"thinned_every": stride if stride > 1 else None,
 	}
+
+
+def _too_inaccurate(accuracy):
+	try:
+		return float(accuracy) > MAX_ACCURACY_M
+	except (TypeError, ValueError):
+		# No accuracy recorded - keep it, as the coverage surface does.
+		return False
 
 
 def _display_name(kind, gid):
