@@ -10,6 +10,8 @@ dynamic = ["version"]
 dependencies = [
     # "frappe~=16.0.0" # Installed and managed by bench.
     "qrcode>=7.4", # Visitor Badge host-confirmation QR generation.
+    "shapely>=2.0", # Patrol coverage and dashboard farm-boundary geometry.
+    "numpy>=1.26", # Patrol coverage grid.
 ]
 
 [build-system]

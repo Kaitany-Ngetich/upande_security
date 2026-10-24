@@ -275,8 +275,14 @@
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-07-17 13:18:19.147345",
+ "links": [
+  {
+   "group": "Attendance",
+   "link_doctype": "Security Checkin",
+   "link_fieldname": "security_guard"
+  }
+ ],
+ "modified": "2026-10-24 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Guard",
