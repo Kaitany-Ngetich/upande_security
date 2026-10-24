@@ -56,6 +56,8 @@ sed -i 's/redis_socketio:/# redis_socketio:/g' Procfile
 bench get-app "https://github.com/${frappeuser}/payments" --branch "$paymentsbranch"
 bench get-app "https://github.com/${frappeuser}/erpnext" --branch "$erpnextbranch" --resolve-deps
 bench get-app "https://github.com/${frappeuser}/hrms" --branch "$hrmsbranch"
+# The app ships a WhatsApp Notification fixture, so frappe_whatsapp must be on the site.
+bench get-app "https://github.com/shridarpatil/frappe_whatsapp" --branch "${WHATSAPP_BRANCH:-master}"
 bench get-app upande_security "${GITHUB_WORKSPACE}"
 bench setup requirements --dev
 
