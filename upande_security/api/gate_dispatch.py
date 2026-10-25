@@ -375,11 +375,18 @@ def _verify_dispatch_one(
 	vehicle_no=None,
 	driver_name=None,
 	gate=None,
+	commit=True,
+	farm=None,
 ):
 	"""Core single-dispatch verification, factored out of
 	verify_dispatch_at_gate so both it and verify_dispatch_at_gate_bulk
 	share the exact same logic instead of drifting apart over time.
-	Returns a result dict rather than writing frappe.response directly."""
+	Returns a result dict rather than writing frappe.response directly.
+
+	commit=False leaves the transaction to the caller - a gate checkout
+	recording goods on a Delivery Note calls this mid-request, and an early
+	commit would keep half a checkout if a later step failed. `farm` is used
+	only when the source document names none (Delivery Note's does not)."""
 	match = None
 	for source in _enabled_dispatch_sources():
 		try:
@@ -431,7 +438,7 @@ def _verify_dispatch_one(
 	doc = frappe.new_doc("Gate Dispatch Verification")
 	doc.reference_doctype = match["reference_doctype"]
 	doc.reference_name = match["reference_name"]
-	doc.farm = match.get("farm")
+	doc.farm = match.get("farm") or farm
 	vehicle_no = (vehicle_no or "").strip()
 	driver_name = (driver_name or "").strip()
 	doc.vehicle_no = vehicle_no or match.get("vehicle_no")
@@ -494,7 +501,8 @@ def _verify_dispatch_one(
 	doc.gate_exit_time = frappe.utils.now_datetime()
 	doc.remarks = remarks
 	doc.insert(ignore_permissions=True)
-	frappe.db.commit()
+	if commit:
+		frappe.db.commit()
 
 	if doc.gate_verification_status == "Rejected":
 		# Best-effort, never raises - see log_unauthorized_access's own
