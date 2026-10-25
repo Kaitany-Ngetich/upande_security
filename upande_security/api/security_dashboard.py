@@ -8,6 +8,7 @@ from shapely.geometry import LineString, Point
 from frappe import _
 from frappe.utils import get_datetime
 
+from upande_security.api.feature_flags import is_feature_enabled
 from upande_security.upande_security.doctype.security_guard_shift_assignment.security_guard_shift_assignment import (
     combine_date_time,
     derive_status,
@@ -2656,6 +2657,8 @@ def fetchPatrolData(date=None, farm=None):
             "total_distance_km": round(total_distance, 2),
             "average_duration_min": round(avg_duration, 1),
         },
+        # The map shows its Playback button only when the feature is on.
+        "playback_enabled": is_feature_enabled("feature_patrol_playback"),
     }
 
 

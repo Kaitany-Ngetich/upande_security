@@ -26,21 +26,21 @@ the other direction: someone asking for a month would otherwise pull
 hundreds of thousands of points into one response.
 """
 
+import numpy as np
+import shapely
+
 import frappe
 from frappe import _
+from shapely.geometry import LineString
 
 from upande_security.api.feature_flags import is_feature_enabled
-from upande_security.api.patrol_coverage import MAX_ACCURACY_M
+from upande_security.api.patrol_coverage import MAX_ACCURACY_M, _load_farm_polygon, boundary_filter_area
 
 #: A 12-hour night across a handful of guards is a few thousand points.
 #: Past this the answer stops being a replay and starts being a data dump,
 #: so it is thinned rather than truncated - a truncated replay would end
 #: early and look like the guards went home.
 MAX_POINTS = 12000
-
-#: Longest replay window accepted, in hours (7 days).
-MAX_WINDOW_HOURS = 24 * 7
-
 
 def _guard_label(row):
 	if row.get("personel") == "Internal Guard" and row.get("internal_guard"):
@@ -51,22 +51,28 @@ def _guard_label(row):
 
 
 @frappe.whitelist()
-def get_patrol_playback(farm, from_datetime, to_datetime, guard=None, include_on_duty=1):
+def get_patrol_playback(farm, from_datetime, to_datetime, guard=None, include_on_duty=None):
 	"""Points for every guard at `farm` between the two datetimes, grouped
 	by guard and ordered in time.
 
-	`include_on_duty` defaults ON here, unlike coverage: a replay wants to
-	know where a guard stood as much as where they walked.
+	Which points count as "at `farm`" follows the Patrol Map exactly (see
+	fetchPatrolData): with Hide Patrol Points Outside Farm Boundary on, every
+	point inside the boundary grown by Boundary Tolerance, whatever farm it
+	was saved under, with the trail split where the guard leaves the farm;
+	otherwise points saved under the farm plus untagged ones beside it.
+	`include_on_duty` overrides the Security Ops Settings default when given.
 	"""
-	if not is_feature_enabled("feature_patrol_coverage_grid"):
-		# Same flag the live map's grid uses - playback is the same feature
-		# seen over time, so it should not be separately switchable.
+	if not is_feature_enabled("feature_patrol_playback"):
 		return {"enabled": False}
 
 	if not frappe.has_permission("Patrol GPS Log", ptype="read"):
 		frappe.throw(_("You do not have permission to view Patrol GPS Logs."), frappe.PermissionError)
 	if not frappe.has_permission("Farm", ptype="read", doc=farm):
 		frappe.throw(_("You do not have permission to view {0}.").format(farm), frappe.PermissionError)
+
+	settings = _playback_settings()
+	if include_on_duty is None or include_on_duty == "":
+		include_on_duty = settings["include_on_duty"]
 
 	try:
 		start = frappe.utils.get_datetime(from_datetime)
@@ -78,48 +84,42 @@ def get_patrol_playback(farm, from_datetime, to_datetime, guard=None, include_on
 	# A replay is for an evening, not a season. Past this the response stops
 	# being something you can watch and becomes a very slow data export -
 	# 40 days at the fastest speed is still sixteen minutes of staring.
-	if frappe.utils.time_diff_in_hours(end, start) > MAX_WINDOW_HOURS:
+	max_days = settings["max_window_days"]
+	if max_days and frappe.utils.time_diff_in_hours(end, start) > max_days * 24:
 		return {
 			"error": _("Pick a window of {0} days or less - this one is {1:.0f} days.").format(
-				int(MAX_WINDOW_HOURS / 24), frappe.utils.time_diff_in_hours(end, start) / 24
+				max_days, frappe.utils.time_diff_in_hours(end, start) / 24
 			)
 		}
 
-	conditions = ["farm = %(farm)s", "captured_at between %(start)s and %(end)s"]
-	params = {"farm": farm, "start": start, "end": end}
-	if not frappe.utils.cint(include_on_duty):
-		conditions.append("ifnull(tracking_mode, 'Patrol') != 'On Duty'")
+	include_on_duty = frappe.utils.cint(include_on_duty)
+	try:
+		poly = _load_farm_polygon(farm)
+	except Exception:
+		poly = None
+	# The map's own flag and tolerance, through the map's own helper - so a
+	# farm looks the same replayed as it does live.
+	boundary = boundary_filter_area(farm, poly) if poly is not None else None
+	if boundary is not None:
+		rows = _read_in_area(boundary.context, start, end, include_on_duty)
+		picked_by = "boundary"
+	else:
+		rows = _read_by_saved_farm(farm, start, end, include_on_duty)
+		if poly is not None:
+			# As the map does without the boundary flag: rows saved with no farm
+			# at all still belong here when they sit within ~110 m of it.
+			seen = {r.name for r in rows}
+			rows += [
+				r for r in _read_in_area(poly.buffer(0.001), start, end, include_on_duty)
+				if not r.farm and r.name not in seen
+			]
+			rows.sort(key=lambda r: (r.captured_at, r.name))
+		picked_by = "saved_farm"
+
 	if guard:
 		# One guard, whichever kind they are - the caller passes the id, not
 		# the kind, because the map's guard picker only knows the label.
-		conditions.append("(internal_guard = %(guard)s or external_guard = %(guard)s)")
-		params["guard"] = guard
-
-	# Index choice matters more here than anywhere else in this module.
-	# This query is "one farm, one time range". Forcing the captured_at
-	# covering index makes MariaDB walk every point in the window and
-	# discard the other farms' rows - 449,502 rows examined for a 40-day
-	# window on a farm holding 2,162 of them, which times the request out.
-	# farm_captured_at turns that into a seek. Only fall back to the
-	# captured_at index when no farm narrows the query.
-	force = ""
-	if frappe.db.db_type == "mariadb":
-		if farm and frappe.db.has_index("tabPatrol GPS Log", "farm_captured_at"):
-			force = " force index (farm_captured_at)"
-		elif not farm:
-			for index in ("captured_at_coverage_mode", "captured_at_coverage", "captured_at_index"):
-				if frappe.db.has_index("tabPatrol GPS Log", index):
-					force = " force index (" + index + ")"
-					break
-
-	rows = frappe.db.sql(
-		"select captured_at, latitude, longitude, gps_accuracy, personel,"
-		" internal_guard, external_guard, patrol, tracking_mode"
-		" from `tabPatrol GPS Log`" + force + " where " + " and ".join(conditions)
-		+ " order by captured_at asc",
-		params,
-		as_dict=True,
-	)
+		rows = [r for r in rows if guard in (r.internal_guard, r.external_guard)]
 
 	# Drop fixes the coverage surface also refuses. A network-based fix is
 	# 600-1200 m out, and drawn into a trail it reads as the guard sprinting
@@ -144,9 +144,20 @@ def get_patrol_playback(farm, from_datetime, to_datetime, guard=None, include_on
 			lng = float(r.longitude)
 		except (TypeError, ValueError):
 			continue
-		g = guards.setdefault(
-			gid,
-			{"guard": gid, "kind": kind, "name": _display_name(kind, gid), "points": []},
+		# Not setdefault: its default is built for every point, and that
+		# looked the guard's name up once per point - 5,545 queries for one
+		# guard's night instead of one.
+		g = guards.get(gid)
+		if g is None:
+			g = guards[gid] = {"guard": gid, "kind": kind, "name": _display_name(kind, gid), "points": []}
+		# Split the trail, as the map splits a path, where the straight line
+		# from the previous point would run outside the farm - the guard
+		# stepped out, or the GPS went quiet across a bend in the boundary.
+		# Drawn joined, it reads as a walk through the neighbouring farm.
+		prev = g["points"][-1] if g["points"] else None
+		brk = bool(
+			prev and boundary is not None
+			and not boundary.contains(LineString([(prev["lng"], prev["lat"]), (lng, lat)]))
 		)
 		g["points"].append(
 			{
@@ -156,18 +167,121 @@ def get_patrol_playback(farm, from_datetime, to_datetime, guard=None, include_on
 				"accuracy": r.gps_accuracy,
 				"patrol": r.patrol,
 				"mode": r.tracking_mode or "Patrol",
+				# The farm the point was saved under, which differs from the
+				# picked farm when a guard rostered elsewhere walked in.
+				"saved_farm": r.farm,
+				"brk": 1 if brk else 0,
 			}
 		)
 
 	return {
 		"enabled": True,
 		"farm": farm,
+		"picked_by": picked_by,
 		"from_datetime": str(start),
 		"to_datetime": str(end),
 		"guards": sorted(guards.values(), key=lambda g: g["name"] or ""),
 		"total_points": sum(len(g["points"]) for g in guards.values()),
 		"thinned_every": stride if stride > 1 else None,
 	}
+
+
+def _playback_settings():
+	"""Security Ops Settings > Patrol Playback, with the defaults the fields
+	declare - a site that has not migrated them in reads None for each."""
+	s = frappe.db.get_value(
+		"Security Ops Settings",
+		"Security Ops Settings",
+		["playback_include_on_duty", "playback_max_window_days"],
+		as_dict=True,
+	) or {}
+
+	def value(field, default):
+		v = s.get(field)
+		return default if v is None else frappe.utils.cint(v)
+
+	return {
+		"include_on_duty": value("playback_include_on_duty", 1),
+		"max_window_days": value("playback_max_window_days", 7),
+	}
+
+
+_POINT_COLUMNS = (
+	"name, captured_at, latitude, longitude, gps_accuracy, personel,"
+	" internal_guard, external_guard, patrol, tracking_mode, farm"
+)
+
+
+def _read_in_area(area, start, end, include_on_duty):
+	"""Every point inside `area` in the window, whatever farm it was saved
+	under. Positions are saved under the guard's rostered farm, so a guard
+	who walks into the next farm used to show up on the wrong farm's replay.
+
+	Two steps so neither touches more of the table than it must: the window
+	is scanned from the captured_at covering index alone (it holds the
+	coordinates, and InnoDB adds the primary key) and cut to the farm's
+	bounding box there, then the guard columns are read only for the points
+	that survive the exact boundary test.
+	"""
+	minx, miny, maxx, maxy = area.bounds
+	conditions = [
+		"captured_at between %(start)s and %(end)s",
+		"latitude + 0 between %(miny)s and %(maxy)s",
+		"longitude + 0 between %(minx)s and %(maxx)s",
+	]
+	if not include_on_duty:
+		conditions.append("ifnull(tracking_mode, 'Patrol') != 'On Duty'")
+	force = ""
+	if frappe.db.db_type == "mariadb" and frappe.db.has_index("tabPatrol GPS Log", "captured_at_coverage_mode"):
+		force = " force index (captured_at_coverage_mode)"
+	candidates = frappe.db.sql(
+		"select name, latitude + 0 as lat, longitude + 0 as lng from `tabPatrol GPS Log`" + force
+		+ " where " + " and ".join(conditions),
+		{"start": start, "end": end, "minx": minx, "miny": miny, "maxx": maxx, "maxy": maxy},
+		as_dict=True,
+	)
+	if not candidates:
+		return []
+	inside = shapely.contains_xy(
+		area,
+		np.array([c.lng for c in candidates], dtype=float),
+		np.array([c.lat for c in candidates], dtype=float),
+	)
+	names = [c.name for c, ok in zip(candidates, inside) if ok]
+
+	rows = []
+	for i in range(0, len(names), 5000):
+		rows += frappe.db.sql(
+			"select " + _POINT_COLUMNS + " from `tabPatrol GPS Log` where name in %(names)s",
+			{"names": tuple(names[i : i + 5000])},
+			as_dict=True,
+		)
+	rows.sort(key=lambda r: (r.captured_at, r.name))
+	return rows
+
+
+def _read_by_saved_farm(farm, start, end, include_on_duty):
+	"""Points saved under `farm` in the window, wherever they are."""
+	conditions = ["farm = %(farm)s", "captured_at between %(start)s and %(end)s"]
+	if not include_on_duty:
+		conditions.append("ifnull(tracking_mode, 'Patrol') != 'On Duty'")
+
+	# Index choice matters more here than anywhere else in this module.
+	# This query is "one farm, one time range". Forcing the captured_at
+	# covering index makes MariaDB walk every point in the window and
+	# discard the other farms' rows - 449,502 rows examined for a 40-day
+	# window on a farm holding 2,162 of them, which times the request out.
+	# farm_captured_at turns that into a seek.
+	force = ""
+	if frappe.db.db_type == "mariadb" and frappe.db.has_index("tabPatrol GPS Log", "farm_captured_at"):
+		force = " force index (farm_captured_at)"
+
+	return frappe.db.sql(
+		"select " + _POINT_COLUMNS + " from `tabPatrol GPS Log`" + force
+		+ " where " + " and ".join(conditions) + " order by captured_at asc",
+		{"farm": farm, "start": start, "end": end},
+		as_dict=True,
+	)
 
 
 def _too_inaccurate(accuracy):
@@ -227,9 +341,14 @@ def get_playback_extent(farm=None):
 		conditions.append("farm = %(farm)s")
 		params["farm"] = farm
 	where = (" where " + " and ".join(conditions)) if conditions else ""
+	# The count only for one farm, where farm_captured_at answers it from the
+	# index. Across the whole table it walks every row (1.5M on live) - the
+	# page asks for this on load to pick its default window, and a slow
+	# answer landed after the user had typed their own dates and replaced them.
+	count = "count(*)" if farm else "null"
 	row = frappe.db.sql(
 		"select min(captured_at) as first_at, max(captured_at) as last_at,"
-		" count(*) as points from `tabPatrol GPS Log`" + where,
+		" " + count + " as points from `tabPatrol GPS Log`" + where,
 		params,
 		as_dict=True,
 	)
