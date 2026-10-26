@@ -5637,8 +5637,12 @@ def create_incident(
 	body_part_affected=None,
 	nature_of_injury=None,
 	injury_current_location=None,
+	notify=None,
 ):
 	"""Create an Incident Report from the mobile app.
+
+	notify: optional list (or JSON list) of Employee IDs the reporter picked to
+	be told - see api/incident_notify.py, which notifies them on save.
 
 	Every input is normalised to a stripped string (None -> ""), including
 	is_fatal, which is true only for "1"/"true"/"True" - a JSON boolean true
@@ -5711,6 +5715,11 @@ def create_incident(
 			doc.attachment_3 = attachment_3
 		if attachment_4:
 			doc.attachment_4 = attachment_4
+		if notify:
+			picked = frappe.parse_json(notify) if isinstance(notify, str) else notify
+			for employee in dict.fromkeys(picked or []):
+				if employee and frappe.db.exists("Employee", employee):
+					doc.append("notify_persons", {"employee": employee})
 
 		doshs_deadline = ""
 		if nature_of_incident == "Workplace Injury":
@@ -6008,12 +6017,12 @@ def get_incident_report(name=None):
 		witnesses = frappe.get_all(
 			"Incident Person",
 			filters={"parent": name, "parentfield": "witnesses"},
-			fields=["person_name", "person_type", "contact", "id_number", "notes"],
+			fields=["person_name", "person_type", "contact", "id_number", "notes", "statement"],
 		)
 		victims = frappe.get_all(
 			"Incident Person",
 			filters={"parent": name, "parentfield": "victims"},
-			fields=["person_name", "person_type", "contact", "id_number", "notes"],
+			fields=["person_name", "person_type", "contact", "id_number", "notes", "statement"],
 		)
 		return {
 			"name": r.name,
@@ -7908,9 +7917,9 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 
 			def people(nm, pf):
 				out = []
-				pr = frappe.db.sql("SELECT person_name, person_type, id_number, contact, notes FROM `tabIncident Person` WHERE parent = %s AND parentfield = %s ORDER BY idx", (nm, pf))
+				pr = frappe.db.sql("SELECT person_name, person_type, id_number, contact, notes, statement FROM `tabIncident Person` WHERE parent = %s AND parentfield = %s ORDER BY idx", (nm, pf))
 				for p in pr:
-					out.append({"name": p[0] or "—", "type": p[1] or "", "id_number": p[2] or "", "contact": p[3] or "", "notes": p[4] or ""})
+					out.append({"name": p[0] or "—", "type": p[1] or "", "id_number": p[2] or "", "contact": p[3] or "", "notes": p[4] or "", "statement": p[5] or ""})
 				return out
 
 			details = []

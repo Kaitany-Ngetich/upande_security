@@ -251,7 +251,11 @@ doc_events = {
 		"before_insert": "upande_security.api.scoping.stamp_incident_report_farm",
 		# Logs watched people named on it, and closes watchlist entries whose
 		# incident is Resolved/Closed.
-		"on_update": "upande_security.api.watchlist.on_doc_event",
+		"on_update": [
+			"upande_security.api.watchlist.on_doc_event",
+			# Tells the people picked under Notify, once each (api/incident_notify.py).
+			"upande_security.api.incident_notify.notify_people",
+		],
 	},
 	# Covert watchlist (api/watchlist.py): log a watched person's gate
 	# transactions for Security Heads. Every handler is a no-op while the

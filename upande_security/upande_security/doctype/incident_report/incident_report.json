@@ -26,17 +26,14 @@
   "assigned_to",
   "section_description",
   "description",
+  "section_notify",
+  "notify_persons",
   "section_people",
   "responsible_persons",
   "section_victims",
   "victims",
   "section_witnesses",
   "witnesses",
-  "section_resolution",
-  "resolution",
-  "corrective_actions",
-  "resolution_datetime",
-  "column_break_res_1",
   "section_casualties",
   "casualties_wounded",
   "casualties_deceased",
@@ -45,6 +42,17 @@
   "casualties_unaccounted",
   "casualties_notes",
   "remarks",
+  "section_damage",
+  "damage_description",
+  "column_break_damage",
+  "estimated_damage_value",
+  "recovered_value",
+  "net_loss",
+  "section_resolution",
+  "resolution",
+  "corrective_actions",
+  "resolution_datetime",
+  "column_break_res_1",
   "section_attachments",
   "attachment_1",
   "attachment_2",
@@ -173,6 +181,17 @@
    "reqd": 1
   },
   {
+   "fieldname": "section_notify",
+   "fieldtype": "Section Break",
+   "label": "Notify"
+  },
+  {
+   "fieldname": "notify_persons",
+   "fieldtype": "Table",
+   "options": "Incident Notify Person",
+   "label": "Notify"
+  },
+  {
    "collapsible": 1,
    "fieldname": "section_people",
    "fieldtype": "Section Break",
@@ -207,32 +226,6 @@
    "fieldtype": "Table",
    "label": "Witnesses",
    "options": "Incident Person"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "section_resolution",
-   "fieldtype": "Section Break",
-   "label": "Resolution"
-  },
-  {
-   "fieldname": "resolution",
-   "fieldtype": "Long Text",
-   "label": "Resolution"
-  },
-  {
-   "fieldname": "corrective_actions",
-   "fieldtype": "Long Text",
-   "label": "Corrective Actions"
-  },
-  {
-   "fieldname": "resolution_datetime",
-   "fieldtype": "Datetime",
-   "label": "Resolved At",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_res_1",
-   "fieldtype": "Column Break"
   },
   {
    "collapsible": 1,
@@ -279,6 +272,64 @@
    "label": "Remarks"
   },
   {
+   "fieldname": "section_damage",
+   "fieldtype": "Section Break",
+   "label": "Damage & Loss"
+  },
+  {
+   "fieldname": "damage_description",
+   "fieldtype": "Small Text",
+   "label": "What Was Damaged / Lost"
+  },
+  {
+   "fieldname": "column_break_damage",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "estimated_damage_value",
+   "fieldtype": "Currency",
+   "label": "Estimated Value",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "recovered_value",
+   "fieldtype": "Currency",
+   "label": "Value Recovered",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "net_loss",
+   "fieldtype": "Currency",
+   "label": "Net Loss",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_resolution",
+   "fieldtype": "Section Break",
+   "label": "Resolution"
+  },
+  {
+   "fieldname": "resolution",
+   "fieldtype": "Long Text",
+   "label": "Resolution"
+  },
+  {
+   "fieldname": "corrective_actions",
+   "fieldtype": "Long Text",
+   "label": "Corrective Actions"
+  },
+  {
+   "fieldname": "resolution_datetime",
+   "fieldtype": "Datetime",
+   "label": "Resolved At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_res_1",
+   "fieldtype": "Column Break"
+  },
+  {
    "collapsible": 1,
    "fieldname": "section_attachments",
    "fieldtype": "Section Break",
@@ -312,7 +363,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-04 16:21:14.906540",
+ "modified": "2026-10-26 23:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Incident Report",
