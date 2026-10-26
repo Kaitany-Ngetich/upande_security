@@ -29,3 +29,4 @@ upande_security.patches.enable_on_duty_tracking
 upande_security.patches.add_patrol_farm_time_index
 upande_security.patches.enable_patrol_playback
 upande_security.patches.enable_checkpoint_scanning
+upande_security.patches.set_booking_sms_template
