@@ -35,8 +35,7 @@
   {
    "fieldname": "location_hint",
    "fieldtype": "Small Text",
-   "label": "Where It Is",
-   "description": "How a guard finds it, e.g. \"Pump house, east wall\". Printed on the QR label."
+   "label": "Where It Is"
   },
   {
    "fieldname": "column_break_1",
@@ -75,8 +74,7 @@
    "fieldname": "latitude",
    "fieldtype": "Float",
    "label": "Latitude",
-   "precision": "8",
-   "description": "Set on site from the app (Checkpoints > Set position): it averages several GPS readings taken standing at the checkpoint."
+   "precision": "8"
   },
   {
    "fieldname": "longitude",
@@ -93,8 +91,7 @@
    "fieldname": "radius_m",
    "fieldtype": "Int",
    "label": "Fence Radius (meters)",
-   "non_negative": 1,
-   "description": "A scan is accepted only this close to the checkpoint, plus an allowance for the phone's reported GPS accuracy (Security Ops Settings > Patrol Checkpoints). Stops a photo of the QR being scanned anywhere else."
+   "non_negative": 1
   },
   {
    "fieldname": "position_accuracy_m",
@@ -131,13 +128,12 @@
    "fieldname": "qr_image",
    "fieldtype": "Attach Image",
    "label": "QR Code",
-   "read_only": 1,
-   "description": "Generated when the checkpoint is created. Print with the Checkpoint QR Label print format."
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-26 12:00:00.000000",
+ "modified": "2026-10-26 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Checkpoint",

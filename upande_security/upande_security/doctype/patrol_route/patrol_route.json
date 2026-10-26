@@ -5,7 +5,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "links": [],
- "modified": "2026-10-26 12:00:00.000000",
+ "modified": "2026-10-26 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Patrol Route",
@@ -57,14 +57,12 @@
    "default": "1",
    "fieldname": "shuffle",
    "fieldtype": "Check",
-   "label": "Shuffle Order Each Patrol",
-   "description": "Every patrol on this route gets the checkpoints in a new random order, so rounds cannot be predicted. Off: the order below, every time."
+   "label": "Shuffle Order Each Patrol"
   },
   {
    "fieldname": "assign_section",
    "fieldtype": "Section Break",
-   "label": "Assigned To",
-   "description": "Leave empty for a farm route: guards at this farm without a route of their own get one of the farm's active routes, picked at random per patrol."
+   "label": "Assigned To"
   },
   {
    "fieldname": "personel",

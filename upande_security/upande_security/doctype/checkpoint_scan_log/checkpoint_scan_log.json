@@ -5,7 +5,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "links": [],
- "modified": "2026-10-26 15:00:00.000000",
+ "modified": "2026-10-26 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Checkpoint Scan Log",
@@ -105,7 +105,6 @@
    "fieldname": "patrol",
    "fieldtype": "Data",
    "label": "Patrol",
-   "description": "The app's patrol tag - the same one its GPS points are uploaded under.",
    "in_standard_filter": 1
   },
   {
@@ -117,8 +116,7 @@
   {
    "fieldname": "planned_position",
    "fieldtype": "Int",
-   "label": "Planned Position",
-   "description": "Where this checkpoint sat in the patrol's shuffled order (1 = first)."
+   "label": "Planned Position"
   },
   {
    "fieldname": "col_br_p",
@@ -127,8 +125,7 @@
   {
    "fieldname": "scan_position",
    "fieldtype": "Int",
-   "label": "Scanned As Number",
-   "description": "How many checkpoints this patrol had validly scanned, including this one."
+   "label": "Scanned As Number"
   },
   {
    "fieldname": "gps_section",
@@ -168,8 +165,7 @@
    "fieldname": "allowed_m",
    "fieldtype": "Float",
    "label": "Allowed Distance (m)",
-   "precision": "1",
-   "description": "Fence radius plus the accuracy allowance at the time of the scan."
+   "precision": "1"
   },
   {
    "fieldname": "mocked",
