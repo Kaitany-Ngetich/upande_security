@@ -95,7 +95,9 @@ jinja = {
 # ------------
 
 # before_install = "upande_security.install.before_install"
-# after_install = "upande_security.install.after_install"
+# Fixtures for doctypes of apps this one does not require (WhatsApp) -
+# imported only where those apps are installed. See optional_fixtures.py.
+after_install = "upande_security.optional_fixtures.sync"
 
 # Uninstallation
 # ------------
@@ -163,6 +165,7 @@ jinja = {
 # and not a one-time patch.
 after_migrate = [
 	"upande_security.sync_workspace.sync_shortcuts",
+	"upande_security.optional_fixtures.sync",
 ]
 
 doc_events = {
@@ -867,26 +870,10 @@ fixtures = [
             ],
         ],
     },
-    {
-        # frappe_whatsapp's own Notification doctype (production-only app —
-        # not installed on this local bench, so this fixture documents the
-        # live config but can't be replayed here). Fires the same "visitor
-        # arrived" alert as the Email/SMS Notifications above, over
-        # WhatsApp, using the already-Meta-approved visitor_host_alert_v2
-        # template (body + an "Open Appointment" button).
-        "dt": "WhatsApp Notification",
-        "filters": [
-            [
-                "name",
-                "in",
-                [
-                    "Visitor at Reception - Host Alert (WhatsApp)",
-                    # "Visitor at Reception - Secretary Alert (Karen Roses)" is
-                    # retired - deleted by patches/remove_retired_appointment_
-                    # contact_fields along with the custom_secretary_wa field it read.
-                ],
-            ],
-        ],
-    },
+    # The "Visitor at Reception - Host Alert (WhatsApp)" WhatsApp Notification
+    # is NOT listed here: listing it made frappe_whatsapp a hard requirement
+    # (the import fails on sites without its table). It lives in
+    # optional_fixtures/ and is imported only where that app is installed -
+    # see optional_fixtures.py, run from after_install / after_migrate below.
 ]
 
