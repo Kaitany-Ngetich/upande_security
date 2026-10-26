@@ -32,6 +32,7 @@
   "notification_recipients_section",
   "notification_rules",
   "visitor_sms_section",
+  "visitor_booking_sms_template",
   "visitor_otp_sms_template",
   "visitor_sms_column_break",
   "visitor_thankyou_sms_template",
@@ -509,6 +510,13 @@
    "label": "Visitor SMS Messages"
   },
   {
+   "default": "Hello {visitor}, your visit to {company} on {date} is booked. Show this code at the gate: {code}",
+   "description": "Sent when a visit is booked (and again, with the new date, if it is rescheduled). {visitor}, {company}, {date} and {code} are filled in. Walk-ins get the Visitor Code SMS at check-in instead.",
+   "fieldname": "visitor_booking_sms_template",
+   "fieldtype": "Small Text",
+   "label": "Booking Code SMS"
+  },
+  {
    "default": "Welcome to {company}! Your visit code is {code}.",
    "fieldname": "visitor_otp_sms_template",
    "fieldtype": "Small Text",
@@ -599,7 +607,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-25 12:00:00.000000",
+ "modified": "2026-10-26 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",

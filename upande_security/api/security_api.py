@@ -1218,18 +1218,19 @@ def search_visitor_appointment(query=None):
 			       a.scheduled_time, a.customer_details,
 			       a.custom_mode_of_transport,
 			       a.custom_vehicles_number_plate, a.custom_vehicles_colour,
-			       a.workflow_state, a.status, a.custom_reporting_status
+			       a.workflow_state, a.status, a.custom_reporting_status, a.custom_visitor_otp
 			FROM `tabAppointment` a
 			LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with
 			WHERE DATE(a.scheduled_time) = %s
 			  AND (a.customer_name LIKE %s
 			       OR a.customer_phone_number LIKE %s
 			       OR a.name LIKE %s
-			       OR a.custom_id_number = %s)
-			ORDER BY a.scheduled_time DESC
+			       OR a.custom_id_number = %s
+			       OR a.custom_visitor_otp = %s)
+			ORDER BY (a.custom_visitor_otp = %s) DESC, a.scheduled_time DESC
 			LIMIT 1
 			""",
-			(today, like, like, like, query),
+			(today, like, like, like, query, query, query),
 			as_dict=True,
 		)
 
@@ -1287,7 +1288,9 @@ def search_visitor_appointment(query=None):
 
 		if r.custom_id_number and r.custom_id_number == query:
 			matched_by = "id"
-		elif r.name == query:
+		elif r.name == query or (r.get("custom_visitor_otp") and r.custom_visitor_otp == query):
+			# The visit code from the booking SMS identifies the visit as
+			# exactly as its ID does.
 			matched_by = "appointment"
 		else:
 			matched_by = "other"
@@ -1753,6 +1756,8 @@ def create_walk_in(customer_name=None, id_number=None, phone=None, email=None, h
 
 		now = frappe.utils.now_datetime()
 		doc = frappe.new_doc("Appointment")
+		# Created at the gate: the visitor gets the welcome code at check-in, not a booking SMS.
+		doc.flags.skip_booking_sms = True
 		doc.flags.ignore_mandatory = True
 		doc.customer_name = customer_name
 		doc.custom_id_number = id_number
@@ -1925,6 +1930,8 @@ def create_walk_in_notify(customer_name=None, id_number=None, phone=None, email=
 		)
 
 		doc = frappe.new_doc("Appointment")
+		# Created at the gate: the visitor gets the welcome code at check-in, not a booking SMS.
+		doc.flags.skip_booking_sms = True
 		doc.flags.ignore_mandatory = True
 		doc.customer_name = customer_name
 		doc.custom_id_number = id_number
@@ -2909,6 +2916,8 @@ def contractor_gate_checkin(
 				detail_str = detail_str + ' [' + contractor_ref + ']'
 
 			doc = frappe.new_doc('Appointment')
+			# Created at the gate: the visitor gets the welcome code at check-in, not a booking SMS.
+			doc.flags.skip_booking_sms = True
 			doc.customer_name = contractor_name
 			doc.customer_email = ''
 			doc.scheduled_time = now_str
@@ -3126,6 +3135,8 @@ def create_contractor_notify(
 		now_str = str(frappe.utils.now_datetime())
 
 		doc = frappe.new_doc("Appointment")
+		# Created at the gate: the visitor gets the welcome code at check-in, not a booking SMS.
+		doc.flags.skip_booking_sms = True
 		doc.customer_name = contractor_name
 		doc.customer_email = ""
 		doc.custom_meet_with = host

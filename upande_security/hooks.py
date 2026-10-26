@@ -191,6 +191,9 @@ doc_events = {
 		# host's own "Visitor at Reception" Notification.
 		"after_insert": [
 			"upande_security.api.appointment_recipients.notify_extra_recipients",
+			# Visit code SMS to the visitor for a scheduled (not gate-created)
+			# visit - see api/visitor_sms.py.
+			"upande_security.api.visitor_sms.on_appointment_insert",
 			# Covert watchlist - see api/watchlist.py. Never raises.
 			"upande_security.api.watchlist.on_doc_event",
 		],
