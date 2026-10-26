@@ -28,6 +28,7 @@ FEATURE_FIELDS = [
 	"feature_patrol_coverage_grid",
 	"feature_patrol_boundary_filter",
 	"feature_patrol_playback",
+	"feature_checkpoint_scanning",
 	"feature_security_alerts",
 	"feature_watchlist",
 	"feature_zone_breach_alerts",

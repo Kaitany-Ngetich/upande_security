@@ -25,6 +25,10 @@
   "playback_include_on_duty",
   "playback_column_break",
   "playback_max_window_days",
+  "checkpoint_section",
+  "checkpoint_accuracy_allowance_m",
+  "checkpoint_column_break",
+  "checkpoint_max_accuracy_m",
   "notification_recipients_section",
   "notification_rules",
   "visitor_sms_section",
@@ -52,6 +56,7 @@
   "feature_patrol_coverage_grid",
   "feature_patrol_boundary_filter",
   "feature_patrol_playback",
+  "feature_checkpoint_scanning",
   "feature_security_alerts",
   "feature_column_break_2",
   "feature_watchlist",
@@ -155,6 +160,13 @@
    "fieldname": "feature_patrol_playback",
    "fieldtype": "Check",
    "label": "Patrol Playback"
+  },
+  {
+   "default": "1",
+   "description": "Guards scan printed QR checkpoints on patrol; a scan only counts at the checkpoint's GPS position. Also makes Unscanned Checkpoint alerts require a real scan instead of the guard's GPS trail passing nearby.",
+   "fieldname": "feature_checkpoint_scanning",
+   "fieldtype": "Check",
+   "label": "Patrol Checkpoint Scanning"
   },
   {
    "default": "1",
@@ -450,6 +462,34 @@
    "fieldname": "playback_max_window_days",
    "fieldtype": "Int",
    "label": "Longest Window (days)",
+   "non_negative": 1
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.feature_checkpoint_scanning",
+   "fieldname": "checkpoint_section",
+   "fieldtype": "Section Break",
+   "label": "Patrol Checkpoints",
+   "description": "A scan counts when the phone is within the checkpoint's Fence Radius plus its own reported GPS accuracy, up to the allowance below. Positions are set on site from the app by a System Manager or Security Head."
+  },
+  {
+   "default": "7",
+   "description": "How much of the phone's reported GPS accuracy may be added to a checkpoint's Fence Radius. Keeps a vague fix from stretching the fence.",
+   "fieldname": "checkpoint_accuracy_allowance_m",
+   "fieldtype": "Int",
+   "label": "GPS Accuracy Allowance (meters)",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "checkpoint_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "15",
+   "description": "A scan with a GPS fix worse than this is refused (the guard is asked to step into the open and retry) - too vague to tell where the phone is.",
+   "fieldname": "checkpoint_max_accuracy_m",
+   "fieldtype": "Int",
+   "label": "Refuse GPS Fixes Worse Than (meters)",
    "non_negative": 1
   },
   {

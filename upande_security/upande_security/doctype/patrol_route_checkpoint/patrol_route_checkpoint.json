@@ -1,0 +1,40 @@
+{
+ "actions": [],
+ "creation": "2026-10-26 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-26 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Patrol Route Checkpoint",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "fields": [
+  {
+   "fieldname": "checkpoint",
+   "fieldtype": "Link",
+   "options": "Security Checkpoint",
+   "label": "Checkpoint",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "checkpoint_name",
+   "fieldtype": "Data",
+   "label": "Checkpoint Name",
+   "fetch_from": "checkpoint.checkpoint_name",
+   "read_only": 1,
+   "in_list_view": 1
+  }
+ ],
+ "field_order": [
+  "checkpoint",
+  "checkpoint_name"
+ ]
+}

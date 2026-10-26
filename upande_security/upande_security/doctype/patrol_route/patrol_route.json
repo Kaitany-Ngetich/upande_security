@@ -1,0 +1,163 @@
+{
+ "actions": [],
+ "autoname": "field:route_name",
+ "creation": "2026-10-26 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "links": [],
+ "modified": "2026-10-26 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Patrol Route",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "fields": [
+  {
+   "fieldname": "route_name",
+   "fieldtype": "Data",
+   "label": "Route Name",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "options": "Farm",
+   "label": "Farm",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "options": "Company",
+   "label": "Company",
+   "fetch_from": "farm.company",
+   "fetch_if_empty": 1
+  },
+  {
+   "fieldname": "col_br_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "active",
+   "fieldtype": "Check",
+   "label": "Active",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "shuffle",
+   "fieldtype": "Check",
+   "label": "Shuffle Order Each Patrol",
+   "description": "Every patrol on this route gets the checkpoints in a new random order, so rounds cannot be predicted. Off: the order below, every time."
+  },
+  {
+   "fieldname": "assign_section",
+   "fieldtype": "Section Break",
+   "label": "Assigned To",
+   "description": "Leave empty for a farm route: guards at this farm without a route of their own get one of the farm's active routes, picked at random per patrol."
+  },
+  {
+   "fieldname": "personel",
+   "fieldtype": "Select",
+   "options": "\nInternal Guard\nExternal Guard",
+   "label": "Guard Type"
+  },
+  {
+   "fieldname": "internal_guard",
+   "fieldtype": "Link",
+   "options": "Employee",
+   "label": "Internal Guard",
+   "depends_on": "eval:doc.personel=='Internal Guard'"
+  },
+  {
+   "fieldname": "external_guard",
+   "fieldtype": "Link",
+   "options": "Security Guard",
+   "label": "External Guard",
+   "depends_on": "eval:doc.personel=='External Guard'"
+  },
+  {
+   "fieldname": "checkpoints_section",
+   "fieldtype": "Section Break",
+   "label": "Checkpoints"
+  },
+  {
+   "fieldname": "checkpoints",
+   "fieldtype": "Table",
+   "options": "Patrol Route Checkpoint",
+   "label": "Checkpoints",
+   "reqd": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "Security Head",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "CEO",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Farm Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  }
+ ],
+ "field_order": [
+  "route_name",
+  "farm",
+  "company",
+  "col_br_1",
+  "active",
+  "shuffle",
+  "assign_section",
+  "personel",
+  "internal_guard",
+  "external_guard",
+  "checkpoints_section",
+  "checkpoints"
+ ]
+}

@@ -706,7 +706,7 @@ fixtures = [
         # a new sibling entry.
         "dt": "Print Format",
         "filters": [
-            ["name", "in", ["Gate Badge Card", "Delivery Note - Gate Copy", "Purchase Receipt - Gate Copy", "Staff Vehicle Sticker Card"]],
+            ["name", "in", ["Gate Badge Card", "Delivery Note - Gate Copy", "Purchase Receipt - Gate Copy", "Staff Vehicle Sticker Card", "Checkpoint QR Label"]],
         ],
     },
     {

@@ -2659,7 +2659,85 @@ def fetchPatrolData(date=None, farm=None):
         },
         # The map shows its Playback button only when the feature is on.
         "playback_enabled": is_feature_enabled("feature_patrol_playback"),
+        "checkpoints": _map_checkpoints(farm, selected_date),
     }
+
+
+def _map_checkpoints(farm, selected_date):
+    """Positioned, active Security Checkpoints for the patrol map's flag
+    layer, each with that day's scans from Checkpoint Scan Log: how many
+    valid, the last one, and how many refused (too far, fake GPS) - a
+    checkpoint refused but never validly scanned is the one to look at."""
+    if not is_feature_enabled("feature_checkpoint_scanning"):
+        return []
+    if not frappe.db.table_exists("Checkpoint Scan Log"):
+        return []
+    if not frappe.has_permission("Security Checkpoint", ptype="read"):
+        return []
+
+    filters = {"active": 1, "latitude": ["!=", 0], "longitude": ["!=", 0]}
+    if farm:
+        filters["farm"] = farm
+    checkpoints = frappe.get_all(
+        "Security Checkpoint",
+        filters=filters,
+        fields=["name", "checkpoint_name", "location_hint", "farm", "latitude", "longitude", "radius_m"],
+        limit_page_length=2000,
+    )
+    if not checkpoints:
+        return []
+
+    scans = {}
+    for r in frappe.db.sql(
+        """
+        SELECT checkpoint, result, scanned_at, internal_guard, external_guard
+        FROM `tabCheckpoint Scan Log`
+        WHERE checkpoint IN %(names)s AND scanned_at BETWEEN %(start)s AND %(end)s
+        ORDER BY scanned_at
+        """,
+        {
+            "names": tuple(c.name for c in checkpoints),
+            "start": f"{selected_date} 00:00:00",
+            "end": f"{selected_date} 23:59:59",
+        },
+        as_dict=True,
+    ):
+        s = scans.setdefault(r.checkpoint, {"valid": 0, "refused": 0, "last": None})
+        if r.result == "Valid":
+            s["valid"] += 1
+            s["last"] = r
+        elif r.result in ("Too Far", "Fake GPS"):
+            s["refused"] += 1
+
+    names = {}
+    out = []
+    for c in checkpoints:
+        s = scans.get(c.name) or {"valid": 0, "refused": 0, "last": None}
+        last = s["last"]
+        last_by = None
+        if last:
+            key = ("Employee", last.internal_guard) if last.internal_guard else ("Security Guard", last.external_guard)
+            if key[1] and key not in names:
+                names[key] = frappe.db.get_value(
+                    key[0], key[1], "employee_name" if key[0] == "Employee" else "full_name"
+                ) or key[1]
+            last_by = names.get(key)
+        out.append(
+            {
+                "checkpoint": c.name,
+                "checkpoint_name": c.checkpoint_name,
+                "location_hint": c.location_hint,
+                "farm": c.farm,
+                "latitude": c.latitude,
+                "longitude": c.longitude,
+                "radius_m": c.radius_m,
+                "valid_scans": s["valid"],
+                "refused_scans": s["refused"],
+                "last_scanned_at": str(last.scanned_at) if last else None,
+                "last_scanned_by": last_by,
+            }
+        )
+    return out
 
 
 # ─────────────────────────────────────────────────────────────────

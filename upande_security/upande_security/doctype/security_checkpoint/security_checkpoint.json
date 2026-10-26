@@ -1,20 +1,27 @@
 {
  "actions": [],
- "autoname": "hash",
+ "autoname": "CP-.#####",
  "creation": "2026-09-29 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "checkpoint_name",
+  "location_hint",
   "column_break_1",
   "company",
   "farm",
+  "active",
   "section_break_1",
   "latitude",
   "longitude",
   "column_break_2",
   "radius_m",
-  "active"
+  "position_accuracy_m",
+  "position_samples",
+  "position_set_by",
+  "position_set_at",
+  "qr_section",
+  "qr_image"
  ],
  "fields": [
   {
@@ -24,6 +31,12 @@
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1
+  },
+  {
+   "fieldname": "location_hint",
+   "fieldtype": "Small Text",
+   "label": "Where It Is",
+   "description": "How a guard finds it, e.g. \"Pump house, east wall\". Printed on the QR label."
   },
   {
    "fieldname": "column_break_1",
@@ -46,6 +59,14 @@
    "in_standard_filter": 1
   },
   {
+   "default": "1",
+   "fieldname": "active",
+   "fieldtype": "Check",
+   "label": "Active",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
    "fieldname": "section_break_1",
    "fieldtype": "Section Break",
    "label": "Location"
@@ -54,7 +75,8 @@
    "fieldname": "latitude",
    "fieldtype": "Float",
    "label": "Latitude",
-   "precision": "8"
+   "precision": "8",
+   "description": "Set on site from the app (Checkpoints > Set position): it averages several GPS readings taken standing at the checkpoint."
   },
   {
    "fieldname": "longitude",
@@ -67,56 +89,114 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "75",
+   "default": "3",
    "fieldname": "radius_m",
    "fieldtype": "Int",
-   "label": "Detection Radius (meters)"
+   "label": "Fence Radius (meters)",
+   "non_negative": 1,
+   "description": "A scan is accepted only this close to the checkpoint, plus an allowance for the phone's reported GPS accuracy (Security Ops Settings > Patrol Checkpoints). Stops a photo of the QR being scanned anywhere else."
   },
   {
-   "default": "1",
-   "fieldname": "active",
-   "fieldtype": "Check",
-   "label": "Active",
-   "in_list_view": 1,
-   "in_standard_filter": 1
+   "fieldname": "position_accuracy_m",
+   "fieldtype": "Float",
+   "label": "Position Accuracy (meters)",
+   "read_only": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "position_samples",
+   "fieldtype": "Int",
+   "label": "GPS Readings Averaged",
+   "read_only": 1
+  },
+  {
+   "fieldname": "position_set_by",
+   "fieldtype": "Link",
+   "options": "User",
+   "label": "Position Set By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "position_set_at",
+   "fieldtype": "Datetime",
+   "label": "Position Set At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "qr_section",
+   "fieldtype": "Section Break",
+   "label": "QR Code"
+  },
+  {
+   "fieldname": "qr_image",
+   "fieldtype": "Attach Image",
+   "label": "QR Code",
+   "read_only": 1,
+   "description": "Generated when the checkpoint is created. Print with the Checkpoint QR Label print format."
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-29 00:00:00.000000",
+ "modified": "2026-10-26 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Checkpoint",
- "naming_rule": "Random",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
    "create": 1,
    "delete": 1,
-   "email": 1,
+   "report": 1,
    "export": 1,
    "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Security Head",
-   "share": 1,
-   "write": 1
+   "email": 1,
+   "share": 1
   },
   {
+   "role": "Security Head",
+   "read": 1,
+   "write": 1,
    "create": 1,
    "delete": 1,
-   "email": 1,
+   "report": 1,
    "export": 1,
    "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "CEO",
    "read": 1,
    "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Farm Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
   }
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "track_changes": 1
+ "track_changes": 1,
+ "title_field": "checkpoint_name",
+ "show_title_field_in_link": 1,
+ "search_fields": "checkpoint_name,farm",
+ "image_field": "qr_image",
+ "default_print_format": "Checkpoint QR Label"
 }

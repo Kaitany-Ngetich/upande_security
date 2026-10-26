@@ -1,0 +1,266 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-10-26 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "links": [],
+ "modified": "2026-10-26 15:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Checkpoint Scan Log",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "sort_field": "scanned_at",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "checkpoint_name",
+ "in_create": 1,
+ "track_changes": 0,
+ "fields": [
+  {
+   "fieldname": "checkpoint",
+   "fieldtype": "Link",
+   "options": "Security Checkpoint",
+   "label": "Checkpoint",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "checkpoint_name",
+   "fieldtype": "Data",
+   "label": "Checkpoint Name"
+  },
+  {
+   "fieldname": "result",
+   "fieldtype": "Select",
+   "label": "Result",
+   "options": "Valid\nToo Far\nPoor GPS\nFake GPS\nPosition Not Set\nInactive Checkpoint\nUnknown Code",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "scanned_at",
+   "fieldtype": "Datetime",
+   "label": "Scanned At",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "col_br_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "scanned_by",
+   "fieldtype": "Link",
+   "options": "User",
+   "label": "Scanned By"
+  },
+  {
+   "fieldname": "personel",
+   "fieldtype": "Select",
+   "options": "\nInternal Guard\nExternal Guard",
+   "label": "Personel"
+  },
+  {
+   "fieldname": "internal_guard",
+   "fieldtype": "Link",
+   "options": "Employee",
+   "label": "Internal Guard",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "external_guard",
+   "fieldtype": "Link",
+   "options": "Security Guard",
+   "label": "External Guard",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "guard_name",
+   "fieldtype": "Data",
+   "label": "Guard",
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "options": "Farm",
+   "label": "Farm",
+   "in_standard_filter": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "options": "Company",
+   "label": "Company"
+  },
+  {
+   "fieldname": "patrol_section",
+   "fieldtype": "Section Break",
+   "label": "Patrol"
+  },
+  {
+   "fieldname": "patrol",
+   "fieldtype": "Data",
+   "label": "Patrol",
+   "description": "The app's patrol tag - the same one its GPS points are uploaded under.",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "patrol_route",
+   "fieldtype": "Link",
+   "options": "Patrol Route",
+   "label": "Patrol Route"
+  },
+  {
+   "fieldname": "planned_position",
+   "fieldtype": "Int",
+   "label": "Planned Position",
+   "description": "Where this checkpoint sat in the patrol's shuffled order (1 = first)."
+  },
+  {
+   "fieldname": "col_br_p",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "scan_position",
+   "fieldtype": "Int",
+   "label": "Scanned As Number",
+   "description": "How many checkpoints this patrol had validly scanned, including this one."
+  },
+  {
+   "fieldname": "gps_section",
+   "fieldtype": "Section Break",
+   "label": "GPS"
+  },
+  {
+   "fieldname": "latitude",
+   "fieldtype": "Float",
+   "label": "Latitude",
+   "precision": "8"
+  },
+  {
+   "fieldname": "longitude",
+   "fieldtype": "Float",
+   "label": "Longitude",
+   "precision": "8"
+  },
+  {
+   "fieldname": "gps_accuracy",
+   "fieldtype": "Float",
+   "label": "GPS Accuracy (m)",
+   "precision": "1"
+  },
+  {
+   "fieldname": "col_br_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "distance_m",
+   "fieldtype": "Float",
+   "label": "Distance From Checkpoint (m)",
+   "precision": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "allowed_m",
+   "fieldtype": "Float",
+   "label": "Allowed Distance (m)",
+   "precision": "1",
+   "description": "Fence radius plus the accuracy allowance at the time of the scan."
+  },
+  {
+   "fieldname": "mocked",
+   "fieldtype": "Check",
+   "label": "Fake GPS Reported"
+  },
+  {
+   "fieldname": "scanned_code",
+   "fieldtype": "Data",
+   "label": "Scanned Code"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "Security Head",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "CEO",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Farm Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Gate Guard",
+   "read": 1,
+   "if_owner": 1
+  },
+  {
+   "role": "Security Guard",
+   "read": 1,
+   "if_owner": 1
+  }
+ ],
+ "field_order": [
+  "checkpoint",
+  "checkpoint_name",
+  "result",
+  "scanned_at",
+  "col_br_1",
+  "scanned_by",
+  "personel",
+  "internal_guard",
+  "external_guard",
+  "guard_name",
+  "farm",
+  "company",
+  "patrol_section",
+  "patrol",
+  "patrol_route",
+  "planned_position",
+  "col_br_p",
+  "scan_position",
+  "gps_section",
+  "latitude",
+  "longitude",
+  "gps_accuracy",
+  "col_br_2",
+  "distance_m",
+  "allowed_m",
+  "mocked",
+  "scanned_code"
+ ]
+}

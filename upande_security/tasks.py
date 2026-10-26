@@ -566,6 +566,10 @@ def check_unscanned_checkpoints():
 
 	settings = frappe.get_single("Security Ops Settings")
 	missed_checkin_minutes = settings.missed_checkin_minutes or 30
+	# With checkpoint scanning on, a checkpoint is reached only by a valid
+	# scan of its QR (api/checkpoints.py) - the GPS trail passing nearby no
+	# longer counts, since that is exactly what scanning exists to prove.
+	by_scan = is_feature_enabled("feature_checkpoint_scanning")
 
 	active_shifts = frappe.get_all(
 		"Security Guard Shift Assignment",
@@ -623,14 +627,39 @@ def check_unscanned_checkpoints():
 		# "checkpoint reached" for a shift that hasn't actually gone there
 		# yet.
 		guard_filter["captured_at"] = [">=", shift_start]
-		points = frappe.get_all(
-			"Patrol GPS Log",
-			filters=guard_filter,
-			fields=["latitude", "longitude"],
-			limit_page_length=0,
-		)
+		if by_scan:
+			scan_filter = {
+				"result": "Valid",
+				"scanned_at": [">=", shift_start],
+				("internal_guard" if shift.security_guard == "Internal Guard" else "external_guard"): guard_label,
+			}
+			scanned = set(frappe.get_all("Checkpoint Scan Log", filters=scan_filter, pluck="checkpoint"))
+			points = []
+		else:
+			points = frappe.get_all(
+				"Patrol GPS Log",
+				filters=guard_filter,
+				fields=["latitude", "longitude"],
+				limit_page_length=0,
+			)
 
 		for checkpoint in shift_checkpoints:
+			if by_scan:
+				if checkpoint.name in scanned:
+					continue
+				alert_kind = "Unscanned checkpoint: " + checkpoint.checkpoint_name
+				if _recent_alert_exists(shift.name, alert_kind):
+					continue
+				_notify_security_ops(
+					shift.name,
+					alert_kind,
+					"Guard " + guard_label + " (shift " + shift.name + ") has not scanned checkpoint '"
+					+ checkpoint.checkpoint_name + "' (" + shift.farm + ") within "
+					+ str(missed_checkin_minutes) + " minutes of shift start.",
+					"security",
+				)
+				flagged += 1
+				continue
 			try:
 				cp_lat = float(checkpoint.latitude)
 				cp_lng = float(checkpoint.longitude)
