@@ -85,13 +85,19 @@
   "staff_gate_modes",
   "feature_carried_items",
   "feature_zone_breach_alerts",
-  "zone_breach_grace_minutes"
+  "zone_breach_grace_minutes",
+  "apk_release_section",
+  "latest_apk_version",
+  "latest_apk_url",
+  "apk_release_column_break",
+  "latest_apk_required",
+  "latest_apk_notes"
  ],
  "fields": [
   {
    "fieldname": "feature_flags_section",
    "fieldtype": "Section Break",
-   "label": "Feature Flags \u2014 Visitor Workflow",
+   "label": "Feature Flags — Visitor Workflow",
    "permlevel": 1
   },
   {
@@ -116,7 +122,7 @@
   {
    "fieldname": "feature_flags_section_2",
    "fieldtype": "Section Break",
-   "label": "Feature Flags \u2014 Alerts",
+   "label": "Feature Flags — Alerts",
    "permlevel": 1
   },
   {
@@ -196,7 +202,7 @@
   {
    "fieldname": "feature_flags_section_3",
    "fieldtype": "Section Break",
-   "label": "Feature Flags \u2014 Gate Verification",
+   "label": "Feature Flags — Gate Verification",
    "permlevel": 1
   },
   {
@@ -242,7 +248,7 @@
   {
    "fieldname": "feature_flags_section_4",
    "fieldtype": "Section Break",
-   "label": "Feature Flags \u2014 Admin",
+   "label": "Feature Flags — Admin",
    "permlevel": 1
   },
   {
@@ -269,7 +275,7 @@
   {
    "fieldname": "feature_flags_section_5",
    "fieldtype": "Section Break",
-   "label": "Feature Flags \u2014 Gate Modules",
+   "label": "Feature Flags — Gate Modules",
    "permlevel": 1
   },
   {
@@ -593,12 +599,49 @@
    "fieldname": "zone_breach_grace_minutes",
    "fieldtype": "Int",
    "label": "Zone Breach Repeat Window (minutes)"
+  },
+  {
+   "fieldname": "apk_release_section",
+   "fieldtype": "Section Break",
+   "label": "Mobile App Release (Android APK)",
+   "collapsible": 1,
+   "description": "Phones on an older APK download this one by themselves and offer to install it - one tap on Android's Update screen. Fill in after each new APK build; leave empty to offer nothing."
+  },
+  {
+   "fieldname": "latest_apk_version",
+   "fieldtype": "Data",
+   "label": "Latest APK Version",
+   "description": "The new build's version, e.g. 1.2.6 (app.json \"version\"). Phones with a lower version are offered it."
+  },
+  {
+   "fieldname": "latest_apk_url",
+   "fieldtype": "Data",
+   "label": "APK Download Link",
+   "options": "URL",
+   "description": "Direct link to the .apk file, e.g. the EAS build's artifact link."
+  },
+  {
+   "fieldname": "apk_release_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "latest_apk_required",
+   "fieldtype": "Check",
+   "label": "Compulsory",
+   "default": "0",
+   "description": "Ticked: the install prompt has no Later button and returns every time the app is opened."
+  },
+  {
+   "fieldname": "latest_apk_notes",
+   "fieldtype": "Small Text",
+   "label": "What's New",
+   "description": "Shown to the guard in the update prompt."
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-26 17:00:00.000000",
+ "modified": "2026-10-29 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",

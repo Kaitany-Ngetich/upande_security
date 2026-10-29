@@ -201,8 +201,8 @@ def _sms_text(doc):
 def send_sms(number, message):
 	"""Background job. Never raises."""
 	try:
-		from frappe.core.doctype.sms_settings.sms_settings import send_sms as frappe_send_sms
+		from upande_security.api.visitor_sms import send_system_sms
 
-		frappe_send_sms([number], message, success_msg=False)
+		send_system_sms([number], message)
 	except Exception:
 		frappe.log_error("Incident notify SMS", frappe.get_traceback())

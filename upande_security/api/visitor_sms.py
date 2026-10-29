@@ -16,8 +16,8 @@ Gate-created appointments (walk-ins, contractor check-ins and their
 notify-host variants) set doc.flags.skip_booking_sms: the visitor is
 standing at the gate, and gets the welcome code at check-in instead.
 
-Reuses Frappe's own generic SMS gateway
-(frappe.core.doctype.sms_settings.sms_settings.send_sms) rather than a
+Reuses Frappe's own generic SMS gateway (SMS Settings, through
+send_system_sms below) rather than a
 bespoke HTTP call to one specific provider - this app has no opinion on
 which SMS gateway a given Kaitet Group instance wires up, and send_sms()
 already no-ops cleanly (a msgprint, not an exception) if Security Ops
@@ -62,10 +62,24 @@ def _normalize_kenyan_number(raw):
 	return digits
 
 
-def _send(number, message):
-	from frappe.core.doctype.sms_settings.sms_settings import send_sms
+def send_system_sms(numbers, message):
+	"""Send an SMS on the app's own behalf - visit codes, thank-yous, incident
+	alerts - whoever's action triggered it.
 
-	send_sms([number], message, success_msg=False)
+	Frappe 16's whitelisted send_sms() refuses users who aren't System Manager
+	or in SMS Settings' Allowed Roles, so a secretary booking a visit or a
+	guard checking one in had their visitor's SMS refused ("You are not
+	permitted to send SMS"). That check guards the public endpoint; these
+	messages are server-composed, so they use the unchecked _send_sms() where
+	this Frappe has it (16+), and send_sms() before that (15 has no check)."""
+	from frappe.core.doctype.sms_settings import sms_settings
+
+	send = sms_settings._send_sms if hasattr(sms_settings, "_send_sms") else sms_settings.send_sms
+	send(numbers, message, success_msg=False)
+
+
+def _send(number, message):
+	send_system_sms([number], message)
 
 
 def send_checkin_otp(appointment_name):

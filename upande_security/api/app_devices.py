@@ -17,6 +17,10 @@ the same channel has reported, so nothing has to be kept in sync by hand:
 
 push_app_update sends an "app_update" push; the app downloads the update and
 restarts itself on receipt (or when the guard taps the notification).
+
+A new native build cannot travel over the air. Security Ops Settings' Mobile
+App Release section names the newest APK; report_app_version hands it back
+(latest_apk) and the app downloads it and opens Android's install screen.
 """
 
 import frappe
@@ -84,10 +88,35 @@ def report_app_version(
 		doc.save(ignore_permissions=True)
 		refresh_update_status()
 		frappe.db.commit()
-		return {"name": doc.name, "update_status": frappe.db.get_value("Guard Device Token", doc.name, "update_status")}
+		return {
+			"name": doc.name,
+			"update_status": frappe.db.get_value("Guard Device Token", doc.name, "update_status"),
+			"latest_apk": latest_apk() if doc.platform == "android" else None,
+		}
 	except Exception as e:
 		frappe.log_error("report_app_version", frappe.get_traceback())
 		return {"error": str(e)}
+
+
+def latest_apk():
+	"""The newest Android build, as published in Security Ops Settings, or
+	None. The app compares the version with its own and, when older,
+	downloads the APK and offers Android's install screen (apkUpdate.ts) -
+	the native changes an over-the-air update cannot carry."""
+	s = frappe.db.get_value(
+		"Security Ops Settings",
+		"Security Ops Settings",
+		["latest_apk_version", "latest_apk_url", "latest_apk_required", "latest_apk_notes"],
+		as_dict=True,
+	)
+	if not s or not (s.latest_apk_version or "").strip() or not (s.latest_apk_url or "").strip():
+		return None
+	return {
+		"version": s.latest_apk_version.strip(),
+		"url": s.latest_apk_url.strip(),
+		"required": 1 if s.latest_apk_required else 0,
+		"notes": s.latest_apk_notes or "",
+	}
 
 
 def _parse_datetime(value):
@@ -165,7 +194,9 @@ def push_update_to_outdated():
 	refresh_update_status()
 	names = frappe.get_all(
 		"Guard Device Token",
-		filters={"update_status": ["in", ["Outdated", "Unknown (old app)"]]},
+		# Needs New Install too: a phone with the APK updater checks for the
+		# new APK when this push arrives (it re-reports its version).
+		filters={"update_status": ["in", ["Outdated", "Unknown (old app)", "Needs New Install"]]},
 		pluck="name",
 	)
 	return _push(names)

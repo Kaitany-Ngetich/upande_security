@@ -85,6 +85,7 @@ import frappe
 
 from upande_security.api import watchlist
 from upande_security.api.security_alerts import log_unauthorized_access
+from upande_security.api.visitor_sms import send_system_sms
 
 
 def _s(value):
@@ -1582,12 +1583,7 @@ def check_in_visitor(name=None, transport=None, plate=None, colour=None, organiz
 						if not otp_template:
 							otp_template = "Welcome to {company}! Your visit code is {code}."
 						otp_message = otp_template.replace("{company}", otp_company).replace("{code}", otp_code).replace("{visitor}", otp_row.customer_name or "")
-						frappe.call(
-							"frappe.core.doctype.sms_settings.sms_settings.send_sms",
-							receiver_list=[otp_digits],
-							msg=otp_message,
-							success_msg=False,
-						)
+						send_system_sms([otp_digits], otp_message)
 		except Exception:
 			pass
 
@@ -1668,12 +1664,7 @@ def check_out_visitor(name=None):
 						if not ty_template:
 							ty_template = "Thanks for visiting {company}, welcome again!"
 						ty_message = ty_template.replace("{company}", ty_company).replace("{visitor}", ty_row.customer_name or "")
-						frappe.call(
-							"frappe.core.doctype.sms_settings.sms_settings.send_sms",
-							receiver_list=[ty_digits],
-							msg=ty_message,
-							success_msg=False,
-						)
+						send_system_sms([ty_digits], ty_message)
 		except Exception:
 			pass
 
@@ -1809,12 +1800,7 @@ def create_walk_in(customer_name=None, id_number=None, phone=None, email=None, h
 					if not otp_template:
 						otp_template = "Welcome to {company}! Your visit code is {code}."
 					otp_message = otp_template.replace("{company}", otp_company).replace("{code}", otp_code).replace("{visitor}", doc.customer_name or "")
-					frappe.call(
-						"frappe.core.doctype.sms_settings.sms_settings.send_sms",
-						receiver_list=[otp_digits],
-						msg=otp_message,
-						success_msg=False,
-					)
+					send_system_sms([otp_digits], otp_message)
 		except Exception:
 			pass
 
