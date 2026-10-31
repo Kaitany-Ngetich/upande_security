@@ -75,6 +75,7 @@
   "feature_appointment_extra_recipients",
   "feature_flags_section_5",
   "feature_staff_checkin",
+  "feature_biometric_shift_checkin",
   "feature_vehicle_gate_tracking",
   "feature_taxi_driver_checkout",
   "feature_passenger_names",
@@ -283,6 +284,13 @@
    "fieldname": "feature_staff_checkin",
    "fieldtype": "Check",
    "label": "Staff Gate Attendance",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_biometric_shift_checkin",
+   "fieldtype": "Check",
+   "label": "Biometric Punches Mark Shift Checked In",
    "permlevel": 1
   },
   {
@@ -641,7 +649,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-29 12:00:00.000000",
+ "modified": "2026-10-31 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",

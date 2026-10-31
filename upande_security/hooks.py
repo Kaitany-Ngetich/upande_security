@@ -169,6 +169,10 @@ after_migrate = [
 ]
 
 doc_events = {
+	"Security Checkin": {
+		# A biometric punch ticks the shift it falls in - see api/shift_checkin.py.
+		"after_insert": "upande_security.api.shift_checkin.mark_shift_from_punch",
+	},
 	"Staff Vehicle Sticker": {
 		"after_insert": "upande_security.api.staff_vehicle_sticker_qr.generate_qr_for_sticker",
 		"validate": "upande_security.api.staff_vehicle_sticker_qr.auto_sync_status",

@@ -42,6 +42,7 @@ FEATURE_FIELDS = [
 	"feature_visitor_sms_otp",
 	"feature_appointment_extra_recipients",
 	"feature_staff_checkin",
+	"feature_biometric_shift_checkin",
 	"feature_vehicle_gate_tracking",
 	"feature_taxi_driver_checkout",
 	"feature_gate_temp_exit",
