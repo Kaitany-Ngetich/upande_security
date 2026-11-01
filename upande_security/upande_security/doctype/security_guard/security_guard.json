@@ -282,7 +282,7 @@
    "link_fieldname": "security_guard"
   }
  ],
- "modified": "2026-10-24 16:00:00.000000",
+ "modified": "2026-11-01 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Guard",
@@ -319,6 +319,7 @@
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
  "search_fields": "full_name,first_name,national_id",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
