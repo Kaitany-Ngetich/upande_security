@@ -92,7 +92,9 @@
   "latest_apk_url",
   "apk_release_column_break",
   "latest_apk_required",
-  "latest_apk_notes"
+  "latest_apk_notes",
+  "apk_install_window_start",
+  "apk_install_window_end"
  ],
  "fields": [
   {
@@ -613,7 +615,7 @@
    "fieldtype": "Section Break",
    "label": "Mobile App Release (Android APK)",
    "collapsible": 1,
-   "description": "Phones on an older APK download this one by themselves and offer to install it - one tap on Android's Update screen. Fill in after each new APK build; leave empty to offer nothing."
+   "description": "Phones on an older APK download this one by themselves. Android 12+ installs it silently in the night window below; Android 11 and older asks for one tap. Fill in after each new APK build; leave empty to offer nothing."
   },
   {
    "fieldname": "latest_apk_version",
@@ -637,19 +639,33 @@
    "fieldtype": "Check",
    "label": "Compulsory",
    "default": "0",
-   "description": "Ticked: the install prompt has no Later button and returns every time the app is opened."
+   "description": "Ticked: installs at the first chance instead of waiting for the night window (Android 12+); on older phones the prompt has no Later button."
   },
   {
    "fieldname": "latest_apk_notes",
    "fieldtype": "Small Text",
    "label": "What's New",
    "description": "Shown to the guard in the update prompt."
+  },
+  {
+   "fieldname": "apk_install_window_start",
+   "fieldtype": "Time",
+   "label": "Install Window From",
+   "default": "02:00:00",
+   "description": "Android 12+ phones install the new APK silently inside this window (phone's local time), never during a running patrol."
+  },
+  {
+   "fieldname": "apk_install_window_end",
+   "fieldtype": "Time",
+   "label": "Install Window To",
+   "default": "04:00:00",
+   "description": "Android 11 and older cannot update silently: they download it and ask the guard to tap Install."
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-31 12:00:00.000000",
+ "modified": "2026-11-02 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",

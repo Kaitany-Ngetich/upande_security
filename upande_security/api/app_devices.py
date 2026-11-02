@@ -101,12 +101,16 @@ def report_app_version(
 def latest_apk():
 	"""The newest Android build, as published in Security Ops Settings, or
 	None. The app compares the version with its own and, when older,
-	downloads the APK and offers Android's install screen (apkUpdate.ts) -
-	the native changes an over-the-air update cannot carry."""
+	downloads the APK and installs it - silently in the night window on
+	Android 12+, with one tap on older phones (apkUpdate.ts) - the native
+	changes an over-the-air update cannot carry."""
 	s = frappe.db.get_value(
 		"Security Ops Settings",
 		"Security Ops Settings",
-		["latest_apk_version", "latest_apk_url", "latest_apk_required", "latest_apk_notes"],
+		[
+			"latest_apk_version", "latest_apk_url", "latest_apk_required", "latest_apk_notes",
+			"apk_install_window_start", "apk_install_window_end",
+		],
 		as_dict=True,
 	)
 	if not s or not (s.latest_apk_version or "").strip() or not (s.latest_apk_url or "").strip():
@@ -116,7 +120,20 @@ def latest_apk():
 		"url": s.latest_apk_url.strip(),
 		"required": 1 if s.latest_apk_required else 0,
 		"notes": s.latest_apk_notes or "",
+		# Night window for the silent install, local "HH:MM".
+		"window_start": _hhmm(s.apk_install_window_start, "02:00"),
+		"window_end": _hhmm(s.apk_install_window_end, "04:00"),
 	}
+
+
+def _hhmm(value, default):
+	if not value:
+		return default
+	parts = str(value).split(":")
+	try:
+		return "%02d:%02d" % (int(parts[0]), int(parts[1]))
+	except (ValueError, IndexError):
+		return default
 
 
 def _parse_datetime(value):
