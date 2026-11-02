@@ -1324,6 +1324,8 @@ def search_visitor_appointment(query=None):
 @frappe.whitelist()
 def approved_appointments():
 	"""Visitors cleared to enter or already inside, for the gate's main list.
+	Cleared means approved by the host or by a secretary on the host's behalf -
+	check_in_visitor accepts both.
 
 	Ordering matters to the guard: anyone already Checked In sorts above
 	those merely Approved, then most recent first within each group. The
@@ -1346,7 +1348,7 @@ def approved_appointments():
 			FROM `tabAppointment` a
 			LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with
 			LEFT JOIN `tabGate Badge` b ON b.name = a.custom_visitor_badge
-			WHERE a.workflow_state IN ('Approved by Host', 'Visitor Checked In')
+			WHERE a.workflow_state IN ('Approved by Host', 'Approved by Secretary', 'Visitor Checked In')
 			ORDER BY
 			  CASE a.workflow_state
 			    WHEN 'Visitor Checked In' THEN 0
