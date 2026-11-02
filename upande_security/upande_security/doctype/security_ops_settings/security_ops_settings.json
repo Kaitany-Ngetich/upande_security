@@ -94,7 +94,9 @@
   "latest_apk_required",
   "latest_apk_notes",
   "apk_install_window_start",
-  "apk_install_window_end"
+  "apk_install_window_end",
+  "standard_shift_times_section",
+  "standard_shift_times"
  ],
  "fields": [
   {
@@ -660,12 +662,25 @@
    "label": "Install Window To",
    "default": "04:00:00",
    "description": "Android 11 and older cannot update silently: they download it and ask the guard to tap Install."
+  },
+  {
+   "fieldname": "standard_shift_times_section",
+   "fieldtype": "Section Break",
+   "label": "Standard Shift Times",
+   "collapsible": 1,
+   "description": "Picking a shift type on a Rotation Plan or a Shift Assignment fills its start and end times from here."
+  },
+  {
+   "fieldname": "standard_shift_times",
+   "fieldtype": "Table",
+   "label": "Standard Shift Times",
+   "options": "Security Shift Time"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-02 12:00:00.000000",
+ "modified": "2026-11-02 12:30:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",

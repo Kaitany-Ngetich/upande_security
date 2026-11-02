@@ -147,3 +147,42 @@ frappe.ui.form.on("Security Guard Rotation Preview Row", {
 		});
 	},
 });
+
+// Shift times come from Security Ops Settings > Standard Shift Times, never
+// typed by hand. A rotating plan's own shift is the first in its sequence.
+frappe.ui.form.on("Security Guard Rotation Plan", {
+	shift_type(frm) {
+		fill_standard_times(frm);
+	},
+	rotate_shifts(frm) {
+		follow_first_shift(frm);
+	},
+});
+
+frappe.ui.form.on("Security Guard Rotation Shift", {
+	shift_type(frm) {
+		follow_first_shift(frm);
+	},
+	shift_sequence_remove(frm) {
+		follow_first_shift(frm);
+	},
+});
+
+function follow_first_shift(frm) {
+	if (!frm.doc.rotate_shifts) return;
+	const first = (frm.doc.shift_sequence || []).find((row) => row.shift_type);
+	if (first && first.shift_type !== frm.doc.shift_type) frm.set_value("shift_type", first.shift_type);
+}
+
+function fill_standard_times(frm) {
+	if (!frm.doc.shift_type) return;
+	frappe
+		.call("upande_security.api.shift_times.get_standard_shift_times", { shift_type: frm.doc.shift_type })
+		.then((r) => {
+			const t = r.message;
+			if (t && t.start_time && t.end_time) {
+				frm.set_value("start_time", t.start_time);
+				frm.set_value("end_time", t.end_time);
+			}
+		});
+}

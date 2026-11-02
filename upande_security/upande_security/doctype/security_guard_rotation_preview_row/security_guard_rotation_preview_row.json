@@ -7,6 +7,9 @@
   "rotation_date",
   "farm",
   "block",
+  "shift_type",
+  "start_time",
+  "end_time",
   "is_off_day",
   "status"
  ],
@@ -48,11 +51,28 @@
    "label": "Status",
    "options": "Pending\nApplied\nSkipped\nFailed",
    "read_only": 1
+  },
+  {
+   "fieldname": "shift_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Shift",
+   "options": "\nDay\nNight\nFirst\nSecond\nThird"
+  },
+  {
+   "fieldname": "start_time",
+   "fieldtype": "Time",
+   "label": "Starts"
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "label": "Ends"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-09-02 00:00:00.000000",
+ "modified": "2026-11-02 12:30:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Guard Rotation Preview Row",

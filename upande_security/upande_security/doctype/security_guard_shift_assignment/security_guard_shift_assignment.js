@@ -237,3 +237,20 @@ function draw_off_days(frm, field, off_days) {
 		});
 	});
 }
+
+// Picking a shift fills its standard times (Security Ops Settings > Standard
+// Shift Times); they can still be changed for a one-off.
+frappe.ui.form.on("Security Guard Shift Assignment", {
+	shift_type(frm) {
+		if (!frm.doc.shift_type) return;
+		frappe
+			.call("upande_security.api.shift_times.get_standard_shift_times", { shift_type: frm.doc.shift_type })
+			.then((r) => {
+				const t = r.message;
+				if (t && t.start_time && t.end_time) {
+					frm.set_value("start_time", t.start_time);
+					frm.set_value("end_time", t.end_time);
+				}
+			});
+	},
+});

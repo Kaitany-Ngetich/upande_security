@@ -20,6 +20,11 @@
   "start_date",
   "end_date",
   "rotation_interval_days",
+  "shift_rotation_section",
+  "rotate_shifts",
+  "shift_change_every_days",
+  "shift_rotation_column_break",
+  "shift_sequence",
   "rotation_section",
   "rotation_farms",
   "preview_rows",
@@ -71,7 +76,8 @@
    "fieldtype": "Select",
    "label": "Shift Type",
    "options": "Day\nNight\nFirst\nSecond\nThird",
-   "reqd": 1
+   "reqd": 1,
+   "description": "Start and end times fill in from Security Ops Settings > Standard Shift Times."
   },
   {
    "fieldname": "start_time",
@@ -131,12 +137,45 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks"
+  },
+  {
+   "fieldname": "shift_rotation_section",
+   "fieldtype": "Section Break",
+   "label": "Shift Rotation",
+   "description": "Move the guard through shifts on the same farm(s) - e.g. First, Second, Third, or Day, Night."
+  },
+  {
+   "fieldname": "rotate_shifts",
+   "fieldtype": "Check",
+   "label": "Rotate Shifts",
+   "default": "0"
+  },
+  {
+   "fieldname": "shift_change_every_days",
+   "fieldtype": "Int",
+   "label": "Change Shift Every (Days)",
+   "depends_on": "rotate_shifts",
+   "mandatory_depends_on": "rotate_shifts",
+   "description": "e.g. 7: a week on each shift, then the next one."
+  },
+  {
+   "fieldname": "shift_rotation_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "shift_sequence",
+   "fieldtype": "Table",
+   "label": "Shift Sequence",
+   "options": "Security Guard Rotation Shift",
+   "depends_on": "rotate_shifts",
+   "mandatory_depends_on": "rotate_shifts",
+   "description": "In order; after the last one it starts again from the first. Each shift takes its standard times."
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-02 00:00:00.000000",
+ "modified": "2026-11-02 12:30:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Guard Rotation Plan",
