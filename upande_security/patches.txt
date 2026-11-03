@@ -34,3 +34,4 @@ upande_security.patches.set_booking_sms_template
 upande_security.patches.seed_standard_shift_times
 upande_security.patches.clear_security_field_description_overrides
 upande_security.patches.restore_standard_perms_hidden_by_fixture
+upande_security.patches.add_patrol_gps_guard_indexes
