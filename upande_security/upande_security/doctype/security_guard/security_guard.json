@@ -183,9 +183,8 @@
   },
   {
    "fieldname": "location",
-   "fieldtype": "Select",
-   "label": "Location",
-   "options": "\nRavine\nKaren\nKitale"
+   "fieldtype": "Data",
+   "label": "Location"
   },
   {
    "fieldname": "post",
@@ -282,7 +281,7 @@
    "link_fieldname": "security_guard"
   }
  ],
- "modified": "2026-11-01 12:00:00.000000",
+ "modified": "2026-11-03 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Guard",

@@ -372,12 +372,12 @@
   {
    "fieldname": "badge_emergency_section",
    "fieldtype": "Section Break",
-   "label": "Badge Emergency Contacts"
+   "label": "Badges per Company"
   },
   {
    "fieldname": "badge_emergency_contacts",
    "fieldtype": "Table",
-   "label": "Emergency Contacts on Badges",
+   "label": "Badge Details",
    "options": "Security Badge Emergency Contact"
   },
   {
@@ -681,7 +681,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-03 12:00:00.000000",
+ "modified": "2026-11-03 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",

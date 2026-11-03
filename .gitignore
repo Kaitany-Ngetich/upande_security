@@ -57,3 +57,6 @@ jspm_packages/
 *.broken_before_restore_*
 *.safe_backup_*
 upande_security/public/node_modules
+*.before_*
+*.bak.*
+security_dashboard.before_*/

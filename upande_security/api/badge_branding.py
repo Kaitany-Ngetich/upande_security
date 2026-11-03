@@ -5,17 +5,22 @@
 
 Everything comes from the site the badge is printed on: the name, logo,
 website and address from the Company record and its Address, and the
-emergency number from Security Ops Settings > Badge Emergency Contacts.
-Nothing is assumed about which company the site belongs to, so a company
-with no emergency number set prints a badge without one rather than
-another company's number.
+colour, emergency number and lost-badge charge from Security Ops Settings >
+Badges per Company. Nothing is assumed about which company the site belongs
+to: whatever a company has not set is left off its badge, never filled in
+with another company's details.
 """
 
 import frappe
 
 
+DEFAULT_BADGE_COLOUR = "#1F4D2C"
+BADGE_FIELDS = ("badge_colour", "contact_label", "contact_phone", "lost_badge_charge")
+
+
 def get_badge_branding(company: str | None, farm: str | None = None) -> dict:
-	"""Name, logo, emergency contact and address line for one badge.
+	"""Name, logo, colour, emergency contact, lost-badge charge and address
+	line for one badge (also used by the Staff Vehicle Sticker Card).
 	Soft-fails to the bare company name - a badge is never worth breaking a
 	print over."""
 	branding = frappe._dict(
@@ -23,6 +28,8 @@ def get_badge_branding(company: str | None, farm: str | None = None) -> dict:
 		logo=None,
 		emergency_label="Emergency Contact",
 		emergency_phone=None,
+		badge_colour=DEFAULT_BADGE_COLOUR,
+		lost_badge_charge=None,
 		address_line="",
 	)
 	if not company:
@@ -35,10 +42,11 @@ def get_badge_branding(company: str | None, farm: str | None = None) -> dict:
 		branding.company_name = info.company_name or company
 		branding.logo = info.company_logo
 
-		contact = _emergency_contact(company, farm)
-		if contact:
-			branding.emergency_phone = contact.contact_phone
-			branding.emergency_label = contact.contact_label or branding.emergency_label
+		details = _company_badge_details(company, farm)
+		branding.emergency_phone = details.contact_phone
+		branding.emergency_label = details.contact_label or branding.emergency_label
+		branding.badge_colour = details.badge_colour or branding.badge_colour
+		branding.lost_badge_charge = details.lost_badge_charge
 
 		branding.address_line = _address_line(company, farm, branding.company_name, info.website)
 	except Exception:
@@ -46,21 +54,18 @@ def get_badge_branding(company: str | None, farm: str | None = None) -> dict:
 	return branding
 
 
-def _emergency_contact(company: str, farm: str | None):
-	"""The farm's own row if there is one, else the company-wide row."""
+def _company_badge_details(company: str, farm: str | None) -> frappe._dict:
+	"""The company-wide row, with anything the farm's own row sets on top."""
 	rows = [
 		r
 		for r in frappe.get_cached_doc("Security Ops Settings").get("badge_emergency_contacts") or []
-		if r.company == company and r.contact_phone
+		if r.company == company
 	]
-	if farm:
-		for r in rows:
-			if r.farm == farm:
-				return r
-	for r in rows:
-		if not r.farm:
-			return r
-	return None
+	company_row = next((r for r in rows if not r.farm), None)
+	farm_row = next((r for r in rows if farm and r.farm == farm), None)
+	return frappe._dict(
+		{f: (farm_row and farm_row.get(f)) or (company_row and company_row.get(f)) or None for f in BADGE_FIELDS}
+	)
 
 
 def _address_line(company: str, farm: str | None, company_name: str, website: str | None) -> str:

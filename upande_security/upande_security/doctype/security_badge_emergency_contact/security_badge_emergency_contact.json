@@ -6,9 +6,11 @@
  "field_order": [
   "company",
   "farm",
+  "badge_colour",
   "column_break_1",
   "contact_label",
-  "contact_phone"
+  "contact_phone",
+  "lost_badge_charge"
  ],
  "fields": [
   {
@@ -27,26 +29,35 @@
    "in_list_view": 1
   },
   {
+   "fieldname": "badge_colour",
+   "fieldtype": "Color",
+   "label": "Badge Colour"
+  },
+  {
    "fieldname": "column_break_1",
    "fieldtype": "Column Break"
   },
   {
    "fieldname": "contact_label",
    "fieldtype": "Data",
-   "label": "Label",
+   "label": "Emergency Label",
    "in_list_view": 1
   },
   {
    "fieldname": "contact_phone",
    "fieldtype": "Data",
-   "label": "Phone",
-   "reqd": 1,
+   "label": "Emergency Phone",
    "in_list_view": 1
+  },
+  {
+   "fieldname": "lost_badge_charge",
+   "fieldtype": "Data",
+   "label": "Lost Badge Charge"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-11-03 00:00:00.000000",
+ "modified": "2026-11-03 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Badge Emergency Contact",

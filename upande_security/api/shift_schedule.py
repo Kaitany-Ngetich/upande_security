@@ -8,14 +8,9 @@ from frappe.utils import add_days, cint, getdate
 
 from upande_security.api.guard_off_days import add_guard_off_day, remove_guard_off_day
 
-# The monthly schedule grid + reliever auto-fill is scoped to the 5 core
-# farm units that actually have a real, sourced reliever roster (backfilled
-# from the April 2026 off-duty sheet's own grouping - each farm+shift-band
-# block there is exactly one guard posted as "Reliever" covering up to 6
-# others). The "OTHER ASSIGNMENTS"/placeholder guards from that same import
-# have no reliable reliever data, so they're deliberately left out here
-# rather than guessed at.
-CORE_FARMS = ["Torongo", "Simotwo", "Kaptumbo", "Kapkolia", "Chepsito"]
+# The monthly schedule grid + reliever auto-fill covers every farm that has
+# active guards with a post set: a guard with no post has no place on the
+# roster grid, so that is what scopes it, not a list of farm names.
 
 # Maps this doctype's own shift_type values to the HRMS Shift Type master
 # record that actually holds the clock times. Day/Night are the original
@@ -64,7 +59,8 @@ def _usual_shift_type(guard: str) -> str:
 @frappe.whitelist()
 def get_shift_schedule(year: str | int, month: str | int, farm: str | None = None) -> dict:
 	"""Everything the schedule grid needs for one month, in one call: the
-	guard list (scoped to the core units, optionally narrowed to one farm)
+	guard list (every rostered farm, optionally narrowed to one farm), the
+	farms to choose from
 	and, for every guard x day in that month, whether they're on, off, or
 	off-but-covered-by-their-reliever.
 	"""
@@ -72,11 +68,12 @@ def get_shift_schedule(year: str | int, month: str | int, farm: str | None = Non
 	month = cint(month)
 	start, end, last_day = _month_bounds(year, month)
 
-	farms = [farm] if farm else CORE_FARMS
+	rostered = {"status": "Active", "post": ["is", "set"], "farm": ["is", "set"]}
+	farms = sorted(set(frappe.get_all("Security Guard", filters=rostered, pluck="farm")))
 
 	guards = frappe.get_all(
 		"Security Guard",
-		filters={"farm": ["in", farms], "status": "Active", "post": ["is", "set"]},
+		filters={**rostered, "farm": farm} if farm else rostered,
 		fields=["name", "full_name", "farm", "post", "reliever"],
 		order_by="farm asc, post asc, full_name asc",
 	)
@@ -94,10 +91,10 @@ def get_shift_schedule(year: str | int, month: str | int, farm: str | None = Non
 
 	guard_ids = [g.name for g in guards]
 	if not guard_ids:
-		return {"guards": [], "days": list(range(1, last_day + 1)), "statuses": {}, "month": month, "year": year}
+		return {"guards": [], "farms": farms, "days": list(range(1, last_day + 1)), "statuses": {}, "month": month, "year": year}
 
-	# A reliever legitimately covers guards posted on a DIFFERENT one of the 5
-	# core farms - the roster data has real examples of this. Filtering rows
+	# A reliever legitimately covers guards posted on a DIFFERENT farm - the
+	# roster data has real examples of this. Filtering rows
 	# to guard_ids alone (this view's own farm scope) would silently drop a
 	# cover row whenever its reliever's own farm falls outside that scope,
 	# making a covered guard falsely read "off_unfilled" the moment a Head
@@ -172,6 +169,7 @@ def get_shift_schedule(year: str | int, month: str | int, farm: str | None = Non
 
 	return {
 		"guards": guards,
+		"farms": farms,
 		"days": list(range(1, last_day + 1)),
 		"statuses": statuses,
 		"month": month,

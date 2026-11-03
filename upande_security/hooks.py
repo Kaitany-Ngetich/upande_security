@@ -864,9 +864,10 @@ fixtures = [
                 "in",
                 [
                     "Visitor at Reception - Host & Secretary SMS",
+                    # One alert for every company. A site may keep its own
+                    # "Visitor at Reception - Host Alert (<Company>)" in its
+                    # database; the generic one then stays out of its way.
                     "Visitor at Reception - Host Alert",
-                    "Visitor at Reception - Host Alert (Kaitet Ltd.)",
-                    "Visitor at Reception - Host Alert (Karen Roses)",
                     "Staff Vehicle Sticker Approved - Employee Email",
                 ],
             ],
