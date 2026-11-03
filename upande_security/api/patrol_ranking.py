@@ -21,7 +21,9 @@ Settings, same clipping to the boundary), computed once per farm and cached.
 WHICH POINTS COUNT
 - Saved under the farm (the guard's rostered farm), On Duty excluded -
   standing at a post is not patrolling.
-- Fixes worse than MAX_ACCURACY_M dropped, as the map and coverage do.
+- The map's point rule (patrol_rules): positions that do not parse, sit
+  outside -90..90 / -180..180 or at (0, 0) dropped; fixes worse than
+  MAX_ACCURACY_M dropped, as the map and coverage do.
 - With Hide Patrol Points Outside Farm Boundary on, only points inside the
   boundary's box grown by Boundary Tolerance (a box, not the exact outline,
   so it stays an index-friendly range test; coverage itself only counts
@@ -29,7 +31,8 @@ WHICH POINTS COUNT
 - A step between two fixes of the same patrol counts towards distance and
   time only when the fixes are at most MAX_GAP_S apart and the implied
   speed is at most MAX_SPEED_KMH: longer gaps are the phone asleep, faster
-  steps are GPS jumps. Neither is patrolling.
+  steps are GPS jumps. Neither is patrolling. The same step rule
+  (patrol_rules) sums the Patrol Map's and the app report's distance.
 """
 
 import hashlib
@@ -45,9 +48,15 @@ from upande_security.api.patrol_coverage import (
 	_coverage_settings,
 	_load_farm_polygon,
 )
-
-MAX_GAP_S = 600
-MAX_SPEED_KMH = 25
+from upande_security.api.patrol_rules import (
+	MAX_GAP_S,
+	MAX_SPEED_KMH,
+	POINT_WHERE_SQL,
+	RULES_VERSION,
+	STEP_COUNTS_SQL,
+	sql_params,
+	step_sql,
+)
 
 # Share of the score each measure carries. Every measure is first scaled
 # against the best guard on the same farm in the same period (best = 1), so
@@ -208,7 +217,7 @@ def _context():
 	tol = 5 if tol is None else max(0, int(tol))
 	geos = [_farm_geo(f, width, height, tol) for f in frappe.get_all("Farm", pluck="name", order_by="name asc")]
 	config = _digest(json.dumps(
-		[[g["farm"], g["key"]] for g in geos] + [boundary_on, MAX_ACCURACY_M, MAX_GAP_S, MAX_SPEED_KMH]
+		[[g["farm"], g["key"]] for g in geos] + [boundary_on, MAX_ACCURACY_M, MAX_GAP_S, MAX_SPEED_KMH, RULES_VERSION]
 	), 12)
 	return {"width": width, "height": height, "boundary_on": boundary_on, "geos": geos, "config": config}
 
@@ -321,10 +330,7 @@ _KIND_SQL = (
 _POINT_WHERE = [
 	"captured_at between %(start)s and %(end)s",
 	"ifnull(tracking_mode, 'Patrol') != 'On Duty'",
-	"ifnull(latitude, '') != ''",
-	"ifnull(longitude, '') != ''",
-	"(ifnull(gps_accuracy, '') = '' or gps_accuracy + 0 <= %(acc)s)",
-]
+] + POINT_WHERE_SQL
 
 
 def _guard_stats(geos, start, end, boundary_on):
@@ -344,7 +350,7 @@ def _guard_stats(geos, start, end, boundary_on):
 	mode tests are answered from the index, so only points inside a farm
 	are read from the table. Saved-farm points come through
 	(farm, captured_at). See the module docstring for the rest."""
-	params = {"start": start, "end": end, "acc": MAX_ACCURACY_M, "gap": MAX_GAP_S, "mps": MAX_SPEED_KMH / 3.6}
+	params = {"start": start, "end": end, **sql_params()}
 	shaped = sorted((g for g in geos if g.get("on" if boundary_on else "off")), key=lambda g: g["area"])
 	if boundary_on:
 		saved_farms = [g["farm"] for g in geos if not g.get("on")]
@@ -399,6 +405,7 @@ def _guard_stats(geos, start, end, boundary_on):
 		)
 	cell_sql = f"case farm_hit {' '.join(cell_cases)} end" if cell_cases else "null"
 
+	step_secs, step_metres = step_sql("w")
 	# Innermost: the points with the farm each counts for. Middle: each fix
 	# with the step from the previous fix of the same guard's same patrol on
 	# the same farm. Outer: summed per (farm, guard, cell) - a step is
@@ -414,15 +421,11 @@ def _guard_stats(geos, start, end, boundary_on):
 			max(captured_at) as last_at
 		from (
 			select farm_hit, g, kind, patrol, cell, captured_at, metres, secs,
-				(secs is not null and secs <= %(gap)s and metres <= greatest(secs, 1) * %(mps)s) as ok
+				{STEP_COUNTS_SQL} as ok
 			from (
 				select farm_hit, g, kind, patrol, captured_at, {cell_sql} as cell,
-					timestampdiff(second, lag(captured_at) over w, captured_at) as secs,
-					6371000 * 2 * asin(least(1, sqrt(
-						pow(sin(radians(lat - lag(lat) over w) / 2), 2)
-						+ cos(radians(lat)) * cos(radians(lag(lat) over w))
-						* pow(sin(radians(lng - lag(lng) over w) / 2), 2)
-					))) as metres
+					{step_secs} as secs,
+					{step_metres} as metres
 				from ({' union all '.join(branches)}) p
 				where g is not null
 				window w as (partition by farm_hit, g, patrol order by captured_at)

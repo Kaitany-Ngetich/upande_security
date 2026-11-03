@@ -7704,8 +7704,17 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 	  - Overstay watchlists: visitors/contractors inside > 8h, vehicles > 12h.
 	  - Overview "On Premises" = visitors/contractors inside + vehicles inside
 		(all-time, unfiltered); "Open Incidents" is likewise all-time.
-	  - Patrol distance is a haversine sum over consecutive GPS points per
-		patrol, ignoring jumps >= 0.5 degree lat/lng (GPS glitches).
+	  - Patrols follow the Patrol Map's rules (api/patrol_report.py): On Duty,
+		unusable positions and fixes worse than 100 m left out; guard = the
+		internal guard, else the external guard, else the sending account.
+		Distance is a haversine sum over consecutive points of one guard's
+		one patrol, counting only steps at most 10 min apart and at most
+		25 km/h (patrol_rules) - longer gaps are the phone asleep, faster
+		steps GPS jumps. GPS Points / Distance / Guards / Routes and By Guard
+		count every qualifying point; only extra.points (the map's points)
+		is thinned to 3000. Requires read on Patrol GPS Log, and on the Farm
+		when `farm` is given; without a farm a user limited to some farms
+		sees only those. At most 31 days.
 
 	Filters: `farm` applies to the visitors/contractors tabs (via
 	Appointment.custom_farmunit) and the patrols tab (by the Patrol Map's
@@ -7940,38 +7949,30 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 			extra["locations"] = ll
 
 		elif tab == "patrols":
-			# Same rules as the desktop Patrol Map and Playback (farm boundary,
-			# Boundary Tolerance, the GPS accuracy cut, trail breaks) - see
-			# patrol_playback.report_points. Every KPI and the By Guard table
-			# are counted from the very points the map draws, so they agree.
-			from upande_security.api.patrol_playback import report_points
-			from upande_security.api.sos_alert import _haversine_m
+			# The Patrol Map's rules (see patrol_report): which points count,
+			# who they belong to, the farm boundary, the step rule for distance.
+			# Counted in the database over every qualifying point; only the
+			# points sent for drawing are thinned.
+			from upande_security.api.patrol_report import guard_names, patrols_report
 
-			pts, boundaries, _names = report_points(start, end, farm or None)
-			km = 0.0
-			prev = {}
-			per_guard = {}
-			for p in pts:
-				key = (p["guard"], p["patrol"])
-				if key in prev and not p["brk"]:
-					km += _haversine_m(prev[key][0], prev[key][1], p["lat"], p["lng"]) / 1000.0
-				prev[key] = (p["lat"], p["lng"])
-				g = per_guard.setdefault(p["guard"] or "—", {"count": 0, "routes": set(), "last": ""})
-				g["count"] += 1
-				g["routes"].add(p["patrol"])
-				g["last"] = max(g["last"], p["at"])
-			kpi("GPS Points", len(pts), "logged")
+			rep = patrols_report(fromd, tod, farm or None)
+			names = guard_names(rep["guards"])
+			km = rep["metres"] / 1000.0
+			kpi("GPS Points", rep["points"], "logged")
 			kpi("Distance", (str(round(km, 1)) + " km") if km else "—", "patrolled")
-			kpi("Guards", len([g for g in per_guard if g != "—"]), "patrolling")
-			kpi("Routes", len({(p["guard"], p["patrol"]) for p in pts}), "distinct")
+			kpi("Guards", len(rep["guards"]), "patrolling")
+			kpi("Routes", rep["routes"], "distinct")
 			prows = [
-				{"guard": g, "count": v["count"], "routes": len(v["routes"]), "last": v["last"]}
-				for g, v in sorted(per_guard.items(), key=lambda kv: -kv[1]["count"])[:15]
+				{"guard": names[g], "count": v["points"], "routes": len(v["patrols"]), "last": v["last"]}
+				for g, v in sorted(rep["guards"].items(), key=lambda kv: (-kv[1]["points"], names[kv[0]]))[:15]
 			]
 			add_table("By Guard", [{"key": "guard", "label": "Guard"}, {"key": "count", "label": "Points", "align": "right"}, {"key": "routes", "label": "Routes", "align": "right"}, {"key": "last", "label": "Last Seen"}], prows)
-			extra["points"] = pts
-			extra["boundaries"] = boundaries
-			extra["farms"] = frappe.get_all("Farm", pluck="name", order_by="name asc")
+			extra["points"] = [
+				{"lat": lat, "lng": lng, "at": at, "guard": names.get(g) or g, "patrol": patrol}
+				for lat, lng, at, g, patrol in rep["draw"]
+			]
+			extra["boundaries"] = rep["boundaries"]
+			extra["farms"] = rep["farms"]
 
 		else:
 			vis_inside = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE a.custom_check_in_time IS NOT NULL AND a.custom_check_out_time IS NULL", ())
@@ -7996,6 +7997,9 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 		for kk in extra:
 			msg[kk] = extra[kk]
 		return msg
+	except (frappe.PermissionError, frappe.ValidationError):
+		# Not a broken query: the caller is refused, or asked for too much.
+		raise
 	except Exception as e:
 		frappe.log_error("security_report", str(e))
 		return {"error": str(e)}

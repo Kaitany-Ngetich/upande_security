@@ -9,6 +9,7 @@ from frappe import _
 from frappe.utils import get_datetime
 
 from upande_security.api.feature_flags import is_feature_enabled
+from upande_security.api.patrol_rules import MAX_ACCURACY_M, step_counts, valid_fix
 from upande_security.upande_security.doctype.security_guard_shift_assignment.security_guard_shift_assignment import (
     combine_date_time,
     derive_status,
@@ -1919,6 +1920,24 @@ def _haversine_km(p1, p2):
     return R * 2 * atan2(sqrt(a), sqrt(1 - a))
 
 
+def _walked_km(points, timestamps):
+    """Distance along a trail counting only the steps patrol_rules accepts
+    (at most MAX_GAP_S apart, at most MAX_SPEED_KMH) - the same rule the
+    app's Patrols report and the Guard ranking sum in SQL, so one bad fix
+    or a phone asleep for an hour does not add a straight line across the
+    map to the guard's distance."""
+    km = 0.0
+    for i in range(1, len(points)):
+        try:
+            secs = (get_datetime(timestamps[i]) - get_datetime(timestamps[i - 1])).total_seconds()
+        except Exception:
+            continue
+        step = _haversine_km(points[i - 1], points[i])
+        if step_counts(step * 1000, secs):
+            km += step
+    return km
+
+
 def _path_distance_km(points):
     if len(points) < 2:
         return 0.0
@@ -2491,7 +2510,7 @@ def fetchPatrolData(date=None, farm=None):
     # rather than plot it as real guard movement. Missing/unparsable
     # accuracy (older rows, before this field existed) is kept rather than
     # dropped, since absence of data isn't evidence of a bad fix.
-    GPS_ACCURACY_THRESHOLD_M = 100
+    GPS_ACCURACY_THRESHOLD_M = MAX_ACCURACY_M
 
     # Fallback only — stamp_patrol_gps_log_farm (hooks.py before_insert on
     # Patrol GPS Log) already writes farm directly onto every row at capture
@@ -2526,7 +2545,8 @@ def fetchPatrolData(date=None, farm=None):
     for p in points:
         lat = _patrol_float(p.get("latitude"))
         lng = _patrol_float(p.get("longitude"))
-        if lat is None or lng is None or not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+        # patrol_rules.valid_fix: also drops (0, 0), a phone with no fix yet.
+        if not valid_fix(lat, lng):
             continue
 
         accuracy = _patrol_float(p.get("gps_accuracy"))
@@ -2589,7 +2609,7 @@ def fetchPatrolData(date=None, farm=None):
     for key, g in groups.items():
         pts, ts = g["points"], g["timestamps"]
         bounds = [0] + g["breaks"] + [len(pts)]
-        distance_km = sum(_path_distance_km(pts[a:b]) for a, b in zip(bounds, bounds[1:]))
+        distance_km = sum(_walked_km(pts[a:b], ts[a:b]) for a, b in zip(bounds, bounds[1:]))
         first_fix, last_fix = (ts[0], ts[-1]) if ts else (None, None)
 
         duration_min = 0

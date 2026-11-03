@@ -23,15 +23,16 @@ from shapely.ops import unary_union
 from shapely.prepared import prep
 
 from upande_security.api.feature_flags import is_feature_enabled
+from upande_security.api.patrol_rules import MAX_ACCURACY_M
 from upande_security.api.security_dashboard import _patrol_float
 
 # Above this a farm/cell-size combination is refused rather than rendered:
 # Geofence Test Farm's boundary is a ~1.2M ha test square, which at 50 m would
 # be ~5 billion cells.
 MAX_CELLS = 6000
-# Same cutoff fetchPatrolData uses to drop coarse network/wifi fixes - a
-# 300 m-accuracy ping says nothing about which 50 m cell a guard was in.
-MAX_ACCURACY_M = 100
+# MAX_ACCURACY_M (patrol_rules): the cutoff fetchPatrolData uses to drop
+# coarse network/wifi fixes - a 300 m-accuracy ping says nothing about which
+# 50 m cell a guard was in.
 # Longest side of the coverage surface in pixels - keeps the payload and
 # the per-ping update cost bounded regardless of farm size.
 MAX_SURFACE_PX = 800

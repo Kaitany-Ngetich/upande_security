@@ -31,10 +31,11 @@ import shapely
 
 import frappe
 from frappe import _
-from shapely.geometry import LineString, mapping
+from shapely.geometry import LineString
 
 from upande_security.api.feature_flags import is_feature_enabled
 from upande_security.api.patrol_coverage import MAX_ACCURACY_M, _load_farm_polygon, boundary_filter_area
+from upande_security.api.patrol_rules import valid_fix
 
 #: A 12-hour night across a handful of guards is a few thousand points.
 #: Past this the answer stops being a replay and starts being a data dump,
@@ -122,6 +123,8 @@ def get_patrol_playback(farm, from_datetime, to_datetime, guard=None, include_on
 			lng = float(r.longitude)
 		except (TypeError, ValueError):
 			continue
+		if not valid_fix(lat, lng):
+			continue
 		# Not setdefault: its default is built for every point, and that
 		# looked the guard's name up once per point - 5,545 queries for one
 		# guard's night instead of one.
@@ -170,8 +173,8 @@ def farm_points(farm, start, end, include_on_duty):
 	Patrol Points Outside Farm Boundary on, every point inside the boundary
 	grown by Boundary Tolerance whatever farm it was saved under; otherwise
 	points saved under the farm plus untagged ones within ~110 m of it.
-	boundary is the prepared area to split trails on, or None. Shared by
-	Playback and the app's Patrols report so the two always agree."""
+	boundary is the prepared area to split trails on, or None. The app's
+	Patrols report applies the same rule in SQL (patrol_report._branches)."""
 	try:
 		poly = _load_farm_polygon(farm)
 	except Exception:
@@ -189,70 +192,6 @@ def farm_points(farm, start, end, include_on_duty):
 		]
 		rows.sort(key=lambda r: (r.captured_at, r.name))
 	return rows, None, "saved_farm"
-
-
-def report_points(start, end, farm=None, limit=3000):
-	"""Patrol points for the app's Reports > Patrols tab, by the same rules as
-	the Patrol Map and Playback: one farm's points by farm_points (boundary,
-	tolerance, trail breaks), or every farm's when none is picked; patrol
-	points only (On Duty is not patrolling); fixes worse than MAX_ACCURACY_M
-	dropped. Returns (points oldest first, boundary geojson list, guard names).
-
-	Thinned evenly to `limit` rather than cut, so a long range still shows
-	whole routes instead of only its last few hours."""
-	if farm:
-		rows, boundary, _ = farm_points(farm, start, end, 0)
-	else:
-		boundary = None
-		rows = frappe.db.sql(
-			"select " + _POINT_COLUMNS + " from `tabPatrol GPS Log`"
-			" where captured_at between %(start)s and %(end)s"
-			" and ifnull(tracking_mode, 'Patrol') != 'On Duty'"
-			" and ifnull(latitude, '') != '' and ifnull(longitude, '') != ''"
-			" order by captured_at asc",
-			{"start": start, "end": end},
-			as_dict=True,
-		)
-	rows = [r for r in rows if not _too_inaccurate(r.gps_accuracy)]
-	if len(rows) > limit:
-		rows = rows[:: (len(rows) // limit) + 1]
-
-	names, last, points = {}, {}, []
-	for r in rows:
-		kind, gid = _guard_label(r)
-		try:
-			lat, lng = float(r.latitude), float(r.longitude)
-		except (TypeError, ValueError):
-			continue
-		if gid and gid not in names:
-			names[gid] = _display_name(kind, gid)
-		key = (gid, r.patrol)
-		prev = last.get(key)
-		brk = bool(
-			prev and boundary is not None
-			and not boundary.contains(LineString([(prev[1], prev[0]), (lng, lat)]))
-		)
-		last[key] = (lat, lng)
-		points.append(
-			{"lat": lat, "lng": lng, "at": str(r.captured_at), "guard": names.get(gid) or gid or "",
-			 "patrol": r.patrol or "", "brk": 1 if brk else 0}
-		)
-	return points, _boundaries(farm), names
-
-
-def _boundaries(farm=None):
-	"""[{farm, geojson}] for the app map's outline - the selected farm, or
-	every farm with a usable boundary when none is picked."""
-	farms = [farm] if farm else frappe.get_all("Farm", pluck="name")
-	out = []
-	for f in farms:
-		try:
-			poly = _load_farm_polygon(f)
-		except Exception:
-			poly = None
-		if poly is not None:
-			out.append({"farm": f, "geojson": mapping(poly.simplify(0.00002, preserve_topology=True))})
-	return out
 
 
 def _playback_settings():
