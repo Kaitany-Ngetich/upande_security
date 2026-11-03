@@ -40,6 +40,22 @@ def clear_appointment_party_before_insert(doc, method=None):
 	doc.appointment_with = None
 
 
+# Most farm staff have no system user, so custom_meet_with_email (fetched from
+# the Employee's user_id) would be empty and the host's "Visitor at Reception"
+# email never sent. Fall back through the emails the Employee record holds.
+HOST_EMAIL_FIELDS = ("user_id", "prefered_email", "company_email", "personal_email")
+
+
+def set_host_email(doc, method=None):
+	"""Before Save: fill custom_meet_with_email from the host Employee when the
+	user_id fetch left it empty. Runs after Frappe's own fetch_from, so a host
+	with a system user keeps that address."""
+	if not doc.get("custom_meet_with") or doc.get("custom_meet_with_email"):
+		return
+	emails = frappe.db.get_value("Employee", doc.custom_meet_with, HOST_EMAIL_FIELDS, as_dict=True) or {}
+	doc.custom_meet_with_email = next((emails[f] for f in HOST_EMAIL_FIELDS if emails.get(f)), None)
+
+
 def clear_stale_event_participant(doc, method=None):
 	"""After Save: remove the Customer link ERPNext stamps on the linked Event.
 

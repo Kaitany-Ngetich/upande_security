@@ -186,6 +186,8 @@ doc_events = {
 		"before_insert": "upande_security.api.appointment_events.clear_appointment_party_before_insert",
 		"before_save": [
 			"upande_security.api.appointment_events.clear_appointment_party",
+			# Host email from the Employee's other emails when they have no user.
+			"upande_security.api.appointment_events.set_host_email",
 			# appointment_host_wa_number is DELIBERATELY NOT WIRED. Its Server
 			# Script was disabled because it was stopping WhatsApp host alerts
 			# from going out. Uncommenting restores that breakage.
@@ -875,6 +877,7 @@ fixtures = [
                 "in",
                 [
                     "Visitor at Reception - Host & Secretary SMS",
+                    "Visitor at Reception - Host Alert",
                     "Visitor at Reception - Host Alert (Kaitet Ltd.)",
                     "Visitor at Reception - Host Alert (Karen Roses)",
                     "Staff Vehicle Sticker Approved - Employee Email",
