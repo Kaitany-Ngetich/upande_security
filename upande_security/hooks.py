@@ -186,6 +186,8 @@ doc_events = {
 		# insert, so the party clear fires twice on a new doc — same as the
 		# Server Scripts did, and harmless since it only clears fields.
 		"before_insert": "upande_security.api.appointment_events.clear_appointment_party_before_insert",
+		# "Also Visiting" farms stay within the visit's company (api/visitor_route.py).
+		"validate": "upande_security.api.visitor_route.validate_farm_stops",
 		"before_save": [
 			"upande_security.api.appointment_events.clear_appointment_party",
 			# Host email from the Employee's other emails when they have no user.
@@ -595,6 +597,7 @@ fixtures = [
                     "Appointment-custom_host_whatsapp_no",
                     "Appointment-custom_company",
                     "Appointment-custom_farmunit",
+                    "Appointment-custom_also_visiting",
                     "Appointment-custom_visit_purpose",
                     "Appointment-custom_number_of_passengers",
                     "Appointment-custom_mode_of_transport",
