@@ -146,7 +146,6 @@
   },
   {
    "default": "1",
-   "description": "After a guard stops patrol, the app keeps sending their position until they log out, logged as On Duty (not patrol work). Guards see an 'On duty' notification while it runs.",
    "fieldname": "feature_on_duty_tracking",
    "fieldtype": "Check",
    "label": "On-Duty Location Tracking",
@@ -392,7 +391,6 @@
   },
   {
    "default": "5",
-   "description": "How often the app sends a guard's position while on duty but not patrolling.",
    "fieldname": "on_duty_interval_minutes",
    "fieldtype": "Int",
    "label": "On-Duty Position Interval (minutes)"
@@ -600,75 +598,65 @@
   },
   {
    "default": "1",
-   "description": "Check each on-duty guard's last position against the Security Zones of their farm.",
    "fieldname": "feature_zone_breach_alerts",
    "fieldtype": "Check",
    "label": "Restricted Zone Breach Alerts"
   },
   {
    "default": "55",
-   "description": "One alert per guard per zone inside this window. The check runs every 15 minutes, so a guard who stays put should be flagged once, not four times an hour.",
    "fieldname": "zone_breach_grace_minutes",
    "fieldtype": "Int",
    "label": "Zone Breach Repeat Window (minutes)"
   },
   {
+   "collapsible": 1,
    "fieldname": "apk_release_section",
    "fieldtype": "Section Break",
-   "label": "Mobile App Release (Android APK)",
-   "collapsible": 1,
-   "description": "Phones on an older APK download this one by themselves. Android 12+ installs it silently in the night window below; Android 11 and older asks for one tap. Fill in after each new APK build; leave empty to offer nothing."
+   "label": "Mobile App Release (Android APK)"
   },
   {
    "fieldname": "latest_apk_version",
    "fieldtype": "Data",
-   "label": "Latest APK Version",
-   "description": "The new build's version, e.g. 1.2.6 (app.json \"version\"). Phones with a lower version are offered it."
+   "label": "Latest APK Version"
   },
   {
    "fieldname": "latest_apk_url",
    "fieldtype": "Data",
    "label": "APK Download Link",
-   "options": "URL",
-   "description": "Direct link to the .apk file, e.g. the EAS build's artifact link."
+   "options": "URL"
   },
   {
    "fieldname": "apk_release_column_break",
    "fieldtype": "Column Break"
   },
   {
+   "default": "0",
    "fieldname": "latest_apk_required",
    "fieldtype": "Check",
-   "label": "Compulsory",
-   "default": "0",
-   "description": "Ticked: installs at the first chance instead of waiting for the night window (Android 12+); on older phones the prompt has no Later button."
+   "label": "Compulsory"
   },
   {
    "fieldname": "latest_apk_notes",
    "fieldtype": "Small Text",
-   "label": "What's New",
-   "description": "Shown to the guard in the update prompt."
+   "label": "What's New"
   },
   {
+   "default": "02:00:00",
    "fieldname": "apk_install_window_start",
    "fieldtype": "Time",
-   "label": "Install Window From",
-   "default": "02:00:00",
-   "description": "Android 12+ phones install the new APK silently inside this window (phone's local time), never during a running patrol."
+   "label": "Install Window From"
   },
   {
+   "default": "04:00:00",
    "fieldname": "apk_install_window_end",
    "fieldtype": "Time",
-   "label": "Install Window To",
-   "default": "04:00:00",
-   "description": "Android 11 and older cannot update silently: they download it and ask the guard to tap Install."
+   "label": "Install Window To"
   },
   {
+   "collapsible": 1,
    "fieldname": "standard_shift_times_section",
    "fieldtype": "Section Break",
-   "label": "Standard Shift Times",
-   "collapsible": 1,
-   "description": "Picking a shift type on a Rotation Plan or a Shift Assignment fills its start and end times from here."
+   "label": "Standard Shift Times"
   },
   {
    "fieldname": "standard_shift_times",
@@ -680,7 +668,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-02 12:30:00.000000",
+ "modified": "2026-11-03 07:52:06.854886",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",

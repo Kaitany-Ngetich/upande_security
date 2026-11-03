@@ -21,19 +21,19 @@
   {
    "fieldname": "zone_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Zone Name",
    "reqd": 1,
-   "unique": 1,
-   "in_list_view": 1
+   "unique": 1
   },
   {
    "fieldname": "farm",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Farm",
    "options": "Farm",
-   "reqd": 1,
-   "in_list_view": 1,
-   "in_standard_filter": 1
+   "reqd": 1
   },
   {
    "fieldname": "column_break_1",
@@ -43,29 +43,27 @@
    "default": "1",
    "fieldname": "active",
    "fieldtype": "Check",
-   "label": "Active",
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "label": "Active"
   },
   {
    "default": "Medium",
-   "description": "Carried onto the Unauthorized Access Attempt a breach raises.",
    "fieldname": "severity",
    "fieldtype": "Select",
-   "label": "Severity",
-   "options": "Low\nMedium\nHigh\nCritical",
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "label": "Severity",
+   "options": "Low\nMedium\nHigh\nCritical"
   },
   {
    "default": "Deny",
-   "description": "Deny: nobody may be here unless a rule below allows them (a restricted section). Allow: anyone may, unless a rule denies them (a monitored section).",
    "fieldname": "default_access",
    "fieldtype": "Select",
+   "in_list_view": 1,
    "label": "Default Access",
    "options": "Deny\nAllow",
-   "reqd": 1,
-   "in_list_view": 1
+   "reqd": 1
   },
   {
    "fieldname": "section_break_boundary",
@@ -73,7 +71,6 @@
    "label": "Boundary"
   },
   {
-   "description": "GeoJSON polygon for this section. Without one the zone is never tested - there is nothing to be inside of.",
    "fieldname": "boundary_geojson",
    "fieldtype": "Attach",
    "label": "Boundary GeoJSON"
@@ -89,7 +86,6 @@
    "label": "Who May Be Here"
   },
   {
-   "description": "Checked in order; the first rule that matches the person and the time decides. No match falls back to Default Access.",
    "fieldname": "access_rules",
    "fieldtype": "Table",
    "label": "Access Rules",
@@ -98,7 +94,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-21 00:00:00.000000",
+ "modified": "2026-11-03 07:52:06.854886",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Zone",

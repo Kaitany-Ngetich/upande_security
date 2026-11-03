@@ -18,43 +18,42 @@
  ],
  "fields": [
   {
+   "columns": 1,
    "default": "Allow",
    "fieldname": "effect",
    "fieldtype": "Select",
+   "in_list_view": 1,
    "label": "Effect",
    "options": "Allow\nDeny",
-   "reqd": 1,
-   "in_list_view": 1,
-   "columns": 1
+   "reqd": 1
   },
   {
+   "columns": 1,
    "default": "Anyone",
-   "description": "Who this rule is about. 'Anyone' makes it a blanket rule for the window below.",
    "fieldname": "applies_to",
    "fieldtype": "Select",
+   "in_list_view": 1,
    "label": "Applies To",
    "options": "Anyone\nRole\nEmployee\nSecurity Guard",
-   "reqd": 1,
-   "in_list_view": 1,
-   "columns": 1
+   "reqd": 1
   },
   {
+   "columns": 2,
    "depends_on": "eval:doc.applies_to=='Role'",
    "fieldname": "role",
    "fieldtype": "Link",
-   "label": "Role",
-   "options": "Role",
    "in_list_view": 1,
-   "columns": 2
+   "label": "Role",
+   "options": "Role"
   },
   {
+   "columns": 2,
    "depends_on": "eval:doc.applies_to=='Employee'",
    "fieldname": "employee",
    "fieldtype": "Link",
-   "label": "Employee",
-   "options": "Employee",
    "in_list_view": 1,
-   "columns": 2
+   "label": "Employee",
+   "options": "Employee"
   },
   {
    "depends_on": "eval:doc.applies_to=='Security Guard'",
@@ -68,28 +67,27 @@
    "fieldtype": "Column Break"
   },
   {
+   "columns": 1,
    "default": "All Days",
    "fieldname": "days",
    "fieldtype": "Select",
-   "label": "Days",
-   "options": "All Days\nWeekdays\nWeekends",
    "in_list_view": 1,
-   "columns": 1
+   "label": "Days",
+   "options": "All Days\nWeekdays\nWeekends"
   },
   {
-   "description": "Leave both times blank for the whole day. An end before the start runs past midnight.",
+   "columns": 1,
    "fieldname": "from_time",
    "fieldtype": "Time",
-   "label": "From",
    "in_list_view": 1,
-   "columns": 1
+   "label": "From"
   },
   {
+   "columns": 1,
    "fieldname": "to_time",
    "fieldtype": "Time",
-   "label": "To",
    "in_list_view": 1,
-   "columns": 1
+   "label": "To"
   },
   {
    "fieldname": "note",
@@ -100,7 +98,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-10-21 00:00:00.000000",
+ "modified": "2026-11-03 07:52:06.854886",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Zone Access Rule",

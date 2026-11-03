@@ -80,7 +80,6 @@
    "options": "User"
   },
   {
-   "description": "Set for a Restricted Zone Entry; blank for gate-side refusals.",
    "fieldname": "zone",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -89,7 +88,6 @@
    "options": "Security Zone"
   },
   {
-   "description": "Who was placed here. attempted_by is the login, which several external guards share.",
    "fieldname": "person_name",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -106,7 +104,6 @@
    "label": "Longitude"
   },
   {
-   "description": "Copied from the zone at the time of the breach.",
    "fieldname": "severity",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -117,7 +114,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-26 12:00:00.000000",
+ "modified": "2026-11-03 07:52:06.854886",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Unauthorized Access Attempt",
