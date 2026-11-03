@@ -197,28 +197,13 @@ def _point_in_polygon(lat, lng, ring):
 
 
 def _farm_boundary_ring(farm):
-	"""Pull the outer ring (list of (lng, lat) pairs) out of a Farm's own
-	boundary_geojson, or None if this farm has no boundary on record yet.
-	Farm.boundary_geojson is the single source of truth for farm boundaries
-	now — the old Geo Data doctype is retired."""
-	boundary_json = frappe.db.get_value("Farm", farm, "boundary_geojson")
-	if not boundary_json:
-		return None
-	try:
-		parsed = json.loads(boundary_json)
-	except Exception:
-		return None
-	features = parsed.get("features") or []
-	if not features:
-		return None
-	geometry = features[0].get("geometry") or {}
-	coordinates = geometry.get("coordinates") or []
-	geom_type = geometry.get("type")
-	if geom_type == "Polygon" and coordinates:
-		return coordinates[0]
-	if geom_type == "MultiPolygon" and coordinates:
-		return coordinates[0][0]
-	return None
+	"""The farm's outer boundary as [(lng, lat), ...], or None if it has none
+	on record. Read through farm_geo.farm_ring: Farm.location ("Farm
+	Boundary") on sites without the older boundary_geojson field - on those
+	this used to find no boundary, so the geofence check never fired."""
+	from upande_security.api.farm_geo import farm_ring
+
+	return farm_ring(farm)
 
 
 def _recent_alert_exists(shift_name, alert_kind):

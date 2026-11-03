@@ -210,6 +210,51 @@ def _guard_scope():
 		if resolved_farm and not resolved_company and frappe.get_meta("Farm").has_field("company"):
 			resolved_company = frappe.db.get_value("Farm", resolved_farm, "company")
 	return resolved_company, resolved_farm
+# The farm a visit belongs to: the farm stamped at the gate, else the host's
+# farm - a booked visit has no gate farm until the visitor checks in.
+_VISIT_FARM_SQL = "COALESCE(NULLIF({a}.custom_farmunit, ''), {a}.custom_meet_with_farm)"
+_VISIT_COMPANY_SQL = "COALESCE(NULLIF({a}.custom_company, ''), {a}.custom_meet_with_company)"
+
+
+def visit_scope(alias="a"):
+	"""(sql, params) limiting Appointment rows (table alias `alias`) to those
+	the caller may see at the gate. Appended to a WHERE clause.
+
+	  - System Manager: everything.
+	  - Security Head: the companies/farms of their own User Permission rows.
+	  - Anyone else (a guard): the farm they are at now - where the phone's
+		GPS put them at sign-in (gate_movement.locate_post), else today's
+		roster, else their own record (gate_movement._location).
+	No resolvable scope means nothing, never everything."""
+	user = frappe.session.user
+	roles = frappe.get_roles(user)
+	if user == "Administrator" or "System Manager" in roles:
+		return "", []
+	farm_sql = _VISIT_FARM_SQL.format(a=alias)
+	if "Security Head" in roles:
+		perms = frappe.get_all(
+			"User Permission",
+			filters={"user": user, "allow": ["in", ["Company", "Farm"]]},
+			fields=["allow", "for_value"],
+		)
+		companies = [p.for_value for p in perms if p.allow == "Company" and p.for_value]
+		farms = [p.for_value for p in perms if p.allow == "Farm" and p.for_value]
+		conditions, params = [], []
+		if companies:
+			conditions.append(_VISIT_COMPANY_SQL.format(a=alias) + " IN (" + ", ".join(["%s"] * len(companies)) + ")")
+			params += companies
+		if farms:
+			conditions.append(farm_sql + " IN (" + ", ".join(["%s"] * len(farms)) + ")")
+			params += farms
+		return (" AND (" + " OR ".join(conditions) + ")", params) if conditions else (" AND 1=0", [])
+	from upande_security.api.gate_movement import _location
+
+	farm = _location(user)["farm"]
+	if not farm:
+		return " AND 1=0", []
+	return " AND " + farm_sql + " = %s", [farm]
+
+
 def _form_has(key):
 	"""True if the client sent `key` at all (even as null/"").
 
@@ -1210,6 +1255,8 @@ def search_visitor_appointment(query=None):
 
 		today = frappe.utils.today()
 		like = "%" + query + "%"
+		# A guard finds only visits to the farm they are at (visit_scope).
+		scope_sql, scope_params = visit_scope("a")
 
 		rows = frappe.db.sql(
 			"""
@@ -1228,10 +1275,13 @@ def search_visitor_appointment(query=None):
 			       OR a.name LIKE %s
 			       OR a.custom_id_number = %s
 			       OR a.custom_visitor_otp = %s)
+			"""
+			+ scope_sql
+			+ """
 			ORDER BY (a.custom_visitor_otp = %s) DESC, a.scheduled_time DESC
 			LIMIT 1
 			""",
-			(today, like, like, like, query, query, query),
+			tuple([today, like, like, like, query, query] + scope_params + [query]),
 			as_dict=True,
 		)
 
@@ -1333,6 +1383,8 @@ def approved_appointments():
 	plain workflow_state sort.
 	"""
 	try:
+		# A guard sees only visits to the farm they are at (visit_scope).
+		scope_sql, scope_params = visit_scope("a")
 		rows = frappe.db.sql(
 			"""
 			SELECT a.name, a.customer_name, a.customer_phone_number,
@@ -1342,13 +1394,16 @@ def approved_appointments():
 			       a.custom_vehicles_number_plate, a.custom_vehicles_colour,
 			       a.custom_number_of_passengers,
 			       a.custom_host_received_time,
-			       a.custom_visitor_type,
+			       a.custom_visitor_type, a.customer_organization,
 			       b.badge_number,
 			       e.employee_name AS host_name
 			FROM `tabAppointment` a
 			LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with
 			LEFT JOIN `tabGate Badge` b ON b.name = a.custom_visitor_badge
 			WHERE a.workflow_state IN ('Approved by Host', 'Approved by Secretary', 'Visitor Checked In')
+			"""
+			+ scope_sql
+			+ """
 			ORDER BY
 			  CASE a.workflow_state
 			    WHEN 'Visitor Checked In' THEN 0
@@ -1358,6 +1413,7 @@ def approved_appointments():
 			  a.scheduled_time DESC
 			LIMIT 100
 			""",
+			tuple(scope_params),
 			as_dict=True,
 		)
 		result = []
@@ -1399,6 +1455,8 @@ def approved_appointments():
 					"custom_visitor_type": str(r.custom_visitor_type)
 					if r.custom_visitor_type
 					else "",
+					# Prefills the gate's visit-details step at check-in.
+					"organization": r.customer_organization or "",
 				}
 			)
 		return result
@@ -7391,17 +7449,10 @@ def daily_summary(date=None):
 	on Appointment.scheduled_time, NOT on check-in time, so a visitor who was
 	scheduled yesterday but checked in today is not counted here.
 
-	Access scoping (this endpoint is the only thing standing between a guard
-	and other companies' visitor data, so the order matters):
-	  - System Manager: everything.
-	  - Security Head: whatever their own User Permission rows (Company and/or
-		Farm) grant, which can be broader or narrower than a single farm.
-	  - Anyone else (gate guard): their own company/farm, resolved the same way
-		as get_security_head_contact -- Employee first, then Security Guard
-		matched by full name.
-	A user with no resolvable company/farm gets `AND 1=0` (empty), never
-	"everything". Rows are filtered on the stamped custom_company /
-	custom_farmunit columns on Appointment.
+	Access scoping is visit_scope: System Manager everything, Security Head
+	their User Permission companies/farms, a guard only the farm they are at
+	(GPS at sign-in, else roster, else their record) - never "everything" when
+	nothing resolves. A visit's farm is its gate farm, else its host's farm.
 
 	still_inside = checked in but not checked out, within the day's rows only
 	(and the 200-row LIMIT), so it is a day-view figure, not a live headcount.
@@ -7418,66 +7469,9 @@ def daily_summary(date=None):
 		start = date_str + " 00:00:00"
 		end = date_str + " 23:59:59"
 
-		current_user = frappe.session.user
-		roles = _user_roles(current_user)
-
-		is_system_manager = "System Manager" in roles
-		is_security_head = "Security Head" in roles
-
-		scope_companies = []
-		scope_farms = []
-
-		if not is_system_manager:
-			if is_security_head:
-				perm_rows = frappe.db.sql(
-					"SELECT allow, for_value FROM `tabUser Permission` "
-					"WHERE user = %s AND allow IN ('Company', 'Farm')",
-					(current_user,),
-					as_dict=True,
-				)
-				for p in perm_rows:
-					if p.allow == "Company" and p.for_value:
-						scope_companies.append(p.for_value)
-					elif p.allow == "Farm" and p.for_value:
-						scope_farms.append(p.for_value)
-			else:
-				employee = frappe.db.get_value(
-					"Employee", {"user_id": current_user}, ["company", "custom_farm"], as_dict=True
-				)
-				if employee:
-					if employee.company:
-						scope_companies.append(employee.company)
-					if employee.custom_farm:
-						scope_farms.append(employee.custom_farm)
-				else:
-					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
-					if user_full:
-						guard = frappe.db.get_value(
-							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
-						)
-						if guard:
-							if guard.company:
-								scope_companies.append(guard.company)
-							if guard.farm:
-								scope_farms.append(guard.farm)
-
-		# Only placeholders are generated dynamically; every value is bound.
-		scope_sql = ""
-		scope_params = []
-		if not is_system_manager:
-			conditions = []
-			if scope_companies:
-				placeholders = ", ".join(["%s"] * len(scope_companies))
-				conditions.append("a.custom_company IN (" + placeholders + ")")
-				scope_params = scope_params + scope_companies
-			if scope_farms:
-				placeholders = ", ".join(["%s"] * len(scope_farms))
-				conditions.append("a.custom_farmunit IN (" + placeholders + ")")
-				scope_params = scope_params + scope_farms
-			if conditions:
-				scope_sql = " AND (" + " OR ".join(conditions) + ")"
-			else:
-				scope_sql = " AND 1=0"
+		# Who sees which visits: visit_scope (System Manager all, Security
+		# Head their User Permissions, a guard the farm they are at).
+		scope_sql, scope_params = visit_scope("a")
 
 		rows = frappe.db.sql(
 			"""

@@ -280,6 +280,66 @@ def return_to_roster():
 	return _location(frappe.session.user)
 
 
+# A fix vaguer than this cannot tell neighbouring farms apart reliably.
+_LOCATE_MAX_ACCURACY_M = 75
+
+
+@frappe.whitelist(methods=["POST"])
+def locate_post(latitude=None, longitude=None, accuracy=None, mocked=0):
+	"""The app's GPS fix at sign-in (and on return to the app): which farm's
+	boundary the guard is standing in. That farm is what the guard's lists are
+	limited to (visit_scope), whatever the roster or the guard's record says -
+	a borrowed login, a guard covering another farm and a login linked to no
+	guard at all are all placed by where the phone actually is.
+
+	When it differs from where the guard is already placed, it is recorded as
+	a Guard Location Change (reason: GPS) and reported to the security heads,
+	exactly like a change the guard makes by hand. A mock-location fix is
+	refused; a vague one is not used."""
+	from upande_security.api.farm_geo import farm_at
+
+	user = frappe.session.user
+	if frappe.utils.cint(mocked):
+		return {"error": "Location comes from a mock-location app. Turn it off to sign in at a farm."}
+	try:
+		lat, lng = float(latitude), float(longitude)
+	except (TypeError, ValueError):
+		return {"error": "No location received."}
+	acc = frappe.utils.flt(accuracy) if accuracy not in (None, "") else None
+	if acc is not None and acc > _LOCATE_MAX_ACCURACY_M:
+		return {"error": "GPS is too vague (±%d m). Step outside and try again." % acc, "retry": True}
+
+	here = farm_at(lat, lng)
+	current = _location(user)
+	if not here:
+		return dict(current, located=None)
+	if here == current["farm"]:
+		return dict(current, located=here)
+
+	rostered_farm, rostered_gate = rostered_post(user)
+	employee, guard = _roster_guard(user)
+	_end_location_changes(user)
+	doc = frappe.new_doc("Guard Location Change")
+	doc.guard_user = user
+	doc.guard_name = frappe.db.get_value("User", user, "full_name") or user
+	doc.external_guard = guard
+	doc.internal_guard = employee
+	doc.status = "Active"
+	doc.started_at = frappe.utils.now_datetime()
+	doc.rostered_farm = rostered_farm
+	doc.rostered_gate = rostered_gate
+	doc.farm = here
+	# GPS knows the farm, not the gate: the farm's gate when it has only one,
+	# else blank - a guessed gate would be stamped on every check-in.
+	gates = [g["gate_name"] for g in get_farm_gates(here)]
+	doc.gate = gates[0] if len(gates) == 1 else ""
+	doc.reason = "GPS at sign-in: inside " + here + (" (±%d m)" % acc if acc is not None else "")
+	doc.flags.ignore_mandatory = not doc.gate
+	doc.insert(ignore_permissions=True)
+	_notify_location_change(doc)
+	return dict(_location(user), located=here)
+
+
 def _end_location_changes(user):
 	for name in frappe.get_all(
 		"Guard Location Change", filters={"guard_user": user, "status": "Active"}, pluck="name"
@@ -295,7 +355,7 @@ def _notify_location_change(doc):
 	from upande_security.utils.notifications import resolve_notification_users
 
 	rostered = (doc.rostered_farm + " - " + (doc.rostered_gate or "?")) if doc.rostered_farm else "not rostered"
-	subject = doc.guard_name + " moved to " + doc.farm + " - " + doc.gate
+	subject = doc.guard_name + " moved to " + doc.farm + (" - " + doc.gate if doc.gate else "")
 	detail = "Rostered: " + rostered + "<br>Reason: " + frappe.utils.escape_html(doc.reason)
 	for recipient in resolve_notification_users("security"):
 		try:
