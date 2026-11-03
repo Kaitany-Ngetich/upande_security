@@ -2,6 +2,7 @@
 upande_security.patches.rename_staff_gate_movement
 upande_security.patches.rename_gate_carried_item
 upande_security.patches.drop_custom_asset_scan_log
+upande_security.patches.move_incident_custom_fields_to_doctype
 # Patches added in this section will be executed before doctypes are migrated
 # Read docs to understand patches: https://frappeframework.com/docs/v14/user/en/database-migrations
 

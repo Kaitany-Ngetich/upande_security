@@ -26,6 +26,12 @@
   "assigned_to",
   "section_description",
   "description",
+  "classification_section",
+  "activity_at_time_of_injury",
+  "body_part_affected",
+  "classification_cb_1",
+  "nature_of_injury",
+  "is_fatal",
   "section_notify",
   "notify_persons",
   "section_people",
@@ -34,6 +40,39 @@
   "victims",
   "section_witnesses",
   "witnesses",
+  "injury_section",
+  "injury_case_status",
+  "injury_current_location",
+  "injury_cb_1",
+  "days_off_work",
+  "return_to_work_date",
+  "response_section",
+  "first_aid_given",
+  "first_aider_name",
+  "response_cb_1",
+  "ambulance_needed",
+  "ambulance_provider",
+  "ambulance_called_at",
+  "hospital_section",
+  "taken_to_hospital",
+  "hospital_name",
+  "hospital_cb_1",
+  "hospital_admission_type",
+  "attending_physician",
+  "treatment_summary",
+  "compensation_section",
+  "compensation_required",
+  "wiba_claim_filed",
+  "wiba_claim_number",
+  "compensation_cb_1",
+  "payment_status",
+  "amount_paid",
+  "doshs_section",
+  "doshs_deadline",
+  "doshs_reported",
+  "doshs_cb_1",
+  "doshs_reported_date",
+  "doshs_reference_number",
   "section_casualties",
   "casualties_wounded",
   "casualties_deceased",
@@ -48,11 +87,20 @@
   "estimated_damage_value",
   "recovered_value",
   "net_loss",
+  "police_section",
+  "police_report_required",
+  "ob_number",
+  "police_station",
+  "police_cb_1",
+  "police_officer",
+  "police_reported_on",
   "section_resolution",
   "resolution",
   "corrective_actions",
   "resolution_datetime",
   "column_break_res_1",
+  "section_documents",
+  "documents",
   "section_attachments",
   "attachment_1",
   "attachment_2",
@@ -181,6 +229,41 @@
    "reqd": 1
   },
   {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "classification_section",
+   "fieldtype": "Section Break",
+   "label": "Injury Classification"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "activity_at_time_of_injury",
+   "fieldtype": "Data",
+   "label": "Activity at Time of Injury"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "body_part_affected",
+   "fieldtype": "Data",
+   "label": "Body Part(s) Affected"
+  },
+  {
+   "fieldname": "classification_cb_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "nature_of_injury",
+   "fieldtype": "Select",
+   "label": "Nature of Injury",
+   "options": "\nCut/Laceration\nFracture\nBurn\nSprain/Strain\nBruise/Contusion\nHead Injury\nCrush Injury\nAmputation\nOther"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "is_fatal",
+   "fieldtype": "Check",
+   "label": "Fatal"
+  },
+  {
    "fieldname": "section_notify",
    "fieldtype": "Section Break",
    "label": "Notify"
@@ -188,8 +271,8 @@
   {
    "fieldname": "notify_persons",
    "fieldtype": "Table",
-   "options": "Incident Notify Person",
-   "label": "Notify"
+   "label": "Notify",
+   "options": "Incident Notify Person"
   },
   {
    "collapsible": 1,
@@ -226,6 +309,200 @@
    "fieldtype": "Table",
    "label": "Witnesses",
    "options": "Incident Person"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "injury_section",
+   "fieldtype": "Section Break",
+   "label": "Workplace Injury Follow-Up"
+  },
+  {
+   "default": "Reported",
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "injury_case_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Case Status",
+   "options": "Reported\nUnder Treatment\nAwaiting Police Report\nAwaiting Payment\nClosed"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "injury_current_location",
+   "fieldtype": "Data",
+   "label": "Current Location of Injured Person"
+  },
+  {
+   "fieldname": "injury_cb_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "days_off_work",
+   "fieldtype": "Int",
+   "label": "Days Off Work"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "return_to_work_date",
+   "fieldtype": "Date",
+   "label": "Return to Work Date"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "response_section",
+   "fieldtype": "Section Break",
+   "label": "Immediate Response"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "first_aid_given",
+   "fieldtype": "Check",
+   "label": "First Aid Given"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury' && doc.first_aid_given",
+   "fieldname": "first_aider_name",
+   "fieldtype": "Data",
+   "label": "First Aider"
+  },
+  {
+   "fieldname": "response_cb_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "ambulance_needed",
+   "fieldtype": "Check",
+   "label": "Ambulance Needed"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury' && doc.ambulance_needed",
+   "fieldname": "ambulance_provider",
+   "fieldtype": "Data",
+   "label": "Ambulance Provider"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury' && doc.ambulance_needed",
+   "fieldname": "ambulance_called_at",
+   "fieldtype": "Datetime",
+   "label": "Ambulance Called At"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "hospital_section",
+   "fieldtype": "Section Break",
+   "label": "Hospital"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "taken_to_hospital",
+   "fieldtype": "Check",
+   "label": "Taken to Hospital"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury' && doc.taken_to_hospital",
+   "fieldname": "hospital_name",
+   "fieldtype": "Data",
+   "label": "Hospital Name"
+  },
+  {
+   "fieldname": "hospital_cb_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury' && doc.taken_to_hospital",
+   "fieldname": "hospital_admission_type",
+   "fieldtype": "Select",
+   "label": "Admission Type",
+   "options": "\nOutpatient\nAdmitted"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury' && doc.taken_to_hospital",
+   "fieldname": "attending_physician",
+   "fieldtype": "Data",
+   "label": "Attending Physician"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury' && doc.taken_to_hospital",
+   "fieldname": "treatment_summary",
+   "fieldtype": "Small Text",
+   "label": "Treatment Summary"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "compensation_section",
+   "fieldtype": "Section Break",
+   "label": "Compensation & Payment"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "compensation_required",
+   "fieldtype": "Check",
+   "label": "Compensation/Payment Required"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury' && doc.compensation_required",
+   "fieldname": "wiba_claim_filed",
+   "fieldtype": "Check",
+   "label": "WIBA Claim Filed"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury' && doc.wiba_claim_filed",
+   "fieldname": "wiba_claim_number",
+   "fieldtype": "Data",
+   "label": "WIBA Claim Number"
+  },
+  {
+   "fieldname": "compensation_cb_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury' && doc.compensation_required",
+   "fieldname": "payment_status",
+   "fieldtype": "Select",
+   "label": "Payment Status",
+   "options": "\nPending\nPartially Paid\nFully Paid"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury' && doc.compensation_required",
+   "fieldname": "amount_paid",
+   "fieldtype": "Currency",
+   "label": "Amount Paid"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "doshs_section",
+   "fieldtype": "Section Break",
+   "label": "DOSHS Statutory Reporting"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "doshs_deadline",
+   "fieldtype": "Date",
+   "label": "DOSHS Reporting Deadline",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury'",
+   "fieldname": "doshs_reported",
+   "fieldtype": "Check",
+   "label": "DOSHS-1 Filed"
+  },
+  {
+   "fieldname": "doshs_cb_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury' && doc.doshs_reported",
+   "fieldname": "doshs_reported_date",
+   "fieldtype": "Date",
+   "label": "DOSHS-1 Filed On"
+  },
+  {
+   "depends_on": "eval:doc.nature_of_incident=='Workplace Injury' && doc.doshs_reported",
+   "fieldname": "doshs_reference_number",
+   "fieldtype": "Data",
+   "label": "DOSHS Reference Number"
   },
   {
    "collapsible": 1,
@@ -304,6 +581,45 @@
    "read_only": 1
   },
   {
+   "fieldname": "police_section",
+   "fieldtype": "Section Break",
+   "label": "Police Report"
+  },
+  {
+   "fieldname": "police_report_required",
+   "fieldtype": "Check",
+   "label": "Reported to Police"
+  },
+  {
+   "depends_on": "eval:doc.police_report_required",
+   "fieldname": "ob_number",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "OB Number"
+  },
+  {
+   "depends_on": "eval:doc.police_report_required",
+   "fieldname": "police_station",
+   "fieldtype": "Data",
+   "label": "Police Station"
+  },
+  {
+   "fieldname": "police_cb_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.police_report_required",
+   "fieldname": "police_officer",
+   "fieldtype": "Data",
+   "label": "Officer Handling"
+  },
+  {
+   "depends_on": "eval:doc.police_report_required",
+   "fieldname": "police_reported_on",
+   "fieldtype": "Datetime",
+   "label": "Reported to Police On"
+  },
+  {
    "collapsible": 1,
    "fieldname": "section_resolution",
    "fieldtype": "Section Break",
@@ -330,10 +646,21 @@
    "fieldtype": "Column Break"
   },
   {
+   "fieldname": "section_documents",
+   "fieldtype": "Section Break",
+   "label": "Documents"
+  },
+  {
+   "fieldname": "documents",
+   "fieldtype": "Table",
+   "label": "Documents",
+   "options": "Incident Document"
+  },
+  {
    "collapsible": 1,
    "fieldname": "section_attachments",
    "fieldtype": "Section Break",
-   "label": "Attachments"
+   "label": "More Attachments"
   },
   {
    "fieldname": "attachment_1",
@@ -363,7 +690,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-26 23:00:00.000000",
+ "modified": "2026-11-03 08:05:15.737993",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Incident Report",
