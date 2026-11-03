@@ -12,6 +12,7 @@
   "employee_name",
   "contractor_badge",
   "contractor",
+  "appointment",
   "id_number",
   "phone",
   "company",
@@ -33,46 +34,86 @@
  ],
  "fields": [
   {
-   "default": "Staff",
-   "fieldname": "party_type",
-   "fieldtype": "Select",
-   "label": "Who",
-   "options": "Staff\nContractor\nDriver",
-   "in_list_view": 1,
-   "in_standard_filter": 1
-  },
-  {
    "fieldname": "naming_series",
    "fieldtype": "Select",
-   "options": "SGM-.YYYY.-",
    "label": "Series",
+   "options": "SGM-.YYYY.-",
    "reqd": 1
   },
   {
+   "default": "Staff",
+   "fieldname": "party_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Who",
+   "options": "Staff\nContractor\nDriver\nVisitor"
+  },
+  {
+   "depends_on": "eval:doc.party_type=='Staff'",
    "fieldname": "employee",
    "fieldtype": "Link",
-   "options": "Employee",
-   "label": "Employee",
-   "search_index": 1,
    "in_standard_filter": 1,
+   "label": "Employee",
    "mandatory_depends_on": "eval:doc.party_type=='Staff'",
-   "depends_on": "eval:doc.party_type=='Staff'"
+   "options": "Employee",
+   "search_index": 1
   },
   {
    "fetch_from": "employee.employee_name",
    "fieldname": "employee_name",
    "fieldtype": "Data",
-   "label": "Name",
-   "read_only": 1,
    "hidden": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "label": "Name",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:in_list(['Contractor','Visitor'], doc.party_type)",
+   "fieldname": "contractor_badge",
+   "fieldtype": "Link",
+   "label": "Badge",
+   "options": "Gate Badge",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.party_type=='Contractor'",
+   "fieldname": "contractor",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Contractor",
+   "options": "Supplier",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.party_type=='Visitor'",
+   "fieldname": "appointment",
+   "fieldtype": "Link",
+   "label": "Visit",
+   "options": "Appointment",
+   "search_index": 1
+  },
+  {
+   "depends_on": "eval:doc.party_type!='Staff'",
+   "fieldname": "id_number",
+   "fieldtype": "Data",
+   "label": "ID Number",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:in_list(['Driver','Visitor'], doc.party_type)",
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "options": "Phone",
+   "read_only": 1
   },
   {
    "fieldname": "company",
    "fieldtype": "Link",
-   "options": "Company",
+   "in_list_view": 1,
    "label": "Company",
-   "in_list_view": 1
+   "options": "Company"
   },
   {
    "fieldname": "column_break_1",
@@ -81,16 +122,16 @@
   {
    "fieldname": "movement_date",
    "fieldtype": "Date",
+   "in_list_view": 1,
    "label": "Date",
    "reqd": 1,
-   "in_list_view": 1,
    "search_index": 1
   },
   {
    "fieldname": "time_in",
    "fieldtype": "Time",
-   "label": "Time In",
-   "in_list_view": 1
+   "in_list_view": 1,
+   "label": "Time In"
   },
   {
    "fieldname": "time_out",
@@ -104,8 +145,8 @@
   {
    "fieldname": "farm",
    "fieldtype": "Link",
-   "options": "Farm",
-   "label": "Farm"
+   "label": "Farm",
+   "options": "Farm"
   },
   {
    "fieldname": "entry_gate",
@@ -127,50 +168,6 @@
    "label": "Vehicle Plate"
   },
   {
-   "fieldname": "recorded_by",
-   "fieldtype": "Link",
-   "options": "User",
-   "label": "Recorded By",
-   "read_only": 1
-  },
-  {
-   "fieldname": "remarks",
-   "fieldtype": "Small Text",
-   "label": "Remarks"
-  },
-  {
-   "fieldname": "contractor_badge",
-   "fieldtype": "Link",
-   "label": "Badge",
-   "options": "Gate Badge",
-   "depends_on": "eval:doc.party_type=='Contractor'",
-   "read_only": 1
-  },
-  {
-   "fieldname": "contractor",
-   "fieldtype": "Link",
-   "label": "Contractor",
-   "options": "Supplier",
-   "depends_on": "eval:doc.party_type=='Contractor'",
-   "read_only": 1,
-   "in_standard_filter": 1
-  },
-  {
-   "fieldname": "id_number",
-   "fieldtype": "Data",
-   "label": "ID Number",
-   "depends_on": "eval:doc.party_type!='Staff'",
-   "read_only": 1
-  },
-  {
-   "fieldname": "phone",
-   "fieldtype": "Data",
-   "label": "Phone",
-   "options": "Phone",
-   "read_only": 1,
-   "depends_on": "eval:doc.party_type=='Driver'"
-  },
-  {
    "fieldname": "vehicle_sticker",
    "fieldtype": "Link",
    "label": "Vehicle Sticker",
@@ -178,23 +175,35 @@
    "read_only": 1
   },
   {
+   "depends_on": "eval:doc.sticker_owner",
    "fieldname": "sticker_owner",
    "fieldtype": "Link",
    "label": "Vehicle Owner",
    "options": "Employee",
-   "read_only": 1,
-   "depends_on": "eval:doc.sticker_owner"
+   "read_only": 1
   },
   {
+   "depends_on": "eval:doc.sticker_owner",
    "fieldname": "sticker_owner_name",
    "fieldtype": "Data",
    "label": "Vehicle Owner Name",
-   "read_only": 1,
-   "depends_on": "eval:doc.sticker_owner"
+   "read_only": 1
+  },
+  {
+   "fieldname": "recorded_by",
+   "fieldtype": "Link",
+   "label": "Recorded By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
   }
  ],
  "links": [],
- "modified": "2026-10-18 18:00:00.000000",
+ "modified": "2026-11-03 08:54:05.882568",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Gate Movement",
@@ -236,10 +245,10 @@
    "write": 1
   }
  ],
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "track_changes": 1,
  "title_field": "employee_name",
- "show_title_field_in_link": 1
+ "track_changes": 1
 }

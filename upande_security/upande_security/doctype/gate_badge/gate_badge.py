@@ -43,10 +43,21 @@ class GateBadge(Document):
 		if self.status == "Lost":
 			return
 		if self.status == "Available" and self.has_value_changed("status"):
-			# Released: nobody holds it any more.
+			# Released: nobody holds it any more, and it is back in its stock.
 			self._clear_holder()
+			self.held_at_farm = None
 			return
 		held = bool(self.current_appointment or self.current_receiving or self.holder_name)
+		if held:
+			# Handed out again: the card is physically here.
+			self.held_at_farm = None
+		elif self.held_at_farm and self.held_at_farm != self.farm:
+			# Collected at another farm's gate at the end of a multi-farm
+			# visit (api/visitor_route.py): out of stock until it is back home.
+			self.status = "Held at Other Farm"
+			self._clear_holder()
+			return
+		self.held_at_farm = None
 		self.status = "Issued" if held else "Available"
 		if not held:
 			self._clear_holder()

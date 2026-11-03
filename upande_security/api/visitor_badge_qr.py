@@ -38,7 +38,7 @@ def release_badge_on_checkout(doc, method=None):
 	badge = frappe.db.get_value(
 		"Gate Badge", doc.custom_visitor_badge, ["status", "current_appointment"], as_dict=True
 	)
-	if not badge or badge.current_appointment != doc.name:
+	if not badge or badge.current_appointment != doc.name or badge.status == "Held at Other Farm":
 		return
 
 	frappe.db.set_value(
