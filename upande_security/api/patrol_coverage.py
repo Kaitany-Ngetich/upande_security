@@ -38,6 +38,9 @@ MAX_SURFACE_PX = 800
 # A clipped edge sliver smaller than this share of a full cell is dropped -
 # too small to see or to patrol meaningfully.
 MIN_EDGE_FRACTION = 0.05
+# Metres per degree, as _build_cells uses them.
+W_PER_DEG_LNG = 111320
+W_PER_DEG_LAT = 110540
 
 
 def _coverage_settings():
@@ -138,6 +141,20 @@ def _build_cells(poly, width_m, height_m):
 	return cells, {"minx": minx, "miny": miny, "dx": dx, "dy": dy, "nx": nx, "ny": ny}
 
 
+def _guard_ids(guards):
+	"""None when no guard filter was asked for, else the list of ids."""
+	if guards is None or guards == "":
+		return None
+	if isinstance(guards, str):
+		try:
+			guards = json.loads(guards)
+		except ValueError:
+			guards = [g.strip() for g in guards.split(",")]
+	if not isinstance(guards, (list, tuple)):
+		guards = [guards]
+	return [str(g) for g in guards if g]
+
+
 def _as_of(date):
 	"""Reference moment cells are aged against: now for today, otherwise the
 	end of the chosen day - so a past date shows coverage as it stood then."""
@@ -152,7 +169,7 @@ def _as_of(date):
 
 @frappe.whitelist()
 def get_patrol_coverage_grid(
-	farm, date=None, from_datetime=None, to_datetime=None, include_on_duty=0
+	farm, date=None, from_datetime=None, to_datetime=None, include_on_duty=0, guards=None
 ):
 	"""Coverage is a continuous surface, not a per-cell value: every pixel
 	(a few meters across) gets an effective age from the nearest pings, so
@@ -164,7 +181,12 @@ def get_patrol_coverage_grid(
 
 	The surface is returned as one byte per pixel, row 0 at the north edge,
 	zlib-compressed: 0-254 is the position on the fresh-to-stale ramp, 255
-	is outside the farm boundary."""
+	is outside the farm boundary.
+
+	`guards` (a list of Employee / Security Guard ids, or its JSON) keeps
+	only those guards' points - Playback passes the guards ticked in its
+	list so a hidden guard's walk does not paint the map. Left out, every
+	guard counts."""
 	if not is_feature_enabled("feature_patrol_coverage_grid"):
 		return {"enabled": False}
 	if not frappe.has_permission("Patrol GPS Log", ptype="read"):
@@ -231,11 +253,33 @@ def get_patrol_coverage_grid(
 		"" if frappe.utils.cint(include_on_duty)
 		else " and ifnull(tracking_mode, 'Patrol') != 'On Duty'"
 	)
+	params = {"since": since, "as_of": as_of}
+	guard_clause = ""
+	guard_ids = _guard_ids(guards)
+	if guard_ids is not None:
+		if not guard_ids:
+			guard_ids = ["__no_guard__"]
+		# The guard columns are not in the covering index, so each point
+		# tested is a read of its row. The farm's box (grown by the same
+		# radius the loop below allows) is tested from the index first, so
+		# only points on or beside this farm are read - not every farm's.
+		bx0, by0, bx1, by1 = poly.bounds
+		pad_x = radius_m / (W_PER_DEG_LNG * math.cos(math.radians((by0 + by1) / 2)))
+		pad_y = radius_m / W_PER_DEG_LAT
+		guard_clause = (
+			" and latitude + 0 between %(by0)s and %(by1)s"
+			" and longitude + 0 between %(bx0)s and %(bx1)s"
+			" and (internal_guard in %(guards)s or external_guard in %(guards)s)"
+		)
+		params.update({
+			"guards": tuple(guard_ids),
+			"bx0": bx0 - pad_x, "bx1": bx1 + pad_x, "by0": by0 - pad_y, "by1": by1 + pad_y,
+		})
 	points = frappe.db.sql(
 		"select captured_at, latitude, longitude, gps_accuracy"
-		" from `tabPatrol GPS Log`" + force + " where captured_at between %s and %s"
-		+ mode_clause,
-		(since, as_of),
+		" from `tabPatrol GPS Log`" + force + " where captured_at between %(since)s and %(as_of)s"
+		+ mode_clause + guard_clause,
+		params,
 		as_dict=True,
 	)
 

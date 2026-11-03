@@ -321,6 +321,12 @@ scheduler_events = {
         # rosters a guard HR has them down as off.
         "upande_security.tasks.sync_shifts_from_hr_roster",
     ],
+    "daily_long": [
+        # Works out each settled day's per-guard patrol figures for the
+        # Security Dashboard's Guard ranking, so the page only reads today
+        # and yesterday live.
+        "upande_security.api.patrol_ranking.warm_ranking_days",
+    ],
 }
 
 # Testing

@@ -7707,9 +7707,10 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 	  - Patrol distance is a haversine sum over consecutive GPS points per
 		patrol, ignoring jumps >= 0.5 degree lat/lng (GPS glitches).
 
-	Filters: `farm` only applies to the visitors/contractors tabs (via
-	Appointment.custom_farmunit); `location` only to the incidents tab. The
-	staff, vehicles, patrols and overview tabs ignore both. Pre-existing.
+	Filters: `farm` applies to the visitors/contractors tabs (via
+	Appointment.custom_farmunit) and the patrols tab (by the Patrol Map's
+	boundary rules); `location` only to the incidents tab. The staff, vehicles
+	and overview tabs ignore both.
 
 	Only placeholders / fixed constants are concatenated into SQL; every
 	user-supplied value is bound. scalar() swallows any query error and
@@ -7939,24 +7940,38 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 			extra["locations"] = ll
 
 		elif tab == "patrols":
-			points = scalar("SELECT COUNT(*) FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty'", (start, end))
-			routes = scalar("SELECT COUNT(DISTINCT patrol) FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty'", (start, end))
-			guards = scalar("SELECT COUNT(DISTINCT COALESCE(internal_guard, external_guard)) FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty' AND COALESCE(internal_guard, external_guard) IS NOT NULL AND COALESCE(internal_guard, external_guard) != ''", (start, end))
-			dist = scalar("SELECT ROUND(SUM(6371 * ACOS(LEAST(1, GREATEST(-1, COS(RADIANS(plat)) * COS(RADIANS(lat)) * COS(RADIANS(lng) - RADIANS(plng)) + SIN(RADIANS(plat)) * SIN(RADIANS(lat)))))), 1) FROM (SELECT CAST(latitude AS DECIMAL(12,7)) lat, CAST(longitude AS DECIMAL(12,7)) lng, LAG(CAST(latitude AS DECIMAL(12,7))) OVER (PARTITION BY patrol ORDER BY captured_at) plat, LAG(CAST(longitude AS DECIMAL(12,7))) OVER (PARTITION BY patrol ORDER BY captured_at) plng FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty' AND latitude != '' AND longitude != '') t WHERE plat IS NOT NULL AND ABS(lat - plat) < 0.5 AND ABS(lng - plng) < 0.5", (start, end))
-			kpi("GPS Points", points, "logged")
-			kpi("Distance", (str(dist) + " km") if dist else "—", "patrolled")
-			kpi("Guards", guards, "patrolling")
-			kpi("Routes", routes, "distinct")
-			prows = []
-			r = frappe.db.sql("SELECT COALESCE(NULLIF(COALESCE(internal_guard, external_guard),''),'—') g, COUNT(*) c, COUNT(DISTINCT patrol) rt, MAX(captured_at) m FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty' GROUP BY g ORDER BY c DESC LIMIT 15", (start, end))
-			for row in r:
-				prows.append({"guard": row[0], "count": row[1], "routes": row[2], "last": str(row[3])})
+			# Same rules as the desktop Patrol Map and Playback (farm boundary,
+			# Boundary Tolerance, the GPS accuracy cut, trail breaks) - see
+			# patrol_playback.report_points. Every KPI and the By Guard table
+			# are counted from the very points the map draws, so they agree.
+			from upande_security.api.patrol_playback import report_points
+			from upande_security.api.sos_alert import _haversine_m
+
+			pts, boundaries, _names = report_points(start, end, farm or None)
+			km = 0.0
+			prev = {}
+			per_guard = {}
+			for p in pts:
+				key = (p["guard"], p["patrol"])
+				if key in prev and not p["brk"]:
+					km += _haversine_m(prev[key][0], prev[key][1], p["lat"], p["lng"]) / 1000.0
+				prev[key] = (p["lat"], p["lng"])
+				g = per_guard.setdefault(p["guard"] or "—", {"count": 0, "routes": set(), "last": ""})
+				g["count"] += 1
+				g["routes"].add(p["patrol"])
+				g["last"] = max(g["last"], p["at"])
+			kpi("GPS Points", len(pts), "logged")
+			kpi("Distance", (str(round(km, 1)) + " km") if km else "—", "patrolled")
+			kpi("Guards", len([g for g in per_guard if g != "—"]), "patrolling")
+			kpi("Routes", len({(p["guard"], p["patrol"]) for p in pts}), "distinct")
+			prows = [
+				{"guard": g, "count": v["count"], "routes": len(v["routes"]), "last": v["last"]}
+				for g, v in sorted(per_guard.items(), key=lambda kv: -kv[1]["count"])[:15]
+			]
 			add_table("By Guard", [{"key": "guard", "label": "Guard"}, {"key": "count", "label": "Points", "align": "right"}, {"key": "routes", "label": "Routes", "align": "right"}, {"key": "last", "label": "Last Seen"}], prows)
-			pts = []
-			r = frappe.db.sql("SELECT latitude, longitude, captured_at, COALESCE(internal_guard, external_guard), patrol FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty' AND latitude != '' AND longitude != '' ORDER BY captured_at DESC LIMIT 3000", (start, end))
-			for row in r:
-				pts.append({"lat": row[0], "lng": row[1], "at": str(row[2]), "guard": row[3] or "", "patrol": row[4] or ""})
 			extra["points"] = pts
+			extra["boundaries"] = boundaries
+			extra["farms"] = frappe.get_all("Farm", pluck="name", order_by="name asc")
 
 		else:
 			vis_inside = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE a.custom_check_in_time IS NOT NULL AND a.custom_check_out_time IS NULL", ())
