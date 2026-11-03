@@ -88,6 +88,7 @@ add_to_apps_screen = [
 jinja = {
 	"methods": [
 		"upande_security.utils.dispatch_qr.get_dispatch_qr_svg",
+		"upande_security.api.badge_branding.get_badge_branding",
 	],
 }
 

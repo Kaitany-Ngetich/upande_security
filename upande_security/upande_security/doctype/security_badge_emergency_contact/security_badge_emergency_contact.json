@@ -1,0 +1,58 @@
+{
+ "actions": [],
+ "creation": "2026-11-03 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "farm",
+  "column_break_1",
+  "contact_label",
+  "contact_phone"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "options": "Company",
+   "label": "Company",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "options": "Farm",
+   "label": "Farm",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "contact_label",
+   "fieldtype": "Data",
+   "label": "Label",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "contact_phone",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "reqd": 1,
+   "in_list_view": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-03 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Security Badge Emergency Contact",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

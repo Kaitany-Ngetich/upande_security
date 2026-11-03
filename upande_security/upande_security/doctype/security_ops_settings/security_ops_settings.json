@@ -6,6 +6,8 @@
  "field_order": [
   "fallback_section",
   "fallback_contacts",
+  "badge_emergency_section",
+  "badge_emergency_contacts",
   "nearby_alert_section",
   "nearby_guard_alert_radius_m",
   "nearby_alert_stale_minutes",
@@ -368,6 +370,17 @@
    "options": "Security Fallback Contact"
   },
   {
+   "fieldname": "badge_emergency_section",
+   "fieldtype": "Section Break",
+   "label": "Badge Emergency Contacts"
+  },
+  {
+   "fieldname": "badge_emergency_contacts",
+   "fieldtype": "Table",
+   "label": "Emergency Contacts on Badges",
+   "options": "Security Badge Emergency Contact"
+  },
+  {
    "fieldname": "nearby_alert_section",
    "fieldtype": "Section Break",
    "label": "Nearby Guard SOS Alert"
@@ -668,7 +681,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-03 07:52:06.854886",
+ "modified": "2026-11-03 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",
