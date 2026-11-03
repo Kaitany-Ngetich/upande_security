@@ -167,6 +167,8 @@ after_install = "upande_security.optional_fixtures.sync"
 after_migrate = [
 	"upande_security.sync_workspace.sync_shortcuts",
 	"upande_security.optional_fixtures.sync",
+	# Secretary / Visit Approver rights, added next to the standard ones.
+	"upande_security.role_permissions.apply",
 ]
 
 doc_events = {
@@ -846,24 +848,9 @@ fixtures = [
             ],
         ],
     },
-    {
-        # Grants Visit Approver base read/write/create on Appointment
-        # (permlevel 0) - a Workflow Transition's `allowed` role can only
-        # ever narrow an already-granted base permission, never create one,
-        # so without this row a Visit Approver gets a bare PermissionError
-        # the moment Desk asks for available workflow actions. No if_owner -
-        # matches real production's actual pattern, where the *broad* role
-        # DocPerm is deliberately unrestricted and the real per-user
-        # narrowing ("only your own appointments") happens entirely via the
-        # "Host Sees Own Appointments" Permission Query script below, not
-        # here. Custom DocPerm names are random per-site hashes, not
-        # portable across environments, so this is filtered on the stable
-        # (parent, role) pair instead of `name`.
-        "dt": "Custom DocPerm",
-        "filters": [
-            ["role", "in", ["Visit Approver", "Secretary"]],
-        ],
-    },
+    # Secretary / Visit Approver permission rules are NOT fixtures: a
+    # Custom DocPerm fixture hides a doctype's standard permissions on import.
+    # They are added on migrate by role_permissions.apply.
     {
         # Mirrors real production's 6 "Value Change"-triggered notifications
         # ... no: real production actually uses 3 "New"-event Notification
