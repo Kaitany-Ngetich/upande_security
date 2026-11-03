@@ -184,7 +184,8 @@ def get_patrol_coverage_grid(
 	zlib-compressed: 0-254 is the position on the fresh-to-stale ramp, 255
 	is outside the farm boundary.
 
-	`guards` (a list of Employee / Security Guard ids, or its JSON) keeps
+	`guards` (a list of Employee / Security Guard ids - or, for a point
+	with no guard link, the User that sent it - or its JSON) keeps
 	only those guards' points - Playback passes the guards ticked in its
 	list so a hidden guard's walk does not paint the map. Left out, every
 	guard counts."""
@@ -270,7 +271,9 @@ def get_patrol_coverage_grid(
 		guard_clause = (
 			" and latitude + 0 between %(by0)s and %(by1)s"
 			" and longitude + 0 between %(bx0)s and %(bx1)s"
-			" and (internal_guard in %(guards)s or external_guard in %(guards)s)"
+			# Playback's guard id (_guard_label): the internal guard, else
+			# the external guard, else the account that sent the point.
+			" and coalesce(nullif(internal_guard, ''), nullif(external_guard, ''), owner) in %(guards)s"
 		)
 		params.update({
 			"guards": tuple(guard_ids),

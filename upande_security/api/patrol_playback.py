@@ -44,10 +44,17 @@ from upande_security.api.patrol_rules import valid_fix
 MAX_POINTS = 12000
 
 def _guard_label(row):
-	if row.get("personel") == "Internal Guard" and row.get("internal_guard"):
+	"""(kind, id) by the Patrol Map's identity (_patrol_guard_identity): the
+	internal guard, else the external guard, else the account that sent the
+	point - so a phone with no guard link still has a trail and a tick box,
+	and unticking every listed guard empties the coverage overlay too."""
+	if row.get("internal_guard"):
 		return "Internal Guard", row["internal_guard"]
 	if row.get("external_guard"):
 		return "External Guard", row["external_guard"]
+	owner = row.get("owner")
+	if owner and owner not in ("Administrator", "Guest"):
+		return "User", owner
 	return None, None
 
 
@@ -98,7 +105,7 @@ def get_patrol_playback(farm, from_datetime, to_datetime, guard=None, include_on
 	if guard:
 		# One guard, whichever kind they are - the caller passes the id, not
 		# the kind, because the map's guard picker only knows the label.
-		rows = [r for r in rows if guard in (r.internal_guard, r.external_guard)]
+		rows = [r for r in rows if _guard_label(r)[1] == guard]
 
 	# Drop fixes the coverage surface also refuses. A network-based fix is
 	# 600-1200 m out, and drawn into a trail it reads as the guard sprinting
@@ -216,7 +223,7 @@ def _playback_settings():
 
 _POINT_COLUMNS = (
 	"name, captured_at, latitude, longitude, gps_accuracy, personel,"
-	" internal_guard, external_guard, patrol, tracking_mode, farm"
+	" internal_guard, external_guard, owner, patrol, tracking_mode, farm"
 )
 
 
@@ -301,6 +308,8 @@ def _too_inaccurate(accuracy):
 
 
 def _display_name(kind, gid):
+	if kind == "User":
+		return (frappe.db.get_value("User", gid, "full_name") or gid) + " (no guard link)"
 	if kind == "Internal Guard":
 		return frappe.db.get_value("Employee", gid, "employee_name") or gid
 	return frappe.db.get_value("Security Guard", gid, "full_name") or gid
@@ -318,7 +327,7 @@ def get_playback_guards(farm, from_datetime, to_datetime):
 	except Exception:
 		return []
 	rows = frappe.db.sql(
-		"select distinct personel, internal_guard, external_guard"
+		"select distinct personel, internal_guard, external_guard, owner"
 		" from `tabPatrol GPS Log`"
 		" where farm = %s and captured_at between %s and %s",
 		(farm, start, end),

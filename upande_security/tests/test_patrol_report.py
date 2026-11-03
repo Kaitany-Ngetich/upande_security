@@ -99,6 +99,10 @@ class TestCombine(unittest.TestCase):
 		b = sum(1 for p in out["draw"] if p[2].startswith("b"))
 		self.assertEqual((a, b), (2250, 750))
 
+	def test_rounding_never_overshoots(self):
+		days = [{"n": 1001, "rows": [], "sample": [[0, 0, f"{d} {i}", "g", "p"] for i in range(1001)]} for d in range(7)]
+		self.assertEqual(len(pr._combine(days)["draw"]), pr.DRAW_LIMIT)
+
 	def test_small_ranges_send_everything(self):
 		out = pr._combine([{"n": 3, "rows": [], "sample": [[0, 0, "x", "g", "p"]] * 3}])
 		self.assertEqual(len(out["draw"]), 3)
@@ -223,3 +227,13 @@ class TestDayFigures(unittest.TestCase):
 		self.assertEqual((phone[1], phone[3]), ("User", 2))
 		self.assertEqual(len(out["sample"]), 7)
 		self.assertEqual(out["sample"][0][2], f"{self.DAY} 08:00:00")
+
+
+class TestPlaybackGuard(unittest.TestCase):
+	def test_map_identity(self):
+		from upande_security.api.patrol_playback import _guard_label
+
+		self.assertEqual(_guard_label({"internal_guard": "E1", "external_guard": "SG-1", "personel": "External Guard"}), ("Internal Guard", "E1"))
+		self.assertEqual(_guard_label({"external_guard": "SG-1", "owner": "u@x"}), ("External Guard", "SG-1"))
+		self.assertEqual(_guard_label({"internal_guard": "", "external_guard": None, "owner": "u@x"}), ("User", "u@x"))
+		self.assertEqual(_guard_label({"owner": "Administrator"}), (None, None))

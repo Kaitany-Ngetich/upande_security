@@ -157,6 +157,8 @@ def _combine(days):
 			continue
 		want = d["n"] if total <= DRAW_LIMIT else max(1, round(DRAW_LIMIT * d["n"] / total))
 		draw += _evenly(d["sample"], want)
+	# Rounding per day can land a point or two over.
+	draw = _evenly(draw, DRAW_LIMIT)
 
 	return {"points": points, "metres": metres, "guards": guards, "routes": len(routes), "draw": draw}
 
