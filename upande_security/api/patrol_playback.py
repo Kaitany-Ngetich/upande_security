@@ -35,6 +35,7 @@ from shapely.geometry import LineString
 
 from upande_security.api.feature_flags import is_feature_enabled
 from upande_security.api.patrol_coverage import MAX_ACCURACY_M, _load_farm_polygon, boundary_filter_area
+from upande_security.api.patrol_rules import valid_fix
 
 #: A 12-hour night across a handful of guards is a few thousand points.
 #: Past this the answer stops being a replay and starts being a data dump,
@@ -43,10 +44,17 @@ from upande_security.api.patrol_coverage import MAX_ACCURACY_M, _load_farm_polyg
 MAX_POINTS = 12000
 
 def _guard_label(row):
-	if row.get("personel") == "Internal Guard" and row.get("internal_guard"):
+	"""(kind, id) by the Patrol Map's identity (_patrol_guard_identity): the
+	internal guard, else the external guard, else the account that sent the
+	point - so a phone with no guard link still has a trail and a tick box,
+	and unticking every listed guard empties the coverage overlay too."""
+	if row.get("internal_guard"):
 		return "Internal Guard", row["internal_guard"]
 	if row.get("external_guard"):
 		return "External Guard", row["external_guard"]
+	owner = row.get("owner")
+	if owner and owner not in ("Administrator", "Guest"):
+		return "User", owner
 	return None, None
 
 
@@ -92,34 +100,12 @@ def get_patrol_playback(farm, from_datetime, to_datetime, guard=None, include_on
 			)
 		}
 
-	include_on_duty = frappe.utils.cint(include_on_duty)
-	try:
-		poly = _load_farm_polygon(farm)
-	except Exception:
-		poly = None
-	# The map's own flag and tolerance, through the map's own helper - so a
-	# farm looks the same replayed as it does live.
-	boundary = boundary_filter_area(farm, poly) if poly is not None else None
-	if boundary is not None:
-		rows = _read_in_area(boundary.context, start, end, include_on_duty)
-		picked_by = "boundary"
-	else:
-		rows = _read_by_saved_farm(farm, start, end, include_on_duty)
-		if poly is not None:
-			# As the map does without the boundary flag: rows saved with no farm
-			# at all still belong here when they sit within ~110 m of it.
-			seen = {r.name for r in rows}
-			rows += [
-				r for r in _read_in_area(poly.buffer(0.001), start, end, include_on_duty)
-				if not r.farm and r.name not in seen
-			]
-			rows.sort(key=lambda r: (r.captured_at, r.name))
-		picked_by = "saved_farm"
+	rows, boundary, picked_by = farm_points(farm, start, end, frappe.utils.cint(include_on_duty))
 
 	if guard:
 		# One guard, whichever kind they are - the caller passes the id, not
 		# the kind, because the map's guard picker only knows the label.
-		rows = [r for r in rows if guard in (r.internal_guard, r.external_guard)]
+		rows = [r for r in rows if _guard_label(r)[1] == guard]
 
 	# Drop fixes the coverage surface also refuses. A network-based fix is
 	# 600-1200 m out, and drawn into a trail it reads as the guard sprinting
@@ -143,6 +129,8 @@ def get_patrol_playback(farm, from_datetime, to_datetime, guard=None, include_on
 			lat = float(r.latitude)
 			lng = float(r.longitude)
 		except (TypeError, ValueError):
+			continue
+		if not valid_fix(lat, lng):
 			continue
 		# Not setdefault: its default is built for every point, and that
 		# looked the guard's name up once per point - 5,545 queries for one
@@ -186,6 +174,33 @@ def get_patrol_playback(farm, from_datetime, to_datetime, guard=None, include_on
 	}
 
 
+def farm_points(farm, start, end, include_on_duty):
+	"""(rows, boundary, picked_by): the points that belong to `farm` in the
+	window, by the Patrol Map's own rules (see fetchPatrolData) - with Hide
+	Patrol Points Outside Farm Boundary on, every point inside the boundary
+	grown by Boundary Tolerance whatever farm it was saved under; otherwise
+	points saved under the farm plus untagged ones within ~110 m of it.
+	boundary is the prepared area to split trails on, or None. The app's
+	Patrols report applies the same rule in SQL (patrol_report._branches)."""
+	try:
+		poly = _load_farm_polygon(farm)
+	except Exception:
+		poly = None
+	boundary = boundary_filter_area(farm, poly) if poly is not None else None
+	if boundary is not None:
+		return _read_in_area(boundary.context, start, end, include_on_duty), boundary, "boundary"
+
+	rows = _read_by_saved_farm(farm, start, end, include_on_duty)
+	if poly is not None:
+		seen = {r.name for r in rows}
+		rows += [
+			r for r in _read_in_area(poly.buffer(0.001), start, end, include_on_duty)
+			if not r.farm and r.name not in seen
+		]
+		rows.sort(key=lambda r: (r.captured_at, r.name))
+	return rows, None, "saved_farm"
+
+
 def _playback_settings():
 	"""Security Ops Settings > Patrol Playback, with the defaults the fields
 	declare - a site that has not migrated them in reads None for each."""
@@ -208,7 +223,7 @@ def _playback_settings():
 
 _POINT_COLUMNS = (
 	"name, captured_at, latitude, longitude, gps_accuracy, personel,"
-	" internal_guard, external_guard, patrol, tracking_mode, farm"
+	" internal_guard, external_guard, owner, patrol, tracking_mode, farm"
 )
 
 
@@ -293,6 +308,8 @@ def _too_inaccurate(accuracy):
 
 
 def _display_name(kind, gid):
+	if kind == "User":
+		return (frappe.db.get_value("User", gid, "full_name") or gid) + " (no guard link)"
 	if kind == "Internal Guard":
 		return frappe.db.get_value("Employee", gid, "employee_name") or gid
 	return frappe.db.get_value("Security Guard", gid, "full_name") or gid
@@ -310,7 +327,7 @@ def get_playback_guards(farm, from_datetime, to_datetime):
 	except Exception:
 		return []
 	rows = frappe.db.sql(
-		"select distinct personel, internal_guard, external_guard"
+		"select distinct personel, internal_guard, external_guard, owner"
 		" from `tabPatrol GPS Log`"
 		" where farm = %s and captured_at between %s and %s",
 		(farm, start, end),

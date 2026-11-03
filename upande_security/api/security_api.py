@@ -7704,12 +7704,22 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 	  - Overstay watchlists: visitors/contractors inside > 8h, vehicles > 12h.
 	  - Overview "On Premises" = visitors/contractors inside + vehicles inside
 		(all-time, unfiltered); "Open Incidents" is likewise all-time.
-	  - Patrol distance is a haversine sum over consecutive GPS points per
-		patrol, ignoring jumps >= 0.5 degree lat/lng (GPS glitches).
+	  - Patrols follow the Patrol Map's rules (api/patrol_report.py): On Duty,
+		unusable positions and fixes worse than 100 m left out; guard = the
+		internal guard, else the external guard, else the sending account.
+		Distance is a haversine sum over consecutive points of one guard's
+		one patrol, counting only steps at most 10 min apart and at most
+		25 km/h (patrol_rules) - longer gaps are the phone asleep, faster
+		steps GPS jumps. GPS Points / Distance / Guards / Routes and By Guard
+		count every qualifying point; only extra.points (the map's points)
+		is thinned to 3000. Requires read on Patrol GPS Log, and on the Farm
+		when `farm` is given; without a farm a user limited to some farms
+		sees only those. At most 31 days.
 
-	Filters: `farm` only applies to the visitors/contractors tabs (via
-	Appointment.custom_farmunit); `location` only to the incidents tab. The
-	staff, vehicles, patrols and overview tabs ignore both. Pre-existing.
+	Filters: `farm` applies to the visitors/contractors tabs (via
+	Appointment.custom_farmunit) and the patrols tab (by the Patrol Map's
+	boundary rules); `location` only to the incidents tab. The staff, vehicles
+	and overview tabs ignore both.
 
 	Only placeholders / fixed constants are concatenated into SQL; every
 	user-supplied value is bound. scalar() swallows any query error and
@@ -7939,24 +7949,30 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 			extra["locations"] = ll
 
 		elif tab == "patrols":
-			points = scalar("SELECT COUNT(*) FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty'", (start, end))
-			routes = scalar("SELECT COUNT(DISTINCT patrol) FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty'", (start, end))
-			guards = scalar("SELECT COUNT(DISTINCT COALESCE(internal_guard, external_guard)) FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty' AND COALESCE(internal_guard, external_guard) IS NOT NULL AND COALESCE(internal_guard, external_guard) != ''", (start, end))
-			dist = scalar("SELECT ROUND(SUM(6371 * ACOS(LEAST(1, GREATEST(-1, COS(RADIANS(plat)) * COS(RADIANS(lat)) * COS(RADIANS(lng) - RADIANS(plng)) + SIN(RADIANS(plat)) * SIN(RADIANS(lat)))))), 1) FROM (SELECT CAST(latitude AS DECIMAL(12,7)) lat, CAST(longitude AS DECIMAL(12,7)) lng, LAG(CAST(latitude AS DECIMAL(12,7))) OVER (PARTITION BY patrol ORDER BY captured_at) plat, LAG(CAST(longitude AS DECIMAL(12,7))) OVER (PARTITION BY patrol ORDER BY captured_at) plng FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty' AND latitude != '' AND longitude != '') t WHERE plat IS NOT NULL AND ABS(lat - plat) < 0.5 AND ABS(lng - plng) < 0.5", (start, end))
-			kpi("GPS Points", points, "logged")
-			kpi("Distance", (str(dist) + " km") if dist else "—", "patrolled")
-			kpi("Guards", guards, "patrolling")
-			kpi("Routes", routes, "distinct")
-			prows = []
-			r = frappe.db.sql("SELECT COALESCE(NULLIF(COALESCE(internal_guard, external_guard),''),'—') g, COUNT(*) c, COUNT(DISTINCT patrol) rt, MAX(captured_at) m FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty' GROUP BY g ORDER BY c DESC LIMIT 15", (start, end))
-			for row in r:
-				prows.append({"guard": row[0], "count": row[1], "routes": row[2], "last": str(row[3])})
+			# The Patrol Map's rules (see patrol_report): which points count,
+			# who they belong to, the farm boundary, the step rule for distance.
+			# Counted in the database over every qualifying point; only the
+			# points sent for drawing are thinned.
+			from upande_security.api.patrol_report import guard_names, patrols_report
+
+			rep = patrols_report(fromd, tod, farm or None)
+			names = guard_names(rep["guards"])
+			km = rep["metres"] / 1000.0
+			kpi("GPS Points", rep["points"], "logged")
+			kpi("Distance", (str(round(km, 1)) + " km") if km else "—", "patrolled")
+			kpi("Guards", len(rep["guards"]), "patrolling")
+			kpi("Routes", rep["routes"], "distinct")
+			prows = [
+				{"guard": names[g], "count": v["points"], "routes": len(v["patrols"]), "last": v["last"]}
+				for g, v in sorted(rep["guards"].items(), key=lambda kv: (-kv[1]["points"], names[kv[0]]))[:15]
+			]
 			add_table("By Guard", [{"key": "guard", "label": "Guard"}, {"key": "count", "label": "Points", "align": "right"}, {"key": "routes", "label": "Routes", "align": "right"}, {"key": "last", "label": "Last Seen"}], prows)
-			pts = []
-			r = frappe.db.sql("SELECT latitude, longitude, captured_at, COALESCE(internal_guard, external_guard), patrol FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty' AND latitude != '' AND longitude != '' ORDER BY captured_at DESC LIMIT 3000", (start, end))
-			for row in r:
-				pts.append({"lat": row[0], "lng": row[1], "at": str(row[2]), "guard": row[3] or "", "patrol": row[4] or ""})
-			extra["points"] = pts
+			extra["points"] = [
+				{"lat": lat, "lng": lng, "at": at, "guard": names.get(g) or g, "patrol": patrol}
+				for lat, lng, at, g, patrol in rep["draw"]
+			]
+			extra["boundaries"] = rep["boundaries"]
+			extra["farms"] = rep["farms"]
 
 		else:
 			vis_inside = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE a.custom_check_in_time IS NOT NULL AND a.custom_check_out_time IS NULL", ())
@@ -7981,6 +7997,9 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 		for kk in extra:
 			msg[kk] = extra[kk]
 		return msg
+	except (frappe.PermissionError, frappe.ValidationError):
+		# Not a broken query: the caller is refused, or asked for too much.
+		raise
 	except Exception as e:
 		frappe.log_error("security_report", str(e))
 		return {"error": str(e)}
