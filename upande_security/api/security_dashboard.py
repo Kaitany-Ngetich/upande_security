@@ -2183,10 +2183,12 @@ def incident_calendar_events(start, end, filters=None, field_map=None):
 
 
 @frappe.whitelist()
-def incident_pattern(category="Theft", from_date=None, to_date=None, farm=None, company=None):
-    """Incidents of one category with their time, for the dashboard's
-    calendar and when-does-it-happen charts. Permission-aware."""
-    filters = [["nature_of_incident", "=", category or "Theft"]]
+def incident_pattern(category="All", from_date=None, to_date=None, farm=None, company=None):
+    """Incidents with their time - every type ("All" or blank) or one
+    nature of incident - for the dashboard's Incident calendar and
+    when-does-it-happen charts. Permission-aware."""
+    category = (category or "All").strip()
+    filters = [] if category == "All" else [["nature_of_incident", "=", category]]
     if from_date:
         filters.append(["incident_datetime", ">=", str(frappe.utils.getdate(from_date)) + " 00:00:00"])
     if to_date:
