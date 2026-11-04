@@ -29,6 +29,32 @@ SHIFT_TYPE_MASTER = {
 }
 
 
+def _shift_hours(shift_type, start_time=None, end_time=None):
+	"""(start_time, end_time) for a shift: the given times if both are set
+	(a Rotation Plan preview row carries its own), else the standard times
+	in Security Ops Settings, else the HR Shift Type master. Throws a plain
+	message instead of crashing when none of them has times."""
+	from frappe.utils import to_timedelta
+
+	from upande_security.api.shift_times import standard_times
+
+	if not (start_time and end_time):
+		start_time, end_time = standard_times(shift_type)
+	if not (start_time and end_time) and SHIFT_TYPE_MASTER.get(shift_type):
+		t = frappe.db.get_value(
+			"Shift Type", SHIFT_TYPE_MASTER[shift_type], ["start_time", "end_time"], as_dict=True
+		)
+		if t:
+			start_time, end_time = t.start_time, t.end_time
+	if not (start_time and end_time):
+		frappe.throw(
+			_("No start and end time for the {0} shift. Set them under Security Ops Settings > Standard Shift Times.").format(
+				shift_type
+			)
+		)
+	return frappe._dict(start_time=to_timedelta(start_time), end_time=to_timedelta(end_time))
+
+
 def _month_bounds(year: int, month: int) -> tuple[str, str, int]:
 	last_day = calendar.monthrange(year, month)[1]
 	start = f"{year:04d}-{month:02d}-01"
@@ -178,7 +204,16 @@ def get_shift_schedule(year: str | int, month: str | int, farm: str | None = Non
 
 
 @frappe.whitelist()
-def toggle_guard_day(guard: str, date: str, mark_off: str | int | bool, farm: str | None = None) -> dict:
+def toggle_guard_day(
+	guard: str,
+	date: str,
+	mark_off: str | int | bool,
+	farm: str | None = None,
+	shift_type: str | None = None,
+	start_time: str | None = None,
+	end_time: str | None = None,
+	create_shift: str | int | bool = 1,
+) -> dict:
 	"""Flip one guard's one day between on/off, handling the reliever
 	fill-in (or its removal) as part of the same call so the grid never
 	shows a half-applied state.
@@ -190,6 +225,12 @@ def toggle_guard_day(guard: str, date: str, mark_off: str | int | bool, farm: st
 	toggle_preview_row_off_day() on Security Guard Rotation Plan passes the
 	specific day's own farm instead of falling back to wherever the guard
 	is normally posted.
+
+	shift_type / start_time / end_time give the shift to put back when a day
+	is marked on again (a rotation's preview row knows that day's shift);
+	without them the guard's usual shift and its standard times are used.
+	create_shift=0 marks the day on without creating a Shift Assignment -
+	for a Draft rotation plan, whose Apply step creates it.
 	"""
 	mark_off = cint(mark_off)
 	if not frappe.db.exists("Security Guard", guard):
@@ -232,11 +273,8 @@ def toggle_guard_day(guard: str, date: str, mark_off: str | int | bool, farm: st
 			frappe.db.commit()
 			return {"state": "off_unfilled", "reason": _("Reliever already assigned elsewhere that day")}
 
-		shift_type = _usual_shift_type(guard)
-		t = frappe.db.get_value(
-			"Shift Type", SHIFT_TYPE_MASTER[shift_type],
-			["start_time", "end_time"], as_dict=True,
-		)
+		shift_type = shift_type or _usual_shift_type(guard)
+		t = _shift_hours(shift_type, start_time, end_time)
 		remark = _("Covering {0}'s off day").format(guard_doc.full_name)
 		# Overnight shift (e.g. Night: 18:00 -> 06:00) ends the calendar day
 		# AFTER it starts - otherwise the record's own end sits before its
@@ -304,12 +342,9 @@ def toggle_guard_day(guard: str, date: str, mark_off: str | int | bool, farm: st
 		"Security Guard Shift Assignment",
 		{"security_guard": "External Guard", "external_guard": guard, "start_date": date_val, "covering_for": ["is", "not set"]},
 	)
-	if not already_on:
-		shift_type = _usual_shift_type(guard)
-		t = frappe.db.get_value(
-			"Shift Type", SHIFT_TYPE_MASTER[shift_type],
-			["start_time", "end_time"], as_dict=True,
-		)
+	if not already_on and cint(create_shift):
+		shift_type = shift_type or _usual_shift_type(guard)
+		t = _shift_hours(shift_type, start_time, end_time)
 		doc = frappe.new_doc("Security Guard Shift Assignment")
 		doc.security_guard = "External Guard"
 		doc.external_guard = guard
