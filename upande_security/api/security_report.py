@@ -88,6 +88,61 @@ def _scope_farms(farm=None, company=None):
 	return None
 
 
+def _user_of(email):
+	"""The enabled login behind an address, if any."""
+	return frappe.db.get_value("User", {"email": email, "enabled": 1}, "name") or (
+		frappe.db.get_value("User", {"name": email, "enabled": 1}, "name"))
+
+
+def allowed_farms(user):
+	"""The farms this login may see, from its User Permissions - their Farm
+	rows if any (as Desk applies them), else every farm of their Company
+	rows - or None when they are not limited at all."""
+	perms = frappe.get_all("User Permission", filters={"user": user, "allow": ["in", ["Company", "Farm"]]},
+		fields=["allow", "for_value"])
+	farms = {p.for_value for p in perms if p.allow == "Farm"}
+	companies = [p.for_value for p in perms if p.allow == "Company"]
+	if farms:
+		if companies:
+			farms &= set(frappe.get_all("Farm", filters={"company": ["in", companies]}, pluck="name"))
+		return farms
+	if companies:
+		return set(frappe.get_all("Farm", filters={"company": ["in", companies]}, pluck="name"))
+	return None
+
+
+def covers(user, farm=None, company=None):
+	"""True when a report on farm / company (both blank: every farm) holds
+	nothing this login is not allowed to see. An address with no login is
+	not limited by anything - who gets what is then the sender's call."""
+	if not user:
+		return True
+	allowed = allowed_farms(user)
+	if allowed is None:
+		return True
+	wanted = _scope_farms(farm, company)
+	if wanted is None:
+		return False
+	return set(wanted) <= allowed and bool(allowed)
+
+
+def default_scope(user):
+	"""(farm, company) to fill in for a limited login whose row left both
+	blank: their one farm, else their one company. (None, None) when they
+	are not limited, or limited to more than one company."""
+	allowed = allowed_farms(user)
+	if not allowed:
+		return None, None
+	if len(allowed) == 1:
+		return next(iter(allowed)), None
+	companies = {frappe.db.get_value("Farm", f, "company") for f in allowed}
+	if len(companies) == 1:
+		company = companies.pop()
+		if set(_farms_of_company(company)) == allowed:
+			return None, company
+	return None, None
+
+
 def _incidents(first, last, farm=None, company=None):
 	"""The period's incidents, minus the types left out, as the person
 	running the report may see them (get_list)."""
@@ -232,15 +287,14 @@ def _dt(v):
 
 def _brand(farm=None, company=None):
 	"""Whose report this is, for its heading: the company of the report's
-	scope, else the site's default company, else the site's own name."""
+	scope. A report on every farm spans companies, so it says so."""
 	if company:
 		return company
 	if farm:
 		c = frappe.db.get_value("Farm", farm, "company")
 		if c:
 			return c
-	return (frappe.db.get_single_value("Global Defaults", "default_company")
-		or frappe.db.get_single_value("System Settings", "app_name") or frappe.local.site)
+	return _("All companies")
 
 
 def render_html(report, note=None, with_watchlist=False):
@@ -415,6 +469,10 @@ def send_report(recipients, period=None, from_date=None, to_date=None, farm=None
 		frappe.throw(_("Add at least one email address."))
 	if len(emails) > 50:
 		frappe.throw(_("Send to 50 people at most at a time."))
+	outside = [e for e in emails if not covers(_user_of(e), farm, company)]
+	if outside:
+		frappe.throw(_("{0} cannot see everything in a report on {1}. Pick a narrower company or farm, or leave them out.").format(
+			", ".join(outside), frappe.bold(_scope_label(farm, company))))
 	sections = _clean_sections(sections)
 	# Only someone who can read the watch list can send it.
 	if "watchlist" in sections and not frappe.has_permission("Security Watchlist", ptype="read"):
@@ -524,6 +582,12 @@ def send_scheduled_reports():
 	groups = {}
 	for r in rows:
 		if r.last_sent_on and frappe.utils.getdate(r.last_sent_on) == today:
+			continue
+		# Access may have changed since the row was saved.
+		if not covers(r.user or _user_of(r.email), r.farm, r.company):
+			frappe.log_error(f"Security report not sent to {r.email}",
+				f"{r.email} can no longer see everything in a report on {_scope_label(r.farm, r.company)}. "
+				"Fix the row in Security Ops Settings > Security Reports.")
 			continue
 		due = _due_period(r, today)
 		sections = _row_sections(r)
