@@ -2200,7 +2200,7 @@ def incident_pattern(category="All", from_date=None, to_date=None, farm=None, co
     rows = frappe.get_list(
         "Incident Report",
         filters=filters,
-        fields=["name", "incident_datetime", "farm", "location", "severity", "status", "description"],
+        fields=["name", "incident_datetime", "farm", "location", "severity", "status", "description", "nature_of_incident"],
         order_by="incident_datetime asc",
         limit_page_length=5000,
     )
