@@ -892,6 +892,29 @@ def _patrol_last_seen(
 
 # BEGIN INCIDENTS DASHBOARD API
 
+def hidden_incident_types():
+    """Incident types the Security dashboard and the emailed security report
+    leave out everywhere (counts, lists, calendar, type picker, guard
+    ranking) - Security Ops Settings' "Incident Types Left Out", one per
+    line, "SOS" unless a site changes it. Those reports are still created,
+    still alert, and stay in Desk; they are just not reported on. A tuple,
+    empty when nothing is left out."""
+    # Never saved (no Singles row) means the default; saved empty means
+    # nothing is left out. get_single_value cannot tell the two apart.
+    row = frappe.db.sql(
+        "select value from `tabSingles` where doctype='Security Ops Settings' and field='hidden_incident_types'"
+    )
+    value = row[0][0] if row else "SOS"
+    return tuple(t.strip() for t in str(value or "").splitlines() if t.strip())
+
+
+def _hide_incident_types(filters):
+    """Add the left-out incident types to a get_list filter list."""
+    hidden = hidden_incident_types()
+    if hidden:
+        filters.append(["nature_of_incident", "not in", hidden])
+    return filters
+
 
 @frappe.whitelist()
 def get_incidents_dashboard(
@@ -986,6 +1009,8 @@ def get_incidents_dashboard(
                 category,
             ]
         )
+
+    _hide_incident_types(filters)
 
     if location:
         filters.append(
@@ -1398,6 +1423,7 @@ def get_incidents_dashboard(
                         category.get("color"),
                 }
                 for category in categories
+                if category.get("name") not in hidden_incident_types()
             ],
             "locations": locations,
             "assigned_users": assigned_users,
@@ -2151,7 +2177,9 @@ def _incident_filter_options():
     return {
         "statuses": choices("status"),
         "severities": choices("severity"),
-        "categories": sorted({c["name"] for c in incident_categories()}),
+        "categories": sorted(
+            {c["name"] for c in incident_categories()} - set(hidden_incident_types())
+        ),
     }
 
 
@@ -2183,10 +2211,13 @@ def incident_calendar_events(start, end, filters=None, field_map=None):
 
 
 @frappe.whitelist()
-def incident_pattern(category="Theft", from_date=None, to_date=None, farm=None, company=None):
-    """Incidents of one category with their time, for the dashboard's
-    calendar and when-does-it-happen charts. Permission-aware."""
-    filters = [["nature_of_incident", "=", category or "Theft"]]
+def incident_pattern(category="All", from_date=None, to_date=None, farm=None, company=None):
+    """Incidents with their time - every type ("All" or blank) or one
+    nature of incident - for the dashboard's Incident calendar and
+    when-does-it-happen charts. Permission-aware."""
+    category = (category or "All").strip()
+    filters = [] if category == "All" else [["nature_of_incident", "=", category]]
+    _hide_incident_types(filters)
     if from_date:
         filters.append(["incident_datetime", ">=", str(frappe.utils.getdate(from_date)) + " 00:00:00"])
     if to_date:
@@ -2198,7 +2229,7 @@ def incident_pattern(category="Theft", from_date=None, to_date=None, farm=None, 
     rows = frappe.get_list(
         "Incident Report",
         filters=filters,
-        fields=["name", "incident_datetime", "farm", "location", "severity", "status", "description"],
+        fields=["name", "incident_datetime", "farm", "location", "severity", "status", "description", "nature_of_incident"],
         order_by="incident_datetime asc",
         limit_page_length=5000,
     )

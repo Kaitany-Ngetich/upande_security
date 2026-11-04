@@ -1,0 +1,134 @@
+{
+ "actions": [],
+ "creation": "2026-11-04 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "email",
+  "enabled",
+  "column_break_1",
+  "frequency",
+  "send_on",
+  "column_break_2",
+  "company",
+  "farm",
+  "last_sent_on",
+  "sections_section",
+  "include_patrols",
+  "include_incidents",
+  "column_break_3",
+  "include_watchlist"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "options": "User",
+   "label": "Person",
+   "in_list_view": 1
+  },
+  {
+   "fetch_from": "user.email",
+   "fetch_if_empty": 1,
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "options": "Email",
+   "label": "Email",
+   "in_list_view": 1,
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Weekly",
+   "fieldname": "frequency",
+   "fieldtype": "Select",
+   "options": "Daily\nWeekly\nMonthly",
+   "label": "Frequency",
+   "in_list_view": 1,
+   "reqd": 1
+  },
+  {
+   "default": "Monday",
+   "depends_on": "eval:doc.frequency=='Weekly'",
+   "fieldname": "send_on",
+   "fieldtype": "Select",
+   "options": "Monday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday",
+   "label": "Send On"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "options": "Company",
+   "label": "Company",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "options": "Farm",
+   "label": "Farm",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "last_sent_on",
+   "fieldtype": "Date",
+   "label": "Last Sent On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "sections_section",
+   "fieldtype": "Section Break",
+   "label": "Sections"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_patrols",
+   "fieldtype": "Check",
+   "label": "Patrols (guard ranking)"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_incidents",
+   "fieldtype": "Check",
+   "label": "Incidents"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_watchlist",
+   "fieldtype": "Check",
+   "label": "Watch list"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-04 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Security Report Subscription",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

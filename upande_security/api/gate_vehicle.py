@@ -55,6 +55,8 @@ regardless of which gate is actually doing the check."""
 import urllib.parse
 
 import frappe
+
+from upande_security.api.guard_lookup import guard_filters
 from frappe import _
 
 from upande_security.api.feature_flags import require_feature
@@ -87,9 +89,12 @@ def _resolve_checking_farm(current_user, linked_only=False):
 	employee = frappe.db.get_value("Employee", {"user_id": current_user}, "custom_farm")
 	if employee:
 		return employee
+	# Linked by login first (guard_filters), so a login with no full name
+	# still finds its guard; the name only matters for unlinked guards.
 	user_full = frappe.db.get_value("User", current_user, "full_name") or ""
-	if user_full:
-		guard_farm = frappe.db.get_value("Security Guard", {"full_name": user_full}, "farm")
+	filters = guard_filters(current_user, user_full)
+	if filters.get("name") or user_full:
+		guard_farm = frappe.db.get_value("Security Guard", filters, "farm")
 		if guard_farm:
 			return guard_farm
 	if linked_only:

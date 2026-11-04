@@ -82,6 +82,152 @@ def _usual_shift_type(guard: str) -> str:
 	return rows[0].shift_type if rows else "Day"
 
 
+NO_COVER = ("", "none", "null")
+
+
+def _cover_remark(full_name):
+	"""Remark on a Shift Assignment created only to cover full_name's day off;
+	release_cover() deletes rows carrying it."""
+	return _("Covering {0}'s off day").format(full_name)
+
+
+def release_cover(guard, date_val, guard_full_name):
+	"""Undo the cover of guard's day off on date_val. A row created only for
+	the cover is deleted; a reliever's own shift that was tagged as the cover
+	(the designated-reliever path) keeps existing and is just untagged."""
+	rows = frappe.get_all(
+		"Security Guard Shift Assignment",
+		filters={"covering_for": guard, "start_date": date_val},
+		fields=["name", "external_guard", "remarks"],
+	)
+	for row in rows:
+		if (row.remarks or "") == _cover_remark(guard_full_name):
+			frappe.delete_doc("Security Guard Shift Assignment", row.name, ignore_permissions=True, force=True)
+			continue
+		reliever_home_farm = frappe.db.get_value("Security Guard", row.external_guard, "farm")
+		frappe.db.set_value(
+			"Security Guard Shift Assignment", row.name,
+			{"covering_for": None, "farm": reliever_home_farm, "remarks": ""},
+			update_modified=False,
+		)
+
+
+def _covered(cover_guard, reason=None):
+	out = {
+		"state": "off_covered",
+		"covered_by": cover_guard,
+		"covered_by_name": frappe.db.get_value("Security Guard", cover_guard, "full_name"),
+	}
+	if reason:
+		out["reason"] = reason
+	return out
+
+
+def assign_cover(guard, guard_doc, date_val, cover_guard=None, shift_type=None, start_time=None, end_time=None):
+	"""Cover guard's day off on date_val (already marked off) and return the
+	day's state for the grid.
+
+	cover_guard None: the guard's designated reliever, as the grid always
+	did - their own shift that day is tagged as the cover, and they only
+	count as busy when already covering someone else. cover_guard "" or
+	"none": no cover. Any other value: that guard, checked free again here
+	(no overlapping shift, not covering anyone else that day); a cover row
+	is created for them. A cover already in place for someone else is
+	replaced, but only once the new pick has been checked.
+	"""
+	from upande_security.api.relievers import check_cover_available, cover_window
+
+	date_val = getdate(date_val)
+	uncovered_state = "off_unfilled" if guard_doc.reliever else "off_no_reliever"
+	designated = cover_guard is None
+	if not designated and str(cover_guard).strip().lower() in NO_COVER:
+		release_cover(guard, date_val, guard_doc.full_name)
+		return {"state": uncovered_state, "reason": _("Left without cover")}
+
+	chosen = guard_doc.reliever if designated else str(cover_guard).strip()
+	if not chosen:
+		return {"state": "off_no_reliever"}
+
+	current = frappe.db.get_value(
+		"Security Guard Shift Assignment",
+		{"covering_for": guard, "start_date": date_val},
+		["name", "external_guard"],
+		as_dict=True,
+	)
+	if current and current.external_guard == chosen:
+		return _covered(chosen)
+
+	shift_type = shift_type or _usual_shift_type(guard)
+	t = _shift_hours(shift_type, start_time, end_time)
+
+	if designated:
+		# "Busy" means already covering a *different* guard that day - not
+		# whether the reliever has their own baseline shift record for it.
+		# Being on standby to cover is the reliever's actual job; it's only
+		# a real conflict when two of their assigned guards are off the
+		# same day (the "fill first, flag the rest" case).
+		reliever_busy = frappe.db.exists(
+			"Security Guard Shift Assignment",
+			{"external_guard": chosen, "start_date": date_val, "covering_for": ["is", "set"]},
+		)
+		if reliever_busy:
+			return {"state": "off_unfilled", "reason": _("Reliever already assigned elsewhere that day")}
+	else:
+		reason = check_cover_available(chosen, guard, date_val, cover_window(date_val, t.start_time, t.end_time))
+		if reason:
+			if current:
+				return _covered(current.external_guard, reason=reason)
+			return {"state": "off_unfilled", "reason": reason}
+
+	if current:
+		release_cover(guard, date_val, guard_doc.full_name)
+
+	# Overnight shift (e.g. Night: 18:00 -> 06:00) ends the calendar day
+	# AFTER it starts - otherwise the record's own end sits before its
+	# start on the same day, and derive_status() jumps straight from
+	# Scheduled to Ended without ever reading Active for the actual
+	# overnight window. Mirrors sync_shifts_from_hr_roster()'s same rule.
+	cover_end_date = add_days(date_val, 1) if t.end_time <= t.start_time else date_val
+
+	# The designated reliever's own baseline shift that day (e.g. from the
+	# original roster import) is tagged rather than a second row inserted
+	# for the same person/date. A picked guard is free by then, so any
+	# shift of theirs that day is a different one and a new row is right.
+	own_row = None
+	if designated:
+		own_row = frappe.db.exists(
+			"Security Guard Shift Assignment",
+			{"external_guard": chosen, "start_date": date_val, "covering_for": ["is", "not set"]},
+		)
+	if own_row:
+		# Also correct end_date here, in case this baseline row predates
+		# the overnight-rollover fix and still has the old same-day shape.
+		frappe.db.set_value(
+			"Security Guard Shift Assignment", own_row,
+			{
+				"covering_for": guard,
+				"farm": guard_doc.farm,
+				"remarks": _("Covering {0}'s off day on their own shift").format(guard_doc.full_name),
+				"end_date": cover_end_date,
+			},
+			update_modified=False,
+		)
+	else:
+		cover = frappe.new_doc("Security Guard Shift Assignment")
+		cover.security_guard = "External Guard"
+		cover.external_guard = chosen
+		cover.farm = guard_doc.farm
+		cover.shift_type = shift_type
+		cover.start_date = date_val
+		cover.end_date = cover_end_date
+		cover.start_time = t.start_time
+		cover.end_time = t.end_time
+		cover.covering_for = guard
+		cover.remarks = _cover_remark(guard_doc.full_name)
+		cover.insert(ignore_permissions=True)
+	return _covered(chosen)
+
+
 @frappe.whitelist()
 def get_shift_schedule(year: str | int, month: str | int, farm: str | None = None) -> dict:
 	"""Everything the schedule grid needs for one month, in one call: the
@@ -170,6 +316,17 @@ def get_shift_schedule(year: str | int, month: str | int, farm: str | None = Non
 		if r.covering_for:
 			covers[(r.covering_for, day)] = r.external_guard
 
+	# A cover can be any guard picked from suggest_relievers, not only a
+	# designated reliever, so their names are looked up here too.
+	missing = {c for c in covers.values() if c not in reliever_names}
+	if missing:
+		reliever_names.update(
+			frappe.db.sql(
+				"SELECT name, full_name FROM `tabSecurity Guard` WHERE name IN %(ids)s",
+				{"ids": tuple(missing)},
+			)
+		)
+
 	statuses: dict = {}
 	for g in guards:
 		day_map = {}
@@ -213,6 +370,7 @@ def toggle_guard_day(
 	start_time: str | None = None,
 	end_time: str | None = None,
 	create_shift: str | int | bool = 1,
+	cover_guard: str | None = None,
 ) -> dict:
 	"""Flip one guard's one day between on/off, handling the reliever
 	fill-in (or its removal) as part of the same call so the grid never
@@ -231,7 +389,17 @@ def toggle_guard_day(
 	without them the guard's usual shift and its standard times are used.
 	create_shift=0 marks the day on without creating a Shift Assignment -
 	for a Draft rotation plan, whose Apply step creates it.
+
+	cover_guard picks who covers the day off (from suggest_relievers); ""
+	or "none" leaves it without cover. Not passed, the guard's designated
+	reliever covers it, as before. A picked guard who is no longer free
+	returns state "off_unfilled" with the reason.
 	"""
+	from upande_security.api.relievers import require_planner
+
+	# Marking days off and booking covers is planning work: refuse logins
+	# that cannot write Shift Assignments (guards).
+	require_planner()
 	mark_off = cint(mark_off)
 	if not frappe.db.exists("Security Guard", guard):
 		frappe.throw(_("Security Guard {0} not found").format(guard))
@@ -256,87 +424,16 @@ def toggle_guard_day(
 		# this guard, not just a gap in this one month's grid.
 		add_guard_off_day(guard, date_val, remarks=_("Marked off via Shift Schedule"))
 
-		if not guard_doc.reliever:
-			frappe.db.commit()
-			return {"state": "off_no_reliever"}
-
-		# "Busy" means already covering a *different* guard that day - not
-		# whether the reliever has their own baseline shift record for it.
-		# Being on standby to cover is the reliever's actual job; it's only
-		# a real conflict when two of their assigned guards are off the
-		# same day (the "fill first, flag the rest" case).
-		reliever_busy = frappe.db.exists(
-			"Security Guard Shift Assignment",
-			{"external_guard": guard_doc.reliever, "start_date": date_val, "covering_for": ["is", "set"]},
-		)
-		if reliever_busy:
-			frappe.db.commit()
-			return {"state": "off_unfilled", "reason": _("Reliever already assigned elsewhere that day")}
-
-		shift_type = shift_type or _usual_shift_type(guard)
-		t = _shift_hours(shift_type, start_time, end_time)
-		remark = _("Covering {0}'s off day").format(guard_doc.full_name)
-		# Overnight shift (e.g. Night: 18:00 -> 06:00) ends the calendar day
-		# AFTER it starts - otherwise the record's own end sits before its
-		# start on the same day, and derive_status() jumps straight from
-		# Scheduled to Ended without ever reading Active for the actual
-		# overnight window. Mirrors sync_shifts_from_hr_roster()'s same rule.
-		cover_end_date = add_days(date_val, 1) if t.end_time <= t.start_time else date_val
-
-		# If the reliever already has their own baseline shift that day
-		# (e.g. from the original roster import), tag that same row rather
-		# than inserting a second one for the same person/date.
-		own_row = frappe.db.exists(
-			"Security Guard Shift Assignment",
-			{"external_guard": guard_doc.reliever, "start_date": date_val, "covering_for": ["is", "not set"]},
-		)
-		if own_row:
-			# Also correct end_date here, in case this baseline row predates
-			# the overnight-rollover fix and still has the old same-day
-			# shape.
-			frappe.db.set_value(
-				"Security Guard Shift Assignment", own_row,
-				{"covering_for": guard, "farm": guard_doc.farm, "remarks": remark, "end_date": cover_end_date},
-				update_modified=False,
-			)
-		else:
-			cover = frappe.new_doc("Security Guard Shift Assignment")
-			cover.security_guard = "External Guard"
-			cover.external_guard = guard_doc.reliever
-			cover.farm = guard_doc.farm
-			cover.shift_type = shift_type
-			cover.start_date = date_val
-			cover.end_date = cover_end_date
-			cover.start_time = t.start_time
-			cover.end_time = t.end_time
-			cover.covering_for = guard
-			cover.remarks = remark
-			cover.insert(ignore_permissions=True)
+		result = assign_cover(guard, guard_doc, date_val, cover_guard, shift_type, start_time, end_time)
 		frappe.db.commit()
-		reliever_name = frappe.db.get_value("Security Guard", guard_doc.reliever, "full_name")
-		return {"state": "off_covered", "covered_by": guard_doc.reliever, "covered_by_name": reliever_name}
+		return result
 
 	# Marking back ON: this day is no longer one of the guard's configured
 	# off days either - undo the same list add_guard_off_day() made above.
 	remove_guard_off_day(guard, date_val)
 
-	# Undo any reliever cover row for this guard/day. Clear the covering_for
-	# tag rather than deleting the row outright - it may be the reliever's
-	# own pre-existing baseline record that got tagged when the off day was
-	# filled, and deleting it would wipe that out along with the cover.
-	cover_row = frappe.db.get_value(
-		"Security Guard Shift Assignment",
-		{"covering_for": guard, "start_date": date_val},
-		["name", "external_guard"],
-		as_dict=True,
-	)
-	if cover_row:
-		reliever_home_farm = frappe.db.get_value("Security Guard", cover_row.external_guard, "farm")
-		frappe.db.set_value(
-			"Security Guard Shift Assignment", cover_row.name,
-			{"covering_for": None, "farm": reliever_home_farm, "remarks": ""},
-			update_modified=False,
-		)
+	# Undo any reliever cover for this guard/day (see release_cover).
+	release_cover(guard, date_val, guard_doc.full_name)
 
 	already_on = frappe.db.exists(
 		"Security Guard Shift Assignment",

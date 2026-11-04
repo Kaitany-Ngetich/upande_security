@@ -168,8 +168,17 @@ def refresh_update_status():
 		"Guard Device Token",
 		fields=["name", "app_version", "runtime_version", "update_channel", "update_created_at", "update_status"],
 	)
-	runtimes = [r.runtime_version for r in rows if r.runtime_version]
-	newest_runtime = max(runtimes, key=_version_key) if runtimes else None
+	# The newest native build is the runtime of the phone on the highest APP
+	# version, not the highest runtime string: app lines use different
+	# runtime schemes (the old preview builds report "1.2.3" / "1.2.5", the
+	# current app "1.2"), so comparing runtimes by number marked the newest
+	# app as needing a new install.
+	built = [r for r in rows if r.runtime_version and r.app_version]
+	newest_runtime = (
+		max(built, key=lambda r: (_version_key(r.app_version), _version_key(r.runtime_version))).runtime_version
+		if built
+		else None
+	)
 	newest_by_channel = {}
 	for r in rows:
 		if r.runtime_version == newest_runtime and r.update_created_at:
@@ -179,7 +188,7 @@ def refresh_update_status():
 	for r in rows:
 		if not r.app_version and not r.runtime_version:
 			status = "Unknown (old app)"
-		elif r.runtime_version and newest_runtime and _version_key(r.runtime_version) < _version_key(newest_runtime):
+		elif r.runtime_version and newest_runtime and r.runtime_version != newest_runtime:
 			status = "Needs New Install"
 		else:
 			newest = newest_by_channel.get(r.update_channel or "")

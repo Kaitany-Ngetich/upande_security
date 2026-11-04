@@ -8,7 +8,17 @@ frappe.ui.form.on("Security Guard Rotation Plan", {
 		// The whitelisted methods run against the saved DB copy of this doc
 		// (see run_doc_method), so a dirty/new form has nothing meaningful
 		// to generate or apply yet.
-		if (frm.is_new() || frm.is_dirty() || frm.doc.status !== "Draft") {
+		if (frm.is_new() || frm.is_dirty()) {
+			return;
+		}
+
+		// Off days can be covered whether the plan is still Draft or applied.
+		const has_off_days = (frm.doc.preview_rows || []).some((row) => row.is_off_day);
+		if (has_off_days && frm.doc.status !== "Cancelled") {
+			frm.add_custom_button(__("Fill Off Days"), () => show_fill_off_days(frm));
+		}
+
+		if (frm.doc.status !== "Draft") {
 			return;
 		}
 
@@ -24,13 +34,15 @@ frappe.ui.form.on("Security Guard Rotation Plan", {
 							if (r.message) {
 								const p = r.message.preview;
 								const a = r.message.apply;
-								frappe.msgprint(
+								report_apply(
+									frm,
 									__("Generated {0} day(s) ({1} off). Applied {2}, {3} failed.", [
 										p.rows,
 										p.off_days,
 										a.applied,
 										a.failed,
-									])
+									]),
+									a.uncovered_off_days
 								);
 							}
 						});
@@ -65,12 +77,14 @@ frappe.ui.form.on("Security Guard Rotation Plan", {
 						frm.call("apply_rotation").then((r) => {
 							frm.reload_doc();
 							if (r.message) {
-								frappe.msgprint(
+								report_apply(
+									frm,
 									__("Applied {0}, {1} failed, {2} off-day row(s) skipped.", [
 										r.message.applied,
 										r.message.failed,
 										r.message.skipped,
-									])
+									]),
+									r.message.uncovered_off_days
 								);
 							}
 						});
@@ -112,7 +126,8 @@ frappe.ui.form.on("Security Guard Rotation Preview Row", {
 		// just editing a field to save later. It cancels or creates the
 		// actual Shift Assignment for this guard/date right now (same
 		// underlying call as the Shift Schedule grid's own off-day
-		// checkbox), whether this plan is Draft or already Applied.
+		// checkbox), whether this plan is Draft or already Applied. Marking
+		// a day off first asks who covers it (see pick_cover).
 		//
 		// A plain frappe.call on purpose, not frm.call - frm.call runs
 		// Document methods through run_doc_method, which syncs the WHOLE
@@ -121,32 +136,243 @@ frappe.ui.form.on("Security Guard Rotation Preview Row", {
 		// only ever touches the one row that changed.
 		if (frm.is_new()) return; // nothing real to toggle yet - no saved doc, no guard-scoped rows possible
 		const row = locals[cdt][cdn];
+		if (row.__reverting_off_day) return;
 		const mark_off = row.is_off_day ? 1 : 0;
 		const grid_row = frm.fields_dict.preview_rows.grid.grid_rows_by_docname[cdn];
-		if (grid_row) grid_row.wrapper.css("opacity", 0.5);
 
-		frappe.call({
-			method: "upande_security.upande_security.doctype.security_guard_rotation_plan.security_guard_rotation_plan.toggle_preview_row_off_day",
-			args: { plan_name: frm.doc.name, row_name: cdn, mark_off },
-		}).then((r) => {
+		const revert = () => {
 			if (grid_row) grid_row.wrapper.css("opacity", "");
-			const res = r.message;
-			if (!res) return;
-			frappe.model.set_value(cdt, cdn, "status", res.status);
+			// Put the checkbox back without running this handler again.
+			row.__reverting_off_day = true;
+			frappe.model.set_value(cdt, cdn, "is_off_day", mark_off ? 0 : 1).then(() => {
+				row.__reverting_off_day = false;
+			});
+		};
 
-			let msg;
-			if (res.state === "on") msg = __("Marked back on duty.");
-			else if (res.state === "off_covered") msg = __("Off day set - covered by {0}.", [res.covered_by_name || res.covered_by]);
-			else if (res.state === "off_unfilled") msg = __("Off day set - {0}", [res.reason || __("reliever already covering someone else")]);
-			else msg = __("Off day set - no reliever assigned to this guard.");
-			frappe.show_alert({ message: msg, indicator: res.state === "on" ? "green" : "blue" });
-		}).catch(() => {
-			if (grid_row) grid_row.wrapper.css("opacity", "");
-			// Revert the checkbox - the write didn't happen.
-			frappe.model.set_value(cdt, cdn, "is_off_day", mark_off ? 0 : 1);
+		const toggle = (cover_guard) => {
+			if (grid_row) grid_row.wrapper.css("opacity", 0.5);
+			const args = { plan_name: frm.doc.name, row_name: cdn, mark_off };
+			if (cover_guard !== undefined) args.cover_guard = cover_guard;
+			frappe
+				.call({
+					method: "upande_security.upande_security.doctype.security_guard_rotation_plan.security_guard_rotation_plan.toggle_preview_row_off_day",
+					args,
+				})
+				.then((r) => {
+					if (grid_row) grid_row.wrapper.css("opacity", "");
+					const res = r.message;
+					if (!res) return;
+					frappe.model.set_value(cdt, cdn, "status", res.status);
+					frappe.model.set_value(cdt, cdn, "cover_guard", res.cover_guard || null);
+					frappe.model.set_value(cdt, cdn, "cover_guard_name", res.cover_guard_name || null);
+					frappe.show_alert({ message: cover_message(res), indicator: res.state === "on" ? "green" : "blue" });
+				})
+				.catch(revert);
+		};
+
+		if (!mark_off) {
+			toggle();
+			return;
+		}
+		pick_cover(frm, row).then((choice) => {
+			if (choice === null) revert();
+			else toggle(choice);
 		});
 	},
 });
+
+function cover_message(res) {
+	if (res.state === "on") return __("Marked back on duty.");
+	if (res.state === "off_covered") {
+		const who = res.covered_by_name || res.covered_by;
+		return res.reason
+			? __("Still covered by {0} - {1}", [who, res.reason])
+			: __("Off day set - covered by {0}.", [who]);
+	}
+	if (res.state === "off_unfilled") return __("Off day set without cover - {0}", [res.reason || __("no reliever free")]);
+	return __("Off day set without cover.");
+}
+
+const RELIEVER_METHOD = "upande_security.api.relievers.suggest_relievers";
+const PLAN_METHOD = "upande_security.upande_security.doctype.security_guard_rotation_plan.security_guard_rotation_plan.";
+
+// Asks who covers the guard on this row's day off. Resolves to the picked
+// guard, "none" for no cover, or null when the planner cancels.
+function pick_cover(frm, row) {
+	return new Promise((resolve) => {
+		frappe
+			.call({
+				method: RELIEVER_METHOD,
+				args: {
+					guard: frm.doc.external_guard,
+					date: row.rotation_date,
+					farm: row.farm,
+					shift_type: row.shift_type || frm.doc.shift_type,
+					start_time: row.start_time || frm.doc.start_time,
+					end_time: row.end_time || frm.doc.end_time,
+				},
+			})
+			.then((r) => {
+				const data = r.message;
+				let done = false;
+				const d = new frappe.ui.Dialog({
+					title: __("Who covers {0}?", [frappe.datetime.str_to_user(row.rotation_date)]),
+					size: "large",
+					fields: [{ fieldtype: "HTML", fieldname: "list" }],
+					primary_action_label: __("Mark Off"),
+					primary_action() {
+						const picked = d.$wrapper.find("input[name=cover-pick]:checked").val();
+						done = true;
+						d.hide();
+						resolve(picked || "none");
+					},
+				});
+				d.onhide = () => {
+					if (!done) resolve(null);
+				};
+				d.fields_dict.list.$wrapper.html(cover_list_html(data));
+				d.show();
+			})
+			.catch(() => resolve(null));
+	});
+}
+
+function cover_list_html(data) {
+	const esc = frappe.utils.escape_html;
+	const first = (data.suggestions || []).find((s) => s.available);
+	const head = `<p class="text-muted">${esc(
+		__("{0} shift at {1}, {2}-{3}. {4} of {5} guards free.", [
+			data.shift_type,
+			data.farm || "",
+			data.start_time,
+			data.end_time,
+			data.counts.available,
+			data.counts.candidates,
+		])
+	)}</p>`;
+	const rows = (data.suggestions || [])
+		.map((s) => {
+			const tags = [];
+			if (s.designated) tags.push(`<span class="indicator-pill blue">${__("Reliever")}</span>`);
+			if (s.on_off_day) tags.push(`<span class="indicator-pill orange">${__("Own day off")}</span>`);
+			if (!s.available) tags.push(`<span class="indicator-pill red">${__("Busy")}</span>`);
+			const checked = first && s.guard === first.guard ? "checked" : "";
+			const disabled = s.available ? "" : "disabled";
+			return `<label class="d-flex align-items-start" style="gap:10px;padding:8px 4px;border-bottom:1px solid var(--border-color);margin:0;${
+				s.available ? "cursor:pointer" : "opacity:.6"
+			}">
+				<input type="radio" name="cover-pick" value="${esc(s.guard)}" ${checked} ${disabled} style="margin-top:4px">
+				<span><b>${esc(s.full_name)}</b> <span class="text-muted small">${esc(s.home_farm || "")}</span> ${tags.join(" ")}
+				<br><span class="small">${esc(s.available ? s.reason : s.busy_reason)}</span></span>
+			</label>`;
+		})
+		.join("");
+	const none = `<label class="d-flex align-items-start" style="gap:10px;padding:8px 4px;margin:0;cursor:pointer">
+		<input type="radio" name="cover-pick" value="none" ${first ? "" : "checked"} style="margin-top:4px">
+		<span><b>${__("No cover")}</b><br><span class="small text-muted">${__("Leave this day off uncovered")}</span></span>
+	</label>`;
+	return head + `<div style="max-height:420px;overflow-y:auto">${rows}${none}</div>`;
+}
+
+function report_apply(frm, message, uncovered) {
+	if (!uncovered || !uncovered.length) {
+		frappe.msgprint(message);
+		return;
+	}
+	const days = uncovered.map((u) => frappe.datetime.str_to_user(u.date)).join(", ");
+	const d = frappe.msgprint({
+		title: __("Off days without cover"),
+		message: `${frappe.utils.escape_html(message)}<br><br>${__("{0} off day(s) have no cover: {1}", [
+			uncovered.length,
+			frappe.utils.escape_html(days),
+		])}`,
+		primary_action: {
+			label: __("Fill Off Days"),
+			action() {
+				d.hide();
+				show_fill_off_days(frm);
+			},
+		},
+	});
+}
+
+// One dialog for every off day on the plan: a pre-picked reliever per day
+// (never the same guard on two overlapping covers), confirmed in one call.
+function show_fill_off_days(frm) {
+	frappe
+		.call({ method: PLAN_METHOD + "get_off_day_cover_options", args: { plan_name: frm.doc.name }, freeze: true })
+		.then((r) => {
+			const data = r.message;
+			if (!data || !data.rows.length) {
+				frappe.msgprint(__("This plan has no off days."));
+				return;
+			}
+			const esc = frappe.utils.escape_html;
+			const body = data.rows
+				.map((row) => {
+					const opts = row.options
+						.map((o) => {
+							const label = o.full_name + (o.guard === row.current_cover ? " - " + __("current") : "") + (o.on_off_day ? " - " + __("own day off") : "");
+							return `<option value="${esc(o.guard)}" title="${esc(o.reason || "")}" ${o.guard === row.selected ? "selected" : ""}>${esc(label)}</option>`;
+						})
+						.join("");
+					const reason = (row.options.find((o) => o.guard === row.selected) || {}).reason || __("Nobody free for this shift");
+					return `<tr data-row="${esc(row.row)}">
+						<td style="white-space:nowrap">${esc(frappe.datetime.str_to_user(row.date))}</td>
+						<td>${esc(row.farm || "")}<br><span class="small text-muted">${esc(row.shift_type || "")} ${esc(row.times)}</span></td>
+						<td><select class="form-control input-sm cover-select">
+							<option value="" ${row.selected ? "" : "selected"}>${__("No cover")}</option>${opts}
+						</select><div class="small text-muted cover-reason" style="margin-top:4px">${esc(reason)}</div></td>
+					</tr>`;
+				})
+				.join("");
+			const d = new frappe.ui.Dialog({
+				title: __("Fill Off Days"),
+				size: "large",
+				fields: [{ fieldtype: "HTML", fieldname: "table" }],
+				primary_action_label: __("Create Covers"),
+				primary_action() {
+					const choices = {};
+					d.$wrapper.find("tr[data-row]").each(function () {
+						choices[$(this).attr("data-row")] = $(this).find(".cover-select").val() || "none";
+					});
+					d.hide();
+					frappe
+						.call({ method: PLAN_METHOD + "fill_off_day_covers", args: { plan_name: frm.doc.name, choices }, freeze: true })
+						.then((res) => {
+							frm.reload_doc();
+							const out = res.message || { covered: [], uncovered: [] };
+							let msg = __("{0} off day(s) covered.", [out.covered.length]);
+							if (out.uncovered.length) {
+								msg +=
+									"<br><br>" +
+									__("Without cover:") +
+									"<ul>" +
+									out.uncovered
+										.map(
+											(u) =>
+												`<li>${esc(frappe.datetime.str_to_user(u.date))}: ${esc(u.reason)}${
+													u.still_covered_by ? " (" + esc(__("still covered by {0}", [u.still_covered_by])) + ")" : ""
+												}</li>`
+										)
+										.join("") +
+									"</ul>";
+							}
+							frappe.msgprint({ title: __("Off Day Cover"), message: msg });
+						});
+				},
+			});
+			d.fields_dict.table.$wrapper.html(
+				`<p class="text-muted">${__("Each off day has the best free reliever picked. Change any of them, or pick No cover.")}</p>
+				<table class="table table-bordered"><thead><tr><th>${__("Date")}</th><th>${__("Farm / Shift")}</th><th>${__("Cover")}</th></tr></thead><tbody>${body}</tbody></table>`
+			);
+			d.$wrapper.on("change", ".cover-select", function () {
+				const opt = $(this).find("option:selected");
+				$(this).closest("td").find(".cover-reason").text(opt.attr("title") || "");
+			});
+			d.show();
+		});
+}
 
 // Shift times come from Security Ops Settings > Standard Shift Times, never
 // typed by hand. A rotating plan's own shift is the first in its sequence.

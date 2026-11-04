@@ -1,0 +1,314 @@
+{#-
+  The security report (api/security_report.py render_html): the email body
+  and, through get_pdf, the PDF. Inline styles only - mail clients drop
+  <style> blocks. Everything shown comes from the site's own records; the
+  heading names the company of the report's scope, never a fixed one.
+
+  Colours: theme.accent is the company's own colour (Security Ops Settings >
+  Badges per Company); theme.soft a pale tint of it. Red, green and the
+  severity colours are fixed so they mean the same in every company's report.
+
+  Context: r (build_report's dict), theme, with_watchlist, note, brand, generated,
+  dashboard_url, and the helpers ha(), hours(), dt(), form_url(), pct().
+-#}
+{%- set INK = "#1f1f1c" -%}
+{%- set MUTED = "#6b6b66" -%}
+{%- set HINT = "#8a8a84" -%}
+{%- set LINE = "#e4e4e0" -%}
+{%- set SOFT = "#f6f6f3" -%}
+{%- set RED = "#a32d2d" -%}
+{%- set GREEN = "#3b6d11" -%}
+{%- set BLUE = "#185fa5" -%}
+{%- set ACCENT = theme.accent -%}
+{%- set TINT = theme.soft -%}
+{%- set SEV = {"Critical": "#7f1d1d", "High": "#a32d2d", "Medium": "#ba7517", "Low": "#6b6b66"} -%}
+{%- set TH = "padding:7px 8px;border-bottom:1px solid #cfcfca;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:" ~ MUTED ~ ";font-weight:600;" -%}
+{%- set TD = "padding:7px 8px;border-bottom:1px solid " ~ LINE ~ ";font-size:12px;vertical-align:top;" -%}
+
+{%- macro section(title, icon_colour, subtitle=None, new_page=False) -%}
+{#- new_page: the PDF starts this section on a fresh page (mail clients ignore it). -#}
+<table cellspacing="0" cellpadding="0" style="width:100%;margin:28px 0 10px;page-break-after:avoid{{ ';page-break-before:always' if new_page }}"><tr>
+  <td style="width:5px;background:{{ icon_colour }};border-radius:3px"></td>
+  <td style="padding-left:10px">
+    <div style="font-size:17px;font-weight:700;color:{{ INK }}">{{ title }}</div>
+    {%- if subtitle %}<div style="font-size:11px;color:{{ HINT }};margin-top:2px">{{ subtitle }}</div>{% endif %}
+  </td>
+</tr></table>
+{%- endmacro -%}
+
+{%- macro kpis(items) -%}
+<table cellspacing="0" cellpadding="0" style="width:100%;margin:4px 0 12px;page-break-inside:avoid"><tr>
+{%- for label, value, colour in items %}
+  <td style="padding:0 {{ '0' if loop.last else '8px' }} 0 0;width:{{ (100 / items|length)|int }}%">
+    <div style="background:{{ TINT }};border-radius:10px;padding:10px 12px">
+      <div style="font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:{{ MUTED }}">{{ label }}</div>
+      <div style="font-size:20px;font-weight:700;color:{{ colour or INK }};margin-top:2px">{{ value }}</div>
+    </div>
+  </td>
+{%- endfor %}
+</tr></table>
+{%- endmacro -%}
+
+<div style="font-family:Arial,Helvetica,sans-serif;color:{{ INK }};max-width:1040px;margin:0 auto">
+
+  {#- Header -#}
+  <table cellspacing="0" cellpadding="0" style="width:100%;background:{{ ACCENT }};border-radius:12px"><tr>
+    {%- if theme.logo %}
+    <td style="padding:16px 0 16px 18px;width:1%;white-space:nowrap;vertical-align:middle">
+      <div style="background:#ffffff;border-radius:8px;padding:8px 12px"><img src="{{ theme.logo }}" alt="{{ brand | e }}" style="height:44px;display:block"></div>
+    </td>
+    {%- endif %}
+    <td style="padding:18px 22px">
+      <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:{{ theme.on_accent_muted }}">{{ brand | e }}</div>
+      <div style="font-size:24px;font-weight:700;color:{{ theme.on_accent }};margin-top:4px">Security report</div>
+      <div style="font-size:13px;color:{{ theme.on_accent }};margin-top:4px">{{ r.scope | e }} · {{ r.period_text | e }}</div>
+    </td>
+    <td style="padding:18px 22px;text-align:right;vertical-align:bottom">
+      <div style="font-size:10px;color:{{ theme.on_accent_muted }}">Generated</div>
+      <div style="font-size:12px;color:{{ theme.on_accent }}">{{ generated }}</div>
+    </td>
+  </tr></table>
+
+  {%- if note %}
+  <div style="margin:14px 0 0;padding:12px 14px;border-left:3px solid {{ BLUE }};background:#f1f6fb;font-size:13px;white-space:pre-line">{{ note | e }}</div>
+  {%- endif %}
+
+  {#- At a glance: one line per section -#}
+  <table cellspacing="0" cellpadding="0" style="width:100%;margin-top:16px;border:1px solid {{ LINE }};border-top:3px solid {{ ACCENT }};border-radius:10px"><tr>
+  {%- if r.ranking %}{% set farms = r.ranking.farms or [] %}
+    <td style="padding:12px 14px;vertical-align:top;border-right:1px solid {{ LINE }}">
+      <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:{{ MUTED }}">Patrols</div>
+      <div style="font-size:13px;margin-top:4px"><b>{{ farms | sum(attribute="guards") }}</b> guards · <b>{{ "%.1f" | format(farms | sum(attribute="distance_km")) }} km</b></div>
+      {%- if r.area_total %}<div style="font-size:12px;color:{{ MUTED }};margin-top:2px">{{ ha(r.area_total.covered) }} of {{ ha(r.area_total.area) }} patrolled&nbsp;·&nbsp;<span style="color:{{ RED }}">{{ ha(r.area_total.area - r.area_total.covered) }} not patrolled</span></div>{% endif %}
+    </td>
+  {%- endif %}
+  {%- if r.incidents %}
+    <td style="padding:12px 14px;vertical-align:top;border-right:1px solid {{ LINE }}">
+      <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:{{ MUTED }}">Incidents</div>
+      <div style="font-size:13px;margin-top:4px"><b>{{ r.incidents.total }}</b> reported · <b style="color:{{ RED if r.incidents.open else INK }}">{{ r.incidents.open }}</b> still open</div>
+      <div style="font-size:12px;color:{{ MUTED }};margin-top:2px">{{ r.incidents.serious }} high or critical</div>
+    </td>
+  {%- endif %}
+  {%- if with_watchlist and r.watchlist %}
+    <td style="padding:12px 14px;vertical-align:top">
+      <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:{{ MUTED }}">Watch list</div>
+      <div style="font-size:13px;margin-top:4px"><b>{{ r.watchlist.active | length }}</b> watched · <b style="color:{{ RED if r.watchlist.activity else INK }}">{{ r.watchlist.activity | length }}</b> transactions</div>
+      <div style="font-size:12px;color:{{ MUTED }};margin-top:2px">{{ r.watchlist.opened }} opened · {{ r.watchlist.closed | length }} closed</div>
+    </td>
+  {%- endif %}
+  </tr></table>
+
+  {#- ── Patrols ───────────────────────────────────────────── -#}
+  {%- if r.ranking %}{% set d = r.ranking %}
+  {{ section("Patrols", ACCENT, "Guard ranking for the period, each farm on its own") }}
+  {%- if not d.farms %}
+  <p style="font-size:13px;color:{{ MUTED }}">No patrols in this period.</p>
+  {%- endif %}
+  {%- for f in d.farms or [] %}
+  <div style="page-break-inside:avoid;margin-bottom:16px">
+    <table cellspacing="0" cellpadding="0" style="width:100%;margin-bottom:6px"><tr>
+      <td style="font-size:14px;font-weight:700">{{ f.farm | e }}</td>
+      <td style="text-align:right;font-size:12px;color:{{ MUTED }}">
+        {{ f.guards }} {{ "guard" if f.guards == 1 else "guards" }} · {{ "%.2f" | format(f.distance_km or 0) }} km · {{ hours(f.patrol_hours) }} on patrol
+      </td>
+    </tr></table>
+    {%- if f.covered_ha is not none %}{% set gap = [0, (f.area_ha or 0) - f.covered_ha] | max %}
+    <table cellspacing="0" cellpadding="0" style="width:100%;margin-bottom:8px"><tr>
+      <td style="width:100%">
+        <div style="height:8px;background:#f0d6d6;border-radius:4px;overflow:hidden">
+          <div style="height:8px;width:{{ [f.coverage_pct or 0, 100] | min }}%;background:{{ GREEN }};border-radius:4px"></div>
+        </div>
+        <div style="font-size:11px;color:{{ MUTED }};margin-top:4px">
+          <span style="color:{{ GREEN }};font-weight:600">{{ ha(f.covered_ha) }} patrolled</span> ({{ f.coverage_pct }}%) ·
+          <span style="color:{{ RED }};font-weight:600">{{ ha(gap) }} not patrolled</span> · farm {{ ha(f.area_ha) }}
+        </div>
+      </td>
+    </tr></table>
+    {%- else %}
+    <div style="font-size:11px;color:{{ HINT }};margin-bottom:8px">No boundary on this farm, so area is not measured.</div>
+    {%- endif %}
+    <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%">
+      <thead><tr>
+        <th style="{{ TH }}text-align:left;width:28px">#</th>
+        <th style="{{ TH }}text-align:left">Guard</th>
+        <th style="{{ TH }}text-align:right">Score</th>
+        <th style="{{ TH }}text-align:right">Area patrolled</th>
+        <th style="{{ TH }}text-align:right">Distance</th>
+        <th style="{{ TH }}text-align:right">Patrol time</th>
+        <th style="{{ TH }}text-align:right">Patrols</th>
+        <th style="{{ TH }}text-align:right">Valid scans</th>
+        <th style="{{ TH }}text-align:right">Incidents on shift</th>
+      </tr></thead>
+      {%- for g in r.guards_by_farm[f.farm] %}
+      <tr>
+        <td style="{{ TD }}"><span style="display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;border-radius:10px;font-size:11px;font-weight:700;background:{{ TINT if g.rank <= 3 else SOFT }};color:{{ ACCENT if g.rank <= 3 else MUTED }}">{{ g.rank }}</span></td>
+        <td style="{{ TD }}"><div style="font-weight:600">{{ (g.name or g.guard) | e }}</div><div style="font-size:10px;color:{{ HINT }}">{{ g.kind | e }}</div></td>
+        <td style="{{ TD }}text-align:right"><b>{{ "%.1f" | format(g.score) }}</b>
+          <div style="height:4px;width:60px;background:{{ LINE }};border-radius:2px;margin:4px 0 0 auto"><div style="height:4px;width:{{ ([g.score, 100] | min) * 0.6 }}px;background:{{ ACCENT }};border-radius:2px"></div></div></td>
+        <td style="{{ TD }}text-align:right">{% if g.area_ha is not none %}{{ ha(g.area_ha) }}<div style="font-size:10px;color:{{ HINT }}">{{ "%.1f" | format(g.coverage_pct) }}%</div>{% else %}—{% endif %}</td>
+        <td style="{{ TD }}text-align:right">{{ "%.2f" | format(g.distance_km) }} km</td>
+        <td style="{{ TD }}text-align:right">{{ hours(g.patrol_hours) }}</td>
+        <td style="{{ TD }}text-align:right">{{ g.patrols }}</td>
+        <td style="{{ TD }}text-align:right">{{ g.valid_scans or 0 }}{% if d.checkpoints and g.scans and g.scans != g.valid_scans %}<span style="color:{{ HINT }}"> / {{ g.scans }}</span>{% endif %}</td>
+        <td style="{{ TD }}text-align:right">
+          <span style="font-weight:600;color:{{ RED if g.incidents_scored else INK }}">{{ g.incidents_scored or 0 }}</span>{% if g.incidents_serious %} <span style="font-size:10px;color:{{ RED }}">({{ g.incidents_serious }} serious)</span>{% endif %}
+          <div style="font-size:10px;color:{{ HINT }}">{{ g.shifts or 0 }} shift{{ "" if g.shifts == 1 else "s" }}</div>
+        </td>
+      </tr>
+      {%- endfor %}
+      {%- if f.guards > 1 %}
+      <tr style="background:{{ TINT }}">
+        <td style="{{ TD }}"></td>
+        <td style="{{ TD }}font-weight:700">Farm total</td>
+        <td style="{{ TD }}"></td>
+        <td style="{{ TD }}text-align:right;font-weight:700">{{ ha(f.covered_ha) if f.covered_ha is not none else "—" }}</td>
+        <td style="{{ TD }}text-align:right;font-weight:700">{{ "%.2f" | format(f.distance_km or 0) }} km</td>
+        <td style="{{ TD }}text-align:right;font-weight:700">{{ hours(f.patrol_hours) }}</td>
+        <td style="{{ TD }}text-align:right;font-weight:700">{{ f.patrols or 0 }}</td>
+        <td style="{{ TD }}text-align:right;font-weight:700">{{ f.valid_scans or 0 }}</td>
+        <td style="{{ TD }}"></td>
+      </tr>
+      {%- endif %}
+    </table>
+  </div>
+  {%- endfor %}
+  {%- set w = d.weights or {} %}
+  <p style="font-size:10px;color:{{ HINT }};line-height:1.5;margin:4px 0 0">
+    Score (0–100) = {{ pct(w.coverage) }} coverage + {{ pct(w.distance) }} distance + {{ pct(w.scans) }} valid checkpoint scans + {{ pct(w.safety) }} safety,
+    each against the best guard on the same farm. Area patrolled counts the farm's {{ d.cell_width_m }} × {{ d.cell_height_m }} m squares
+    any guard's GPS track entered, each once; the rest is not patrolled.
+  </p>
+  {%- endif %}
+
+  {#- ── Incidents ─────────────────────────────────────────── -#}
+  {%- if r.incidents %}{% set inc = r.incidents %}
+  {{ section("Incidents", ACCENT, ("Not included: " ~ inc.hidden | join(", ")) if inc.hidden else None, new_page=r.ranking is not none) }}
+  {%- if not inc.total %}
+  <p style="font-size:13px;color:{{ MUTED }}">No incidents in this period.</p>
+  {%- else %}
+  {{ kpis([("Reported", inc.total, None), ("Still open", inc.open, RED if inc.open else None),
+           ("High or critical", inc.serious, RED if inc.serious else None), ("Resolved or closed", inc.total - inc.open, GREEN)]) }}
+  <table cellspacing="0" cellpadding="0" style="width:100%;margin-bottom:12px;page-break-inside:avoid"><tr>
+    <td style="vertical-align:top;width:50%;padding-right:12px">
+      <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:{{ MUTED }};margin-bottom:6px">By type</div>
+      {%- set top = (inc.by_type[0][1] if inc.by_type else 1) %}
+      {%- for name, n in inc.by_type %}
+      <table cellspacing="0" cellpadding="0" style="width:100%;margin-bottom:4px"><tr>
+        <td style="font-size:12px;width:42%">{{ name | e }}</td>
+        <td><div style="height:10px;width:{{ (n / top * 100) | round(1) }}%;background:{{ ACCENT }};border-radius:3px;min-width:3px"></div></td>
+        <td style="font-size:12px;width:34px;text-align:right;font-weight:600">{{ n }}</td>
+      </tr></table>
+      {%- endfor %}
+    </td>
+    <td style="vertical-align:top;width:50%;padding-left:12px">
+      <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:{{ MUTED }};margin-bottom:6px">By severity</div>
+      {%- for name, n in inc.by_severity %}
+      <table cellspacing="0" cellpadding="0" style="width:100%;margin-bottom:4px"><tr>
+        <td style="font-size:12px;width:42%;color:{{ SEV.get(name, INK) }};font-weight:600">{{ name | e }}</td>
+        <td><div style="height:10px;width:{{ (n / inc.total * 100) | round(1) }}%;background:{{ SEV.get(name, HINT) }};border-radius:3px;min-width:3px"></div></td>
+        <td style="font-size:12px;width:34px;text-align:right;font-weight:600">{{ n }}</td>
+      </tr></table>
+      {%- endfor %}
+      {%- if inc.by_farm | length > 1 %}
+      <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:{{ MUTED }};margin:12px 0 6px">By farm</div>
+      <div style="font-size:12px;line-height:1.7">{% for name, n in inc.by_farm %}{{ name | e }} <b>{{ n }}</b>{{ " · " if not loop.last }}{% endfor %}</div>
+      {%- endif %}
+    </td>
+  </tr></table>
+  <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%">
+    <thead><tr>
+      <th style="{{ TH }}text-align:left;width:92px">When</th>
+      <th style="{{ TH }}text-align:left">Incident</th>
+      <th style="{{ TH }}text-align:left">Where</th>
+      <th style="{{ TH }}text-align:left">Severity</th>
+      <th style="{{ TH }}text-align:left">Status</th>
+      <th style="{{ TH }}text-align:left;width:38%">What happened</th>
+    </tr></thead>
+    {%- for i in inc.rows[:list_limit] %}
+    <tr style="page-break-inside:avoid">
+      <td style="{{ TD }}color:{{ MUTED }}">{{ dt(i.incident_datetime) }}</td>
+      <td style="{{ TD }}"><div style="font-weight:600">{{ (i.nature_of_incident or "") | e }}</div><a href="{{ form_url('Incident Report', i.name) }}" style="font-size:10px;color:{{ BLUE }};text-decoration:none">{{ i.name | e }}</a></td>
+      <td style="{{ TD }}">{{ (i.farm or "") | e }}{% if i.location %}<div style="font-size:10px;color:{{ HINT }}">{{ i.location | e }}</div>{% endif %}</td>
+      <td style="{{ TD }}"><span style="font-weight:600;color:{{ SEV.get(i.severity, INK) }}">{{ (i.severity or "") | e }}</span></td>
+      <td style="{{ TD }}"><span style="display:inline-block;padding:2px 8px;border-radius:9px;font-size:10px;font-weight:600;background:{{ '#FCEBEB' if i.status in ('Open', 'In Progress') else '#EAF3DE' }};color:{{ RED if i.status in ('Open', 'In Progress') else GREEN }}">{{ (i.status or "") | e }}</span></td>
+      <td style="{{ TD }}">{{ i.summary | e }}{% if i.reporter_name %}<div style="font-size:10px;color:{{ HINT }};margin-top:2px">Reported by {{ i.reporter_name | e }}</div>{% endif %}</td>
+    </tr>
+    {%- endfor %}
+  </table>
+  {%- if inc.total > list_limit %}
+  <p style="font-size:11px;color:{{ MUTED }}">…and {{ inc.total - list_limit }} more in Desk.</p>
+  {%- endif %}
+  {%- endif %}
+  {%- endif %}
+
+  {#- ── Watch list (Security Heads only) ──────────────────── -#}
+  {%- if with_watchlist and r.watchlist %}{% set wl = r.watchlist %}
+  {{ section("Watch list", "#7f1d1d", "People under investigation and every gate transaction they made", new_page=(r.ranking is not none or r.incidents is not none)) }}
+  <div style="background:#FCEBEB;color:{{ RED }};border-radius:8px;padding:8px 12px;font-size:11px;font-weight:600;margin-bottom:10px">
+    CONFIDENTIAL — for Security Heads only. Do not forward or print for guards.
+  </div>
+  {{ kpis([("Being watched", wl.active | length, None), ("Transactions", wl.activity | length, RED if wl.activity else None),
+           ("Watches opened", wl.opened, None), ("Watches closed", wl.closed | length, None)]) }}
+  {%- if wl.active %}
+  <div style="font-size:13px;font-weight:700;margin:6px 0">Being watched</div>
+  <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%">
+    <thead><tr>
+      <th style="{{ TH }}text-align:left">Person</th>
+      <th style="{{ TH }}text-align:left;width:40%">Reason</th>
+      <th style="{{ TH }}text-align:left">Watched since</th>
+      <th style="{{ TH }}text-align:right">This period</th>
+      <th style="{{ TH }}text-align:left">Last seen</th>
+    </tr></thead>
+    {%- for e in wl.active %}
+    <tr style="page-break-inside:avoid">
+      <td style="{{ TD }}"><a href="{{ form_url('Security Watchlist', e.name) }}" style="font-weight:600;color:{{ INK }};text-decoration:none">{{ (e.full_name or e.name) | e }}</a><div style="font-size:10px;color:{{ HINT }}">{{ (e.person_type or "") | e }}</div></td>
+      <td style="{{ TD }}">{{ (e.reason or "") | e }}{% if e.incident %}<div style="font-size:10px;color:{{ HINT }}">Incident {{ e.incident | e }}</div>{% endif %}</td>
+      <td style="{{ TD }}color:{{ MUTED }}">{{ dt(e.added_on) }}</td>
+      <td style="{{ TD }}text-align:right;font-weight:700;color:{{ RED if e.period_activity else INK }}">{{ e.period_activity }}</td>
+      <td style="{{ TD }}color:{{ MUTED }}">{{ dt(e.last_activity_on) or "—" }}</td>
+    </tr>
+    {%- endfor %}
+  </table>
+  {%- else %}
+  <p style="font-size:13px;color:{{ MUTED }}">Nobody is on the watch list.</p>
+  {%- endif %}
+  {%- if wl.activity %}
+  <div style="font-size:13px;font-weight:700;margin:16px 0 6px">Transactions this period</div>
+  <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%">
+    <thead><tr>
+      <th style="{{ TH }}text-align:left">When</th>
+      <th style="{{ TH }}text-align:left">Person</th>
+      <th style="{{ TH }}text-align:left">What</th>
+      <th style="{{ TH }}text-align:left">Where</th>
+      <th style="{{ TH }}text-align:left">Matched on</th>
+    </tr></thead>
+    {%- for a in wl.activity[:list_limit] %}
+    <tr style="page-break-inside:avoid">
+      <td style="{{ TD }}color:{{ MUTED }}">{{ dt(a.occurred_at) }}</td>
+      <td style="{{ TD }}font-weight:600">{{ (a.person or "") | e }}</td>
+      <td style="{{ TD }}">{{ (a.activity_type or "") | e }}</td>
+      <td style="{{ TD }}">{{ ([a.farm, a.gate] | select | join(" · ")) | e }}</td>
+      <td style="{{ TD }}color:{{ MUTED }}">{{ (a.matched_on or "") | e }}</td>
+    </tr>
+    {%- endfor %}
+  </table>
+  {%- if wl.activity | length > list_limit %}
+  <p style="font-size:11px;color:{{ MUTED }}">…and {{ (wl.activity | length) - list_limit }} more in Desk.</p>
+  {%- endif %}
+  {%- endif %}
+  {%- if wl.closed %}
+  <div style="font-size:13px;font-weight:700;margin:16px 0 6px">Closed this period</div>
+  <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%">
+    <thead><tr><th style="{{ TH }}text-align:left">Person</th><th style="{{ TH }}text-align:left">Closed</th><th style="{{ TH }}text-align:right">Transactions this period</th></tr></thead>
+    {%- for e in wl.closed %}
+    <tr><td style="{{ TD }}">{{ (e.full_name or e.name) | e }}</td><td style="{{ TD }}color:{{ MUTED }}">{{ dt(e.closed_on) }}</td><td style="{{ TD }}text-align:right">{{ e.period_activity }}</td></tr>
+    {%- endfor %}
+  </table>
+  {%- endif %}
+  {%- endif %}
+
+  <table cellspacing="0" cellpadding="0" style="width:100%;margin-top:28px;border-top:1px solid {{ LINE }}"><tr>
+    <td style="padding-top:10px;font-size:10px;color:{{ HINT }}">{{ brand | e }} · Security report · {{ r.scope | e }} · {{ r.period_text | e }}</td>
+    <td style="padding-top:10px;font-size:10px;text-align:right"><a href="{{ dashboard_url }}" style="color:{{ BLUE }}">Open the Security Dashboard</a></td>
+  </tr></table>
+</div>

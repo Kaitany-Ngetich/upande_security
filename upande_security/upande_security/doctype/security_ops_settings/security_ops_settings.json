@@ -4,8 +4,8 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "fallback_section",
-  "fallback_contacts",
+  "emergency_contacts_section",
+  "emergency_contacts_link",
   "badge_emergency_section",
   "badge_emergency_contacts",
   "nearby_alert_section",
@@ -31,6 +31,9 @@
   "checkpoint_accuracy_allowance_m",
   "checkpoint_column_break",
   "checkpoint_max_accuracy_m",
+  "security_report_section",
+  "security_report_subscriptions",
+  "hidden_incident_types",
   "notification_recipients_section",
   "notification_rules",
   "visitor_sms_section",
@@ -359,15 +362,15 @@
    "permlevel": 1
   },
   {
-   "fieldname": "fallback_section",
+   "fieldname": "emergency_contacts_section",
    "fieldtype": "Section Break",
-   "label": "SOS Fallback Contact"
+   "label": "Emergency Contacts"
   },
   {
-   "fieldname": "fallback_contacts",
-   "fieldtype": "Table",
-   "label": "Per-Company Fallback Contacts",
-   "options": "Security Fallback Contact"
+   "fieldname": "emergency_contacts_link",
+   "fieldtype": "HTML",
+   "label": "Emergency Contacts",
+   "options": "<p><a class='btn btn-default btn-sm' href='/app/security-emergency-contact'>Open Emergency Contacts</a></p>"
   },
   {
    "fieldname": "badge_emergency_section",
@@ -513,6 +516,24 @@
    "fieldtype": "Int",
    "label": "Refuse GPS Fixes Worse Than (meters)",
    "non_negative": 1
+  },
+  {
+   "fieldname": "security_report_section",
+   "fieldtype": "Section Break",
+   "label": "Security Reports",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "security_report_subscriptions",
+   "fieldtype": "Table",
+   "label": "Report Subscriptions",
+   "options": "Security Report Subscription"
+  },
+  {
+   "fieldname": "hidden_incident_types",
+   "fieldtype": "Small Text",
+   "label": "Incident Types Left Out",
+   "default": "SOS"
   },
   {
    "fieldname": "notification_recipients_section",
@@ -681,7 +702,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-03 15:00:00.000000",
+ "modified": "2026-11-04 22:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",

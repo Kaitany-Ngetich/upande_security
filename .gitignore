@@ -60,3 +60,7 @@ upande_security/public/node_modules
 *.before_*
 *.bak.*
 security_dashboard.before_*/
+
+# Local scratch scripts - never commit
+submit_patrol_points_current.py
+upande_security/scratch_build_kapkolia_network.py

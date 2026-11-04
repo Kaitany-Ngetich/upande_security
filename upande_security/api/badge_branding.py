@@ -5,8 +5,9 @@
 
 Everything comes from the site the badge is printed on: the name, logo,
 website and address from the Company record and its Address, and the
-colour, emergency number and lost-badge charge from Security Ops Settings >
-Badges per Company. Nothing is assumed about which company the site belongs
+colour and lost-badge charge from Security Ops Settings > Badges per Company,
+and the emergency number from Security Ops Settings > Emergency Contacts
+(the farm's contact, else the company-wide one). Nothing is assumed about which company the site belongs
 to: whatever a company has not set is left off its badge, never filled in
 with another company's details.
 """
@@ -15,7 +16,7 @@ import frappe
 
 
 DEFAULT_BADGE_COLOUR = "#1F4D2C"
-BADGE_FIELDS = ("badge_colour", "contact_label", "contact_phone", "lost_badge_charge")
+BADGE_FIELDS = ("badge_colour", "lost_badge_charge")
 
 
 def get_badge_branding(company: str | None, farm: str | None = None) -> dict:
@@ -43,8 +44,14 @@ def get_badge_branding(company: str | None, farm: str | None = None) -> dict:
 		branding.logo = info.company_logo
 
 		details = _company_badge_details(company, farm)
-		branding.emergency_phone = details.contact_phone
-		branding.emergency_label = details.contact_label or branding.emergency_label
+		# The farm's Emergency Contact, else the company-wide one - the same
+		# number a guard there calls (api/emergency_contacts.py).
+		from upande_security.api.emergency_contacts import configured_contact
+
+		contact = configured_contact(company, farm)
+		if contact:
+			branding.emergency_phone = contact.phone
+			branding.emergency_label = contact.label or branding.emergency_label
 		branding.badge_colour = details.badge_colour or branding.badge_colour
 		branding.lost_badge_charge = details.lost_badge_charge
 

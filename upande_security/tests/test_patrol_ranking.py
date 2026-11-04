@@ -52,9 +52,10 @@ class TestRank(unittest.TestCase):
 		rows, weights, farm_cov = pr._rank("F", guards, grid)
 		self.assertEqual(weights, pr.NO_SCAN_WEIGHTS)
 		by = {r["guard"]: r for r in rows}
-		# a: 0.6 * 1 + 0.4 * 0.5 = 0.8; b: 0.6 * 0.5 + 0.4 * 1 = 0.7
-		self.assertEqual(by["a"]["score"], 80.0)
-		self.assertEqual(by["b"]["score"], 70.0)
+		# No incidents: everyone has full safety (0.2).
+		# a: 0.5 * 1 + 0.3 * 0.5 + 0.2 = 0.85; b: 0.5 * 0.5 + 0.3 * 1 + 0.2 = 0.75
+		self.assertEqual(by["a"]["score"], 85.0)
+		self.assertEqual(by["b"]["score"], 75.0)
 		self.assertEqual([r["guard"] for r in rows], ["a", "b"])
 		self.assertEqual(by["a"]["coverage_pct"], 50.0)
 		# Cells 0..49 and 0..24 overlap: the farm as a whole saw 50.
@@ -66,11 +67,40 @@ class TestRank(unittest.TestCase):
 		self.assertEqual(weights, pr.WEIGHTS)
 		by = {r["guard"]: r for r in rows}
 		self.assertEqual(by["a"]["score"], 100.0)
-		self.assertEqual(by["b"]["score"], 80.0)
+		# 0.4 + 0.25 + 0 scans + 0.2 safety
+		self.assertEqual(by["b"]["score"], 85.0)
 
 	def test_no_boundary_ranks_on_distance(self):
 		guards = {"a": _stats(metres=3000), "b": _stats(metres=1500)}
 		rows, weights, farm_cov = pr._rank("F", guards, None)
 		self.assertEqual(weights, pr.DISTANCE_ONLY)
 		self.assertIsNone(farm_cov)
-		self.assertEqual([(r["guard"], r["score"], r["coverage_pct"]) for r in rows], [("a", 100.0, None), ("b", 50.0, None)])
+		self.assertEqual([(r["guard"], r["score"], r["coverage_pct"]) for r in rows], [("a", 100.0, None), ("b", 60.0, None)])
+
+
+def _inc(nature, severity="Medium"):
+	return {"name": "INC-" + nature, "nature": nature, "severity": severity, "at": "2026-11-01 10:00:00",
+		"scored": nature not in pr.UNSCORED_INCIDENT_TYPES}
+
+
+class TestSafety(unittest.TestCase):
+	def rank(self, inc_a, inc_b):
+		guards = {"a": _stats(cells=10, metres=1000), "b": _stats(cells=10, metres=1000)}
+		rows, weights, _ = pr._rank("F", guards, {"cells": 20}, {("F", "a"): inc_a, ("F", "b"): inc_b})
+		self.assertEqual(weights, pr.NO_SCAN_WEIGHTS)
+		return {r["guard"]: r["score"] for r in rows}
+
+	def test_incidents_on_shift_lower_the_score(self):
+		by = self.rank({"shifts": 3, "incidents": []}, {"shifts": 4, "incidents": [_inc("Theft"), _inc("Intrusion")]})
+		self.assertEqual(by, {"a": 100.0, "b": 80.0})
+
+	def test_unscored_types_are_ignored(self):
+		unscored = [_inc(t) for t in pr.UNSCORED_INCIDENT_TYPES]
+		by = self.rank({"shifts": 3, "incidents": []}, {"shifts": 3, "incidents": unscored})
+		self.assertEqual(by, {"a": 100.0, "b": 100.0})
+
+	def test_rate_is_per_shift(self):
+		# a: 1 in 10 shifts (0.1), b: 1 in 2 (0.5, the farm's worst).
+		by = self.rank({"shifts": 10, "incidents": [_inc("Theft")]}, {"shifts": 2, "incidents": [_inc("Theft")]})
+		# a: 0.5 + 0.3 + 0.2 * (1 - 0.1 / 0.5) = 0.96; b: 0.8
+		self.assertEqual(by, {"a": 96.0, "b": 80.0})

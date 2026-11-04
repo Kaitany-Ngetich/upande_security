@@ -37,6 +37,7 @@ WHICH POINTS COUNT
 
 import hashlib
 import json
+import math
 
 import frappe
 from frappe import _
@@ -64,10 +65,15 @@ from upande_security.api.patrol_rules import (
 # farm's. Without checkpoint scans on a farm in the period their share goes
 # to the other two (NO_SCAN_WEIGHTS); without a usable boundary coverage
 # cannot be measured and distance carries the score with scans.
-WEIGHTS = {"coverage": 0.5, "distance": 0.3, "scans": 0.2}
-NO_SCAN_WEIGHTS = {"coverage": 0.6, "distance": 0.4, "scans": 0.0}
-NO_COVERAGE_WEIGHTS = {"coverage": 0.0, "distance": 0.6, "scans": 0.4}
-DISTANCE_ONLY = {"coverage": 0.0, "distance": 1.0, "scans": 0.0}
+# "safety" is the guard's scored incidents per shift on the farm (fewer is
+# better): full marks for none, zero for the farm's worst rate.
+WEIGHTS = {"coverage": 0.4, "distance": 0.25, "scans": 0.15, "safety": 0.2}
+NO_SCAN_WEIGHTS = {"coverage": 0.5, "distance": 0.3, "scans": 0.0, "safety": 0.2}
+NO_COVERAGE_WEIGHTS = {"coverage": 0.0, "distance": 0.5, "scans": 0.3, "safety": 0.2}
+DISTANCE_ONLY = {"coverage": 0.0, "distance": 0.8, "scans": 0.0, "safety": 0.2}
+# Incident types left out of the safety score: alerts, health and conduct
+# matters rather than a lapse in site security. They are still listed.
+UNSCORED_INCIDENT_TYPES = ("SOS", "Near Miss", "Medical Emergency", "Accident", "Violation of Company Policy")
 
 PERIODS = ("this_week", "last_week", "this_month", "last_month", "custom")
 
@@ -152,6 +158,15 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 			st["scans"] = sc["scans"]
 			st["valid_scans"] = sc["valid"]
 
+	# Incidents during each guard's shifts: context next to the patrol
+	# figures (not part of the score). A guard on duty when something
+	# happened is listed even with no patrol points.
+	shift_inc = _shift_incidents(farms, first, last) if farms else {}
+	for (f, gid), si in shift_inc.items():
+		if (f, gid) not in stats and si["incidents"]:
+			st = stats[(f, gid)] = _empty_stats(si["kind"])
+			st["patrols"] = 0
+
 	rows, farm_info = [], []
 	for geo in geos:
 		f = geo["farm"]
@@ -160,7 +175,13 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 		guards = {gid: st for (ff, gid), st in stats.items() if ff == f}
 		if not guards:
 			continue
-		ranked, weights, farm_cov = _rank(f, guards, geo["grid"])
+		ranked, weights, farm_cov = _rank(f, guards, geo["grid"], shift_inc)
+		# Area in hectares: the farm's from its boundary, each guard's (and
+		# the farm's covered part) as their coverage share of it, so the
+		# hectares always agree with the percentages beside them.
+		farm_ha = _farm_hectares(geo) if geo["grid"] else None
+		for r in ranked:
+			r["area_ha"] = round(farm_ha * r["coverage_pct"] / 100, 2) if farm_ha and r["coverage_pct"] is not None else None
 		rows += ranked
 		farm_info.append({
 			"farm": f,
@@ -168,11 +189,28 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 			"cells": geo["grid"]["cells"] if geo["grid"] else None,
 			"coverage_pct": farm_cov,
 			"weights": weights,
+			# Totals for the farm. Distance, time, patrols and scans add up
+			# across guards; area does not (two guards in the same cell cover
+			# it once), so covered_ha is everyone's cells together.
+			"area_ha": round(farm_ha, 2) if farm_ha else None,
+			"covered_ha": round(farm_ha * farm_cov / 100, 2) if farm_ha and farm_cov is not None else None,
+			"distance_km": round(sum(r["distance_km"] for r in ranked), 2),
+			"patrol_hours": round(sum(r["patrol_hours"] for r in ranked), 2),
+			"patrols": sum(r["patrols"] for r in ranked),
+			"scans": sum(r["scans"] for r in ranked),
+			"valid_scans": sum(r["valid_scans"] for r in ranked),
 		})
 
 	names = _guard_names([(r["kind"], r["guard"]) for r in rows])
 	for r in rows:
 		r["name"] = names.get(r["guard"]) or r["guard"]
+		si = shift_inc.get((r["farm"], r["guard"])) or {}
+		inc = si.get("incidents") or []
+		r["shifts"] = si.get("shifts", 0)
+		r["incidents"] = len(inc)
+		r["incidents_scored"] = sum(1 for i in inc if i["scored"])
+		r["incidents_serious"] = sum(1 for i in inc if i["scored"] and i["severity"] in SERIOUS_SEVERITIES)
+		r["incident_list"] = inc[:20]
 
 	return {
 		"period": period,
@@ -185,6 +223,8 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 		"max_gap_s": MAX_GAP_S,
 		"max_speed_kmh": MAX_SPEED_KMH,
 		"checkpoints": has_scans,
+		"incidents_in_score": True,
+		"unscored_incident_types": list(UNSCORED_INCIDENT_TYPES),
 		"farms": farm_info,
 		"rows": rows,
 	}
@@ -476,9 +516,93 @@ def _scans(farms, start, end):
 	}
 
 
-def _rank(farm, guards, grid):
+SERIOUS_SEVERITIES = ("High", "Critical")
+# Longest real shift; older rows spanning several days are not one shift.
+_MAX_SHIFT_HOURS = 24
+
+
+def _shift_incidents(farms, first, last):
+	"""{(farm, guard id): {kind, shifts, incidents: [{name, nature, severity,
+	at}]}} - shifts worked at the farm in the period, and the farm's
+	incidents whose time falls inside one of that guard's shifts (overnight
+	shifts included, start inclusive, end exclusive)."""
+	from upande_security.api.gate_movement import _shift_window
+	from upande_security.api.security_dashboard import hidden_incident_types
+
+	shifts = frappe.get_all(
+		"Security Guard Shift Assignment",
+		filters={
+			"farm": ["in", list(farms)],
+			"start_date": ["between", [frappe.utils.add_days(first, -1), last]],
+			"docstatus": ["<", 2],
+			"status": ["!=", "Cancelled"],
+		},
+		fields=["farm", "security_guard", "internal_guard", "external_guard",
+			"start_date", "end_date", "start_time", "end_time"],
+		limit_page_length=0,
+	)
+	inc_filters = {
+		"farm": ["in", list(farms)],
+		"incident_datetime": ["between", [f"{first} 00:00:00", f"{last} 23:59:59"]],
+	}
+	hidden = hidden_incident_types()
+	if hidden:
+		inc_filters["nature_of_incident"] = ["not in", hidden]
+	incidents = frappe.get_all(
+		"Incident Report",
+		filters=inc_filters,
+		fields=["name", "farm", "incident_datetime", "nature_of_incident", "severity"],
+		order_by="incident_datetime asc",
+		limit_page_length=0,
+	)
+	by_farm = {}
+	for inc in incidents:
+		by_farm.setdefault(inc.farm, []).append(inc)
+
+	out = {}
+	for sh in shifts:
+		if sh.security_guard == "Internal Guard" and sh.internal_guard:
+			gid, kind = sh.internal_guard, "Internal Guard"
+		elif sh.external_guard:
+			gid, kind = sh.external_guard, "External Guard"
+		else:
+			continue
+		try:
+			start, end = _shift_window(sh)
+		except Exception:
+			continue
+		if (end - start).total_seconds() > _MAX_SHIFT_HOURS * 3600:
+			continue
+		entry = out.setdefault((sh.farm, gid), {"kind": kind, "shifts": 0, "incidents": [], "_seen": set()})
+		if first <= frappe.utils.getdate(sh.start_date) <= last:
+			entry["shifts"] += 1
+		for inc in by_farm.get(sh.farm, []):
+			at = frappe.utils.get_datetime(inc.incident_datetime)
+			if start <= at < end and inc.name not in entry["_seen"]:
+				entry["_seen"].add(inc.name)
+				entry["incidents"].append({
+					"name": inc.name,
+					"nature": inc.nature_of_incident or "",
+					"severity": inc.severity or "",
+					"at": str(inc.incident_datetime),
+					"scored": (inc.nature_of_incident or "") not in UNSCORED_INCIDENT_TYPES,
+				})
+	for entry in out.values():
+		entry.pop("_seen", None)
+		entry["incidents"].sort(key=lambda i: i["at"])
+	return out
+
+
+def _rank(farm, guards, grid, shift_inc=None):
 	"""Score and rank one farm's guards. Returns (rows, weights, farm
-	coverage %) - farm coverage being every guard's cells together."""
+	coverage %) - farm coverage being every guard's cells together.
+	Safety: scored incidents per shift, against the farm's worst rate."""
+	shift_inc = shift_inc or {}
+
+	def inc_rate(gid):
+		si = shift_inc.get((farm, gid)) or {}
+		n = sum(1 for i in (si.get("incidents") or []) if i["scored"])
+		return (n / si["shifts"]) if n and si.get("shifts") else float(n)
 	total_cells = grid["cells"] if grid else 0
 	any_scans = any(s["valid_scans"] for s in guards.values())
 	if total_cells:
@@ -489,6 +613,7 @@ def _rank(farm, guards, grid):
 	best_cov = max((len(s["cells"]) for s in guards.values()), default=0)
 	best_m = max((s["metres"] for s in guards.values()), default=0)
 	best_scans = max((s["valid_scans"] for s in guards.values()), default=0)
+	worst_rate = max((inc_rate(g) for g in guards), default=0)
 
 	def share(v, best):
 		return (v / best) if best else 0.0
@@ -500,6 +625,7 @@ def _rank(farm, guards, grid):
 			weights["coverage"] * share(n, best_cov)
 			+ weights["distance"] * share(s["metres"], best_m)
 			+ weights["scans"] * share(s["valid_scans"], best_scans)
+			+ weights["safety"] * (1 - share(inc_rate(gid), worst_rate))
 		)
 		rows.append({
 			"farm": farm,
@@ -526,6 +652,17 @@ def _rank(farm, guards, grid):
 		all_cells |= s["cells"]
 	farm_cov = round(100 * len(all_cells) / total_cells, 1) if total_cells else None
 	return rows, weights, farm_cov
+
+
+def _farm_hectares(geo):
+	"""The farm boundary's area in hectares. geo["area"] is in square
+	degrees; at farm scale an equirectangular projection at the farm's
+	latitude is accurate to well under 1%."""
+	bbox = (geo.get("on") or {}).get("bbox")
+	if not geo.get("area") or not bbox:
+		return None
+	lat = math.radians((bbox[1] + bbox[3]) / 2)
+	return geo["area"] * 111320 * math.cos(lat) * 110540 / 10000
 
 
 def _guard_names(pairs):

@@ -21,6 +21,34 @@ class SecurityOpsSettings(Document):
 		self.validate_coverage_grid()
 		self.fill_appointment_recipient_contacts()
 		self.auto_mark_single_gate_farms_as_main()
+		self.validate_report_subscriptions()
+
+	def validate_report_subscriptions(self):
+		"""Each security report row stays within its person's own access:
+		Kaitet Ltd. people get Kaitet Ltd. farms, Karen Roses people Karen
+		Roses farms, and so on for whatever companies a site has. A row
+		left blank for someone limited to one company or farm is filled in
+		with it; a row reaching beyond their access is refused."""
+		from upande_security.api.security_report import covers, default_scope
+
+		for row in self.get("security_report_subscriptions") or []:
+			if row.user and not row.email:
+				row.email = frappe.db.get_value("User", row.user, "email")
+			user = row.user or frappe.db.get_value("User", {"email": row.email, "enabled": 1}, "name")
+			if not user:
+				continue
+			if row.farm:
+				row.company = frappe.db.get_value("Farm", row.farm, "company")
+			if not row.farm and not row.company:
+				row.farm, row.company = default_scope(user)
+				if row.farm:
+					row.company = frappe.db.get_value("Farm", row.farm, "company")
+			if not covers(user, row.farm, row.company):
+				frappe.throw(
+					"Security Reports row {0}: {1} cannot see all of {2}. Pick their own company or farm.".format(
+						row.idx, row.email or user, frappe.bold(row.farm or row.company or "every farm")
+					)
+				)
 
 	def validate_coverage_grid(self):
 		for label, value in (

@@ -305,6 +305,11 @@ scheduler_events = {
             # feature_zone_breach_alerts.
             "upande_security.tasks.check_zone_breaches",
         ],
+        # Security report subscriptions (Security Ops Settings): each
+        # morning, email whoever's daily / weekly / monthly report is due.
+        "0 7 * * *": [
+            "upande_security.api.security_report.send_scheduled_reports",
+        ],
     },
     "hourly": [
         # A shift that merely elapses is never saved again, so its status has to
