@@ -31,8 +31,9 @@
   "checkpoint_accuracy_allowance_m",
   "checkpoint_column_break",
   "checkpoint_max_accuracy_m",
-  "ranking_report_section",
-  "ranking_report_subscriptions",
+  "security_report_section",
+  "security_report_subscriptions",
+  "hidden_incident_types",
   "notification_recipients_section",
   "notification_rules",
   "visitor_sms_section",
@@ -517,17 +518,24 @@
    "non_negative": 1
   },
   {
-   "fieldname": "ranking_report_section",
+   "fieldname": "security_report_section",
    "fieldtype": "Section Break",
-   "label": "Guard Ranking Report",
+   "label": "Security Reports",
    "collapsible": 1,
-   "description": "Who gets the Security Dashboard's guard ranking by email, and how often. The report goes out around 7 am with the scores, area patrolled and farm totals, and a PDF attached."
+   "description": "Who gets the security report by email, and how often. It goes out around 7 am: the guard ranking, the period's incidents and, for Security Heads, the watch list, with a PDF attached."
   },
   {
-   "fieldname": "ranking_report_subscriptions",
+   "fieldname": "security_report_subscriptions",
    "fieldtype": "Table",
    "label": "Report Subscriptions",
-   "options": "Guard Ranking Report Subscription"
+   "options": "Security Report Subscription"
+  },
+  {
+   "fieldname": "hidden_incident_types",
+   "fieldtype": "Small Text",
+   "label": "Incident Types Left Out",
+   "default": "SOS",
+   "description": "One incident type per line. Left out of the Security Dashboard, the guard ranking and the security report (they are still recorded and still alert). SOS is left out by default because many are false alarms."
   },
   {
    "fieldname": "notification_recipients_section",

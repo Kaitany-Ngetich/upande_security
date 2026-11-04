@@ -14,7 +14,12 @@
   "column_break_2",
   "company",
   "farm",
-  "last_sent_on"
+  "last_sent_on",
+  "sections_section",
+  "include_patrols",
+  "include_incidents",
+  "column_break_3",
+  "include_watchlist"
  ],
  "fields": [
   {
@@ -54,7 +59,7 @@
    "label": "Frequency",
    "in_list_view": 1,
    "reqd": 1,
-   "description": "Daily: yesterday's ranking. Weekly: last week (Monday to Sunday). Monthly: last month, sent on the 1st."
+   "description": "Daily: yesterday. Weekly: last week (Monday to Sunday), on the day below. Monthly: last month, sent on the 1st."
   },
   {
    "default": "Monday",
@@ -90,6 +95,34 @@
    "label": "Last Sent On",
    "read_only": 1,
    "no_copy": 1
+  },
+  {
+   "fieldname": "sections_section",
+   "fieldtype": "Section Break",
+   "label": "Sections"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_patrols",
+   "fieldtype": "Check",
+   "label": "Patrols (guard ranking)"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_incidents",
+   "fieldtype": "Check",
+   "label": "Incidents"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_watchlist",
+   "fieldtype": "Check",
+   "label": "Watch list",
+   "description": "Sent only when the person is a Security Head or System Manager; everyone else gets the report without it."
   }
  ],
  "istable": 1,
@@ -97,7 +130,7 @@
  "modified": "2026-11-04 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
- "name": "Guard Ranking Report Subscription",
+ "name": "Security Report Subscription",
  "owner": "Administrator",
  "permissions": [],
  "sort_field": "modified",

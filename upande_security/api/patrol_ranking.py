@@ -527,7 +527,7 @@ def _shift_incidents(farms, first, last):
 	incidents whose time falls inside one of that guard's shifts (overnight
 	shifts included, start inclusive, end exclusive)."""
 	from upande_security.api.gate_movement import _shift_window
-	from upande_security.api.security_dashboard import DASHBOARD_HIDDEN_INCIDENT_TYPES
+	from upande_security.api.security_dashboard import hidden_incident_types
 
 	shifts = frappe.get_all(
 		"Security Guard Shift Assignment",
@@ -541,13 +541,16 @@ def _shift_incidents(farms, first, last):
 			"start_date", "end_date", "start_time", "end_time"],
 		limit_page_length=0,
 	)
+	inc_filters = {
+		"farm": ["in", list(farms)],
+		"incident_datetime": ["between", [f"{first} 00:00:00", f"{last} 23:59:59"]],
+	}
+	hidden = hidden_incident_types()
+	if hidden:
+		inc_filters["nature_of_incident"] = ["not in", hidden]
 	incidents = frappe.get_all(
 		"Incident Report",
-		filters={
-			"farm": ["in", list(farms)],
-			"incident_datetime": ["between", [f"{first} 00:00:00", f"{last} 23:59:59"]],
-			"nature_of_incident": ["not in", DASHBOARD_HIDDEN_INCIDENT_TYPES],
-		},
+		filters=inc_filters,
 		fields=["name", "farm", "incident_datetime", "nature_of_incident", "severity"],
 		order_by="incident_datetime asc",
 		limit_page_length=0,

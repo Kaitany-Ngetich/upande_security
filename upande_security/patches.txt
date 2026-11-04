@@ -37,3 +37,4 @@ upande_security.patches.restore_standard_perms_hidden_by_fixture
 upande_security.patches.add_patrol_gps_guard_indexes
 upande_security.patches.fill_blank_security_guard_names
 upande_security.patches.add_shift_assignment_cover_indexes
+upande_security.patches.set_hidden_incident_types

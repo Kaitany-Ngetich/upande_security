@@ -305,10 +305,10 @@ scheduler_events = {
             # feature_zone_breach_alerts.
             "upande_security.tasks.check_zone_breaches",
         ],
-        # Guard ranking report subscriptions (Security Ops Settings): each
+        # Security report subscriptions (Security Ops Settings): each
         # morning, email whoever's daily / weekly / monthly report is due.
         "0 7 * * *": [
-            "upande_security.api.ranking_report.send_scheduled_reports",
+            "upande_security.api.security_report.send_scheduled_reports",
         ],
     },
     "hourly": [
