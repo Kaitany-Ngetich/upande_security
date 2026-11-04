@@ -461,6 +461,11 @@ def get_session_info():
 			"full_name": full_name,
 			"roles": roles,
 			"is_gate_guard": "Gate Guard" in roles,
+			# Only gate roles check people in or out; hosts schedule and
+			# approve (gate_movement.CHECK_IN_OUT_ROLES). The app hides the
+			# check-in/out buttons when this is false.
+			"can_check_in_out": user == "Administrator"
+			or any(r in ("Gate Guard", "Security Head", "System Manager") for r in roles),
 			"is_security_head": "Security Head" in roles,
 			"has_command_center_access": has_command_center_access
 			and features.get("feature_command_center", True),

@@ -475,14 +475,47 @@ def off_shift_reason(user):
 	return reason
 
 
+# Checking a visitor, contractor or driver in or out is the gate's job. Hosts
+# (Visit Approver) schedule and approve visits but never check anyone in or
+# out; only these roles may.
+CHECK_IN_OUT_ACTIONS = {
+	"check_in_visitor",
+	"check_out_visitor",
+	"create_walk_in",
+	"create_walk_in_notify",
+	"gate_temp_exit",
+	"scan_visitor_badge",
+	"final_exit_visitor",
+	"contractor_gate_checkin",
+	"contractor_gate_checkout",
+	"check_out_taxi_driver",
+}
+CHECK_IN_OUT_ROLES = ("Gate Guard", "Security Head", "System Manager")
+
+
+def may_check_in_out(user=None):
+	"""True if this login may check people in or out at the gate."""
+	user = user or frappe.session.user
+	if user == "Administrator":
+		return True
+	return any(role in CHECK_IN_OUT_ROLES for role in frappe.get_roles(user))
+
+
 def check_on_shift():
-	"""before_request hook: refuse gate actions from a login that is off
-	shift (see off_shift_reason), after reporting the attempt."""
+	"""before_request hook: refuse check-in/out from a login without a gate
+	role, and gate actions from a login that is off shift (see
+	off_shift_reason), after reporting the attempt."""
 	request = getattr(frappe.local, "request", None)
 	path = request.path if request else ""
 	if "/method/" not in path:
 		return
 	action = path.rsplit("/", 1)[-1].rsplit(".", 1)[-1]
+	if action in CHECK_IN_OUT_ACTIONS and not may_check_in_out():
+		frappe.throw(
+			"Only security guards check visitors in and out. You can schedule and approve visits.",
+			frappe.PermissionError,
+			title="Gate only",
+		)
 	if action not in GATE_ACTIONS:
 		return
 	user = frappe.session.user
