@@ -1,0 +1,115 @@
+{
+ "actions": [],
+ "creation": "2026-11-04 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "farms",
+  "enabled",
+  "column_break_1",
+  "contact_name",
+  "contact_phone",
+  "contact_label"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "options": "Company",
+   "label": "Company",
+   "in_list_view": 1,
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "farms",
+   "fieldtype": "Table MultiSelect",
+   "options": "Security Emergency Contact Farm",
+   "label": "Farms",
+   "in_list_view": 1,
+   "description": "The farms this contact serves - pick as many as are close enough to share it. Leave empty for the company-wide contact, used wherever no farm contact is set."
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "contact_name",
+   "fieldtype": "Data",
+   "label": "Contact Name",
+   "in_list_view": 1,
+   "reqd": 1,
+   "description": "Who answers, e.g. Kapkolia Security Office. Shown in the guard app's emergency call.",
+   "in_standard_filter": 0
+  },
+  {
+   "fieldname": "contact_phone",
+   "fieldtype": "Data",
+   "options": "Phone",
+   "label": "Phone",
+   "in_list_view": 1,
+   "reqd": 1,
+   "in_standard_filter": 0
+  },
+  {
+   "default": "Emergency Contact",
+   "fieldname": "contact_label",
+   "fieldtype": "Data",
+   "label": "Badge Label",
+   "description": "Printed beside the number on visitor badges."
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-04 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Security Emergency Contact",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "Security Head",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Security Manager",
+   "read": 1,
+   "report": 1
+  }
+ ],
+ "sort_field": "company",
+ "sort_order": "ASC",
+ "states": [],
+ "autoname": "hash",
+ "title_field": "contact_name",
+ "show_title_field_in_link": 1,
+ "track_changes": 1,
+ "search_fields": "company,contact_phone",
+ "description": "Who guards call in an emergency and the number printed on visitor badges, per farm or company."
+}

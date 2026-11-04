@@ -699,9 +699,11 @@ def search_customers(query=None):
 def get_security_head_contact():
 	"""Who the calling guard should ring in an emergency, and on what number.
 
-	Resolution order, narrowest first: a Security Head holding a Farm User
-	Permission for this guard's farm, then one holding a Company permission,
-	then that company's own Security Fallback Contact row.
+	Resolution order, narrowest first (api/emergency_contacts.py): the
+	farm's own Emergency Contact, a Security Head holding a Farm User
+	Permission for it, one holding a Company permission, then the company's
+	default Emergency Contact. The farm is where the guard is today (location
+	change, roster), else the farm on their record.
 
 	Joins to User, not Employee, for the phone. A Security Head's login
 	always has a User record, but several real heads on this site are shared
@@ -731,61 +733,33 @@ def get_security_head_contact():
 			farm = employee.custom_farm or ""
 		else:
 			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
-			if user_full:
-				guard = frappe.db.get_value(
-					"Security Guard", guard_filters(current_user, user_full), ["company", "farm"], as_dict=True
-				)
+			filters = guard_filters(current_user, user_full)
+			if filters.get("name") or user_full:
+				guard = frappe.db.get_value("Security Guard", filters, ["company", "farm"], as_dict=True)
 				if guard:
 					company = guard.company or ""
 					farm = guard.farm or ""
 
-		HEAD_BY_SCOPE = (
-			"SELECT u.full_name, u.mobile_no, u.phone "
-			"FROM `tabUser Permission` up "
-			"JOIN `tabHas Role` hr ON hr.parent = up.user AND hr.role = 'Security Head' "
-			"JOIN `tabUser` u ON u.name = up.user "
-			"WHERE up.allow = %s AND up.for_value = %s LIMIT 1"
-		)
+		# Where the guard is today wins over the farm on their record: guards
+		# are moved between farms, and farms far apart have their own
+		# contacts.
+		from upande_security.api.gate_movement import _location
 
-		contact_name = ""
-		phone = ""
+		here = _location(current_user)["farm"]
+		if here:
+			farm = here
+			company = frappe.db.get_value("Farm", here, "company") or company
 
-		if farm:
-			farm_rows = frappe.db.sql(HEAD_BY_SCOPE, ("Farm", farm), as_dict=True)
-			if farm_rows:
-				contact_name = farm_rows[0].full_name or ""
-				phone = farm_rows[0].mobile_no or farm_rows[0].phone or ""
+		from upande_security.api.emergency_contacts import emergency_contact
 
-		if not phone and company:
-			company_rows = frappe.db.sql(HEAD_BY_SCOPE, ("Company", company), as_dict=True)
-			if company_rows:
-				contact_name = company_rows[0].full_name or ""
-				phone = company_rows[0].mobile_no or company_rows[0].phone or ""
-
-		source = "company_or_farm_head"
-
-		# A company's own configured fallback, so each company (Kaitet Ltd.,
-		# Karen Roses, Westwood Dairies, ...) can have a number without
-		# needing a real Security Head assignment just to get one.
-		if not phone and company:
-			fallback_row = frappe.db.get_value(
-				"Security Fallback Contact",
-				{"parent": "Security Ops Settings", "company": company},
-				["contact_name", "contact_phone"],
-				as_dict=True,
-			)
-			if fallback_row and fallback_row.contact_phone:
-				contact_name = fallback_row.contact_name or "Security Operations"
-				phone = fallback_row.contact_phone
-				source = "company_fallback"
-
-		if not phone:
+		found = emergency_contact(company, farm)
+		if not found:
 			return {
-				"error": "No Security Head configured for company '"
-				+ company
-				+ "' and no fallback contact row exists for it in Security Ops Settings "
-				"— ask a System Manager to add one."
+				"error": "No emergency contact for "
+				+ (farm or company or "this guard")
+				+ " - ask a System Manager to add one under Security Ops Settings > Emergency Contacts."
 			}
+		contact_name, phone, source = found.name, found.phone, found.source
 
 		return {
 			"name": contact_name,
@@ -805,7 +779,7 @@ def get_security_ops_settings():
 	Settings screen.
 
 	Deliberately narrow: only the four scalar thresholds are exposed.
-	fallback_contacts / notification_rules / farm_gates / dispatch_sources
+	emergency_contacts / notification_rules / farm_gates / dispatch_sources
 	are Desk-only for now (no mobile screen needs them) and are left out.
 
 	Access is strictly Security Head / System Manager by role, with no
@@ -861,7 +835,7 @@ def update_security_ops_settings(
 
 	WRITES Security Ops Settings (Single). Only fields present and non-empty
 	are updated; a value that is not an integer is silently skipped (not an
-	error). Deliberately narrow: fallback_contacts, notification_rules,
+	error). Deliberately narrow: emergency_contacts, notification_rules,
 	farm_gates and dispatch_sources stay Desk-only.
 
 	Access: strictly Security Head / System Manager by role, no allowlist (the

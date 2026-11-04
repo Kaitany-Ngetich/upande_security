@@ -4,8 +4,8 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "fallback_section",
-  "fallback_contacts",
+  "emergency_contacts_section",
+  "emergency_contacts_link",
   "badge_emergency_section",
   "badge_emergency_contacts",
   "nearby_alert_section",
@@ -362,20 +362,22 @@
    "permlevel": 1
   },
   {
-   "fieldname": "fallback_section",
+   "fieldname": "emergency_contacts_section",
    "fieldtype": "Section Break",
-   "label": "SOS Fallback Contact"
+   "label": "Emergency Contacts",
+   "description": "Who a guard calls in an emergency, and the number printed on visitor badges. Give farms that are far apart their own contact - one contact can serve several nearby farms - and keep one company-wide contact (no farms) for the rest. A guard's call goes to their farm's contact first, then a Security Head for the farm, then one for the company, then the company-wide contact."
   },
   {
-   "fieldname": "fallback_contacts",
-   "fieldtype": "Table",
-   "label": "Per-Company Fallback Contacts",
-   "options": "Security Fallback Contact"
+   "fieldname": "emergency_contacts_link",
+   "fieldtype": "HTML",
+   "label": "Emergency Contacts",
+   "options": "<p><a class='btn btn-default btn-sm' href='/app/security-emergency-contact'>Open Emergency Contacts</a></p><p class='text-muted small'>One record per contact: its company, and the farms it serves (leave Farms empty for the company-wide contact).</p>"
   },
   {
    "fieldname": "badge_emergency_section",
    "fieldtype": "Section Break",
-   "label": "Badges per Company"
+   "label": "Badges per Company",
+   "description": "Each company's badge colour (also its security report colour) and lost-badge charge, with a farm's own row winning over its company's. The emergency number on a badge comes from Emergency Contacts above."
   },
   {
    "fieldname": "badge_emergency_contacts",
@@ -704,7 +706,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-04 12:00:00.000000",
+ "modified": "2026-11-04 22:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",

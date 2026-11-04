@@ -223,59 +223,14 @@ def _recent_alert_exists(shift_name, alert_kind):
 
 
 def _resolve_security_head_phone(company, farm):
-	"""Same farm-then-company-then-org-fallback resolution as the
-	get_security_head_contact Server Script — duplicated here rather than
-	imported because Server Scripts aren't importable Python modules. Kept
-	deliberately small and in lockstep with that script; if the routing
-	logic ever changes there, mirror the change here too."""
-	contact_name = ""
-	phone = ""
-	if farm:
-		rows = frappe.db.sql(
-			"SELECT u.full_name, u.mobile_no, u.phone "
-			"FROM `tabUser Permission` up "
-			"JOIN `tabHas Role` hr ON hr.parent = up.user AND hr.role = 'Security Head' "
-			"JOIN `tabUser` u ON u.name = up.user "
-			"WHERE up.allow = 'Farm' AND up.for_value = %s LIMIT 1",
-			(farm,),
-			as_dict=True,
-		)
-		if rows:
-			contact_name = rows[0].full_name or ""
-			phone = rows[0].mobile_no or rows[0].phone or ""
-	if not phone and company:
-		rows = frappe.db.sql(
-			"SELECT u.full_name, u.mobile_no, u.phone "
-			"FROM `tabUser Permission` up "
-			"JOIN `tabHas Role` hr ON hr.parent = up.user AND hr.role = 'Security Head' "
-			"JOIN `tabUser` u ON u.name = up.user "
-			"WHERE up.allow = 'Company' AND up.for_value = %s LIMIT 1",
-			(company,),
-			as_dict=True,
-		)
-		if rows:
-			contact_name = rows[0].full_name or ""
-			phone = rows[0].mobile_no or rows[0].phone or ""
-	if not phone and company:
-		# A company's own configured fallback - lets each company (Kaitet
-		# Ltd., Karen Roses, Westwood Dairies, ...) have its own number
-		# without needing a real Security Head assignment just to get one.
-		# The single org-wide fallback (Security Ops Settings'
-		# fallback_contact_name/phone/description) was removed once every
-		# company got its own row here - a company with neither a Security
-		# Head nor a row here now returns no phone at all, a real gap to
-		# fix by adding one, not something to paper over with a stale
-		# org-wide number.
-		row = frappe.db.get_value(
-			"Security Fallback Contact",
-			{"parent": "Security Ops Settings", "company": company},
-			["contact_name", "contact_phone"],
-			as_dict=True,
-		)
-		if row and row.contact_phone:
-			contact_name = row.contact_name or "Security Operations"
-			phone = row.contact_phone
-	return contact_name, phone
+	"""(name, phone) to escalate to for this farm - the same answer the
+	guard app's emergency call gets (api/emergency_contacts.py): the farm's
+	Emergency Contact, a farm Security Head, a company Security Head, then
+	the company-wide Emergency Contact. ("", "") when nothing is set."""
+	from upande_security.api.emergency_contacts import emergency_contact
+
+	found = emergency_contact(company, farm)
+	return (found.name, found.phone) if found else ("", "")
 
 
 def _resolve_security_head_users(company, farm):
