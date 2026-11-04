@@ -295,16 +295,32 @@ def toggle_preview_row_off_day(plan_name, row_name, mark_off):
 	from upande_security.api.shift_schedule import toggle_guard_day
 
 	row = frappe.db.get_value(
-		"Security Guard Rotation Preview Row", row_name, ["parent", "rotation_date", "farm"], as_dict=True
+		"Security Guard Rotation Preview Row",
+		row_name,
+		["parent", "rotation_date", "farm", "shift_type", "start_time", "end_time"],
+		as_dict=True,
 	)
 	if not row or row.parent != plan_name:
 		frappe.throw(_("Preview row {0} not found on plan {1}.").format(row_name, plan_name))
 
-	external_guard = frappe.db.get_value("Security Guard Rotation Plan", plan_name, "external_guard")
-	result = toggle_guard_day(guard=external_guard, date=row.rotation_date, mark_off=mark_off, farm=row.farm)
+	plan = frappe.db.get_value("Security Guard Rotation Plan", plan_name, ["external_guard", "status"], as_dict=True)
+	# On a Draft plan a day put back on duty stays Pending: Apply Rotation
+	# creates its Shift Assignment, with this row's own shift and times. An
+	# Applied plan's day gets its Shift Assignment straight away.
+	applied = plan.status == "Applied"
+	result = toggle_guard_day(
+		guard=plan.external_guard,
+		date=row.rotation_date,
+		mark_off=mark_off,
+		farm=row.farm,
+		shift_type=row.shift_type,
+		start_time=row.start_time,
+		end_time=row.end_time,
+		create_shift=1 if applied else 0,
+	)
 
 	is_off_day = 1 if cint(mark_off) else 0
-	status = "Skipped" if is_off_day else "Applied"
+	status = "Skipped" if is_off_day else ("Applied" if applied else "Pending")
 	frappe.db.set_value(
 		"Security Guard Rotation Preview Row", row_name,
 		{"is_off_day": is_off_day, "status": status},

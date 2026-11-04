@@ -461,6 +461,11 @@ def get_session_info():
 			"full_name": full_name,
 			"roles": roles,
 			"is_gate_guard": "Gate Guard" in roles,
+			# Only gate roles check people in or out; hosts schedule and
+			# approve (gate_movement.CHECK_IN_OUT_ROLES). The app hides the
+			# check-in/out buttons when this is false.
+			"can_check_in_out": user == "Administrator"
+			or any(r in ("Gate Guard", "Security Head", "System Manager") for r in roles),
 			"is_security_head": "Security Head" in roles,
 			"has_command_center_access": has_command_center_access
 			and features.get("feature_command_center", True),
@@ -1534,6 +1539,8 @@ def check_in_visitor(name=None, transport=None, plate=None, colour=None, organiz
 	(re-check-ins do not re-text). `otp_enabled is None` counts as enabled.
 	Non-numeric `passengers` is silently ignored.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	try:
 		name = _s(name)
 		sent_transport = _form_has("transport")
@@ -1674,6 +1681,8 @@ def check_out_visitor(name=None):
 	fail a checkout. NOTE it is gated by the SAME flag as the OTP
 	(feature_visitor_sms_otp), not a separate thank-you flag.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	try:
 		name = str(name or "").strip()
 		if not name:
@@ -1759,6 +1768,8 @@ def create_walk_in(customer_name=None, id_number=None, phone=None, email=None, h
 	The OTP SMS is sent after commit and cannot fail the call. Unlike
 	check_in_visitor it does not check whether an OTP already exists.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	lock = None
 	try:
 		customer_name = _s(customer_name)
@@ -1908,6 +1919,8 @@ def create_walk_in_notify(customer_name=None, id_number=None, phone=None, email=
 	Upande's own dev team on real walk-ins. The email send is best-effort:
 	failure leaves notified=0 but the appointment still stands.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	lock = None
 	try:
 		customer_name = _s(customer_name)
@@ -2163,6 +2176,8 @@ def gate_temp_exit(reference_doctype=None, reference_name=None, direction=None):
 	prod sandbox cannot use strftime). A duration that cannot be computed
 	becomes the literal text "None" in the log line, by design of the original.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	try:
 		if frappe.db.get_single_value("Security Ops Settings", "feature_gate_temp_exit") == 0:
 			raise Exception("This feature is not enabled on this instance.")
@@ -2574,6 +2589,8 @@ def check_out_taxi_driver(name=None):
 	whenever they actually leave. Only valid when custom_mode_of_transport is
 	"Taxi", and refuses a second departure. Writes via raw frappe.db.set_value.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	try:
 		if frappe.db.get_single_value("Security Ops Settings", "feature_taxi_driver_checkout") == 0:
 			raise Exception("This feature is not enabled on this instance.")
@@ -2787,6 +2804,8 @@ def contractor_gate_checkout():
 	Reads `appointment_name` off form_dict rather than taking it as a
 	parameter, so a missing key throws the same message it always did.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	appt_name = (frappe.form_dict.get("appointment_name") or "").strip()
 	if not appt_name:
 		frappe.throw("appointment_name is required")
@@ -2906,6 +2925,8 @@ def contractor_gate_checkin(
 	Values are used with .strip() exactly as before, so a non-string (e.g. numeric
 	phone) raises AttributeError, as it did in the sandbox.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	appt_name = (appointment_name or '').strip() or None
 	contractor_ref = (contractor_ref or '').strip() or None
 	contractor_name = (contractor_name or '').strip()
