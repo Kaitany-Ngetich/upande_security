@@ -278,6 +278,8 @@ def scan_visitor_badge(reference, gate=None):
 	"""A visitor's badge scanned at a gate: their entry or exit at this
 	guard's farm. A badge collected at another farm and scanned at its own
 	farm goes back to stock."""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	farm = _guard_farm()
 	if not farm:
 		return {"accepted": False, "error": "Could not tell which farm's gate you are at."}
@@ -321,6 +323,8 @@ def scan_visitor_badge(reference, gate=None):
 def final_exit_visitor(reference=None, appointment=None, gate=None):
 	"""The visitor leaves for good at this gate: close their movements, check
 	the visit out and collect the badge here."""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	from upande_security.api.security_api import check_out_visitor
 
 	farm = _guard_farm()
