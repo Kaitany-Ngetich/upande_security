@@ -364,20 +364,18 @@
   {
    "fieldname": "emergency_contacts_section",
    "fieldtype": "Section Break",
-   "label": "Emergency Contacts",
-   "description": "Who a guard calls in an emergency, and the number printed on visitor badges. Give farms that are far apart their own contact - one contact can serve several nearby farms - and keep one company-wide contact (no farms) for the rest. A guard's call goes to their farm's contact first, then a Security Head for the farm, then one for the company, then the company-wide contact."
+   "label": "Emergency Contacts"
   },
   {
    "fieldname": "emergency_contacts_link",
    "fieldtype": "HTML",
    "label": "Emergency Contacts",
-   "options": "<p><a class='btn btn-default btn-sm' href='/app/security-emergency-contact'>Open Emergency Contacts</a></p><p class='text-muted small'>One record per contact: its company, and the farms it serves (leave Farms empty for the company-wide contact).</p>"
+   "options": "<p><a class='btn btn-default btn-sm' href='/app/security-emergency-contact'>Open Emergency Contacts</a></p>"
   },
   {
    "fieldname": "badge_emergency_section",
    "fieldtype": "Section Break",
-   "label": "Badges per Company",
-   "description": "Each company's badge colour (also its security report colour) and lost-badge charge, with a farm's own row winning over its company's. The emergency number on a badge comes from Emergency Contacts above."
+   "label": "Badges per Company"
   },
   {
    "fieldname": "badge_emergency_contacts",
@@ -523,8 +521,7 @@
    "fieldname": "security_report_section",
    "fieldtype": "Section Break",
    "label": "Security Reports",
-   "collapsible": 1,
-   "description": "Who gets the security report by email, and how often. It goes out around 7 am: the guard ranking, the period's incidents and, for Security Heads, the watch list, with a PDF attached."
+   "collapsible": 1
   },
   {
    "fieldname": "security_report_subscriptions",
@@ -536,8 +533,7 @@
    "fieldname": "hidden_incident_types",
    "fieldtype": "Small Text",
    "label": "Incident Types Left Out",
-   "default": "SOS",
-   "description": "One incident type per line. Left out of the Security Dashboard, the guard ranking and the security report (they are still recorded and still alert). SOS is left out by default because many are false alarms."
+   "default": "SOS"
   },
   {
    "fieldname": "notification_recipients_section",

@@ -27,8 +27,7 @@
    "fieldtype": "Link",
    "options": "User",
    "label": "Person",
-   "in_list_view": 1,
-   "description": "Pick a user, or leave blank and type an email address below."
+   "in_list_view": 1
   },
   {
    "fetch_from": "user.email",
@@ -58,8 +57,7 @@
    "options": "Daily\nWeekly\nMonthly",
    "label": "Frequency",
    "in_list_view": 1,
-   "reqd": 1,
-   "description": "Daily: yesterday. Weekly: last week (Monday to Sunday), on the day below. Monthly: last month, sent on the 1st."
+   "reqd": 1
   },
   {
    "default": "Monday",
@@ -78,16 +76,14 @@
    "fieldtype": "Link",
    "options": "Company",
    "label": "Company",
-   "in_list_view": 1,
-   "description": "Leave Company and Farm blank for every farm."
+   "in_list_view": 1
   },
   {
    "fieldname": "farm",
    "fieldtype": "Link",
    "options": "Farm",
    "label": "Farm",
-   "in_list_view": 1,
-   "description": "A farm narrows the report to that farm alone."
+   "in_list_view": 1
   },
   {
    "fieldname": "last_sent_on",
@@ -121,8 +117,7 @@
    "default": "1",
    "fieldname": "include_watchlist",
    "fieldtype": "Check",
-   "label": "Watch list",
-   "description": "Sent only when the person is a Security Head or System Manager; everyone else gets the report without it."
+   "label": "Watch list"
   }
  ],
  "istable": 1,

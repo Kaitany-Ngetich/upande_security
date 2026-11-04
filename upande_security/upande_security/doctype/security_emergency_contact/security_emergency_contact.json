@@ -28,8 +28,7 @@
    "fieldtype": "Table MultiSelect",
    "options": "Security Emergency Contact Farm",
    "label": "Farms",
-   "in_list_view": 1,
-   "description": "The farms this contact serves - pick as many as are close enough to share it. Leave empty for the company-wide contact, used wherever no farm contact is set."
+   "in_list_view": 1
   },
   {
    "default": "1",
@@ -48,7 +47,6 @@
    "label": "Contact Name",
    "in_list_view": 1,
    "reqd": 1,
-   "description": "Who answers, e.g. Kapkolia Security Office. Shown in the guard app's emergency call.",
    "in_standard_filter": 0
   },
   {
@@ -64,8 +62,7 @@
    "default": "Emergency Contact",
    "fieldname": "contact_label",
    "fieldtype": "Data",
-   "label": "Badge Label",
-   "description": "Printed beside the number on visitor badges."
+   "label": "Badge Label"
   }
  ],
  "links": [],
@@ -110,6 +107,5 @@
  "title_field": "contact_name",
  "show_title_field_in_link": 1,
  "track_changes": 1,
- "search_fields": "company,contact_phone",
- "description": "Who guards call in an emergency and the number printed on visitor badges, per farm or company."
+ "search_fields": "company,contact_phone"
 }
