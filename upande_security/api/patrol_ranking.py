@@ -37,6 +37,7 @@ WHICH POINTS COUNT
 
 import hashlib
 import json
+import math
 
 import frappe
 from frappe import _
@@ -175,6 +176,12 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 		if not guards:
 			continue
 		ranked, weights, farm_cov = _rank(f, guards, geo["grid"], shift_inc)
+		# Area in hectares: the farm's from its boundary, each guard's (and
+		# the farm's covered part) as their coverage share of it, so the
+		# hectares always agree with the percentages beside them.
+		farm_ha = _farm_hectares(geo) if geo["grid"] else None
+		for r in ranked:
+			r["area_ha"] = round(farm_ha * r["coverage_pct"] / 100, 2) if farm_ha and r["coverage_pct"] is not None else None
 		rows += ranked
 		farm_info.append({
 			"farm": f,
@@ -182,6 +189,16 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 			"cells": geo["grid"]["cells"] if geo["grid"] else None,
 			"coverage_pct": farm_cov,
 			"weights": weights,
+			# Totals for the farm. Distance, time, patrols and scans add up
+			# across guards; area does not (two guards in the same cell cover
+			# it once), so covered_ha is everyone's cells together.
+			"area_ha": round(farm_ha, 2) if farm_ha else None,
+			"covered_ha": round(farm_ha * farm_cov / 100, 2) if farm_ha and farm_cov is not None else None,
+			"distance_km": round(sum(r["distance_km"] for r in ranked), 2),
+			"patrol_hours": round(sum(r["patrol_hours"] for r in ranked), 2),
+			"patrols": sum(r["patrols"] for r in ranked),
+			"scans": sum(r["scans"] for r in ranked),
+			"valid_scans": sum(r["valid_scans"] for r in ranked),
 		})
 
 	names = _guard_names([(r["kind"], r["guard"]) for r in rows])
@@ -632,6 +649,17 @@ def _rank(farm, guards, grid, shift_inc=None):
 		all_cells |= s["cells"]
 	farm_cov = round(100 * len(all_cells) / total_cells, 1) if total_cells else None
 	return rows, weights, farm_cov
+
+
+def _farm_hectares(geo):
+	"""The farm boundary's area in hectares. geo["area"] is in square
+	degrees; at farm scale an equirectangular projection at the farm's
+	latitude is accurate to well under 1%."""
+	bbox = (geo.get("on") or {}).get("bbox")
+	if not geo.get("area") or not bbox:
+		return None
+	lat = math.radians((bbox[1] + bbox[3]) / 2)
+	return geo["area"] * 111320 * math.cos(lat) * 110540 / 10000
 
 
 def _guard_names(pairs):
