@@ -395,6 +395,11 @@ def toggle_guard_day(
 	reliever covers it, as before. A picked guard who is no longer free
 	returns state "off_unfilled" with the reason.
 	"""
+	from upande_security.api.relievers import require_planner
+
+	# Marking days off and booking covers is planning work: refuse logins
+	# that cannot write Shift Assignments (guards).
+	require_planner()
 	mark_off = cint(mark_off)
 	if not frappe.db.exists("Security Guard", guard):
 		frappe.throw(_("Security Guard {0} not found").format(guard))
