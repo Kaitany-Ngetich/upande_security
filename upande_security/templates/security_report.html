@@ -4,7 +4,11 @@
   <style> blocks. Everything shown comes from the site's own records; the
   heading names the company of the report's scope, never a fixed one.
 
-  Context: r (build_report's dict), with_watchlist, note, brand, generated,
+  Colours: theme.accent is the company's own colour (Security Ops Settings >
+  Badges per Company); theme.soft a pale tint of it. Red, green and the
+  severity colours are fixed so they mean the same in every company's report.
+
+  Context: r (build_report's dict), theme, with_watchlist, note, brand, generated,
   dashboard_url, and the helpers ha(), hours(), dt(), form_url(), pct().
 -#}
 {%- set INK = "#1f1f1c" -%}
@@ -15,6 +19,8 @@
 {%- set RED = "#a32d2d" -%}
 {%- set GREEN = "#3b6d11" -%}
 {%- set BLUE = "#185fa5" -%}
+{%- set ACCENT = theme.accent -%}
+{%- set TINT = theme.soft -%}
 {%- set SEV = {"Critical": "#7f1d1d", "High": "#a32d2d", "Medium": "#ba7517", "Low": "#6b6b66"} -%}
 {%- set TH = "padding:7px 8px;border-bottom:1px solid #cfcfca;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:" ~ MUTED ~ ";font-weight:600;" -%}
 {%- set TD = "padding:7px 8px;border-bottom:1px solid " ~ LINE ~ ";font-size:12px;vertical-align:top;" -%}
@@ -34,7 +40,7 @@
 <table cellspacing="0" cellpadding="0" style="width:100%;margin:4px 0 12px;page-break-inside:avoid"><tr>
 {%- for label, value, colour in items %}
   <td style="padding:0 {{ '0' if loop.last else '8px' }} 0 0;width:{{ (100 / items|length)|int }}%">
-    <div style="background:{{ SOFT }};border-radius:10px;padding:10px 12px">
+    <div style="background:{{ TINT }};border-radius:10px;padding:10px 12px">
       <div style="font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:{{ MUTED }}">{{ label }}</div>
       <div style="font-size:20px;font-weight:700;color:{{ colour or INK }};margin-top:2px">{{ value }}</div>
     </div>
@@ -46,15 +52,20 @@
 <div style="font-family:Arial,Helvetica,sans-serif;color:{{ INK }};max-width:1040px;margin:0 auto">
 
   {#- Header -#}
-  <table cellspacing="0" cellpadding="0" style="width:100%;background:{{ INK }};border-radius:12px"><tr>
+  <table cellspacing="0" cellpadding="0" style="width:100%;background:{{ ACCENT }};border-radius:12px"><tr>
+    {%- if theme.logo %}
+    <td style="padding:16px 0 16px 18px;width:1%;white-space:nowrap;vertical-align:middle">
+      <div style="background:#ffffff;border-radius:8px;padding:8px 12px"><img src="{{ theme.logo }}" alt="{{ brand | e }}" style="height:44px;display:block"></div>
+    </td>
+    {%- endif %}
     <td style="padding:18px 22px">
-      <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#b9b9b2">{{ brand | e }}</div>
-      <div style="font-size:24px;font-weight:700;color:#ffffff;margin-top:4px">Security report</div>
-      <div style="font-size:13px;color:#e6e6e1;margin-top:4px">{{ r.scope | e }} · {{ r.period_text | e }}</div>
+      <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:{{ theme.on_accent_muted }}">{{ brand | e }}</div>
+      <div style="font-size:24px;font-weight:700;color:{{ theme.on_accent }};margin-top:4px">Security report</div>
+      <div style="font-size:13px;color:{{ theme.on_accent }};margin-top:4px">{{ r.scope | e }} · {{ r.period_text | e }}</div>
     </td>
     <td style="padding:18px 22px;text-align:right;vertical-align:bottom">
-      <div style="font-size:10px;color:#b9b9b2">Generated</div>
-      <div style="font-size:12px;color:#ffffff">{{ generated }}</div>
+      <div style="font-size:10px;color:{{ theme.on_accent_muted }}">Generated</div>
+      <div style="font-size:12px;color:{{ theme.on_accent }}">{{ generated }}</div>
     </td>
   </tr></table>
 
@@ -63,7 +74,7 @@
   {%- endif %}
 
   {#- At a glance: one line per section -#}
-  <table cellspacing="0" cellpadding="0" style="width:100%;margin-top:16px;border:1px solid {{ LINE }};border-radius:10px"><tr>
+  <table cellspacing="0" cellpadding="0" style="width:100%;margin-top:16px;border:1px solid {{ LINE }};border-top:3px solid {{ ACCENT }};border-radius:10px"><tr>
   {%- if r.ranking %}{% set farms = r.ranking.farms or [] %}
     <td style="padding:12px 14px;vertical-align:top;border-right:1px solid {{ LINE }}">
       <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:{{ MUTED }}">Patrols</div>
@@ -89,7 +100,7 @@
 
   {#- ── Patrols ───────────────────────────────────────────── -#}
   {%- if r.ranking %}{% set d = r.ranking %}
-  {{ section("Patrols", "#534AB7", "Guard ranking for the period, each farm on its own") }}
+  {{ section("Patrols", ACCENT, "Guard ranking for the period, each farm on its own") }}
   {%- if not d.farms %}
   <p style="font-size:13px;color:{{ MUTED }}">No patrols in this period.</p>
   {%- endif %}
@@ -130,10 +141,10 @@
       </tr></thead>
       {%- for g in r.guards_by_farm[f.farm] %}
       <tr>
-        <td style="{{ TD }}"><span style="display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;border-radius:10px;font-size:11px;font-weight:700;background:{{ '#EEEDFE' if g.rank <= 3 else SOFT }};color:{{ '#3C3489' if g.rank <= 3 else MUTED }}">{{ g.rank }}</span></td>
+        <td style="{{ TD }}"><span style="display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;border-radius:10px;font-size:11px;font-weight:700;background:{{ TINT if g.rank <= 3 else SOFT }};color:{{ ACCENT if g.rank <= 3 else MUTED }}">{{ g.rank }}</span></td>
         <td style="{{ TD }}"><div style="font-weight:600">{{ (g.name or g.guard) | e }}</div><div style="font-size:10px;color:{{ HINT }}">{{ g.kind | e }}</div></td>
         <td style="{{ TD }}text-align:right"><b>{{ "%.1f" | format(g.score) }}</b>
-          <div style="height:4px;width:60px;background:{{ LINE }};border-radius:2px;margin:4px 0 0 auto"><div style="height:4px;width:{{ ([g.score, 100] | min) * 0.6 }}px;background:{{ INK }};border-radius:2px"></div></div></td>
+          <div style="height:4px;width:60px;background:{{ LINE }};border-radius:2px;margin:4px 0 0 auto"><div style="height:4px;width:{{ ([g.score, 100] | min) * 0.6 }}px;background:{{ ACCENT }};border-radius:2px"></div></div></td>
         <td style="{{ TD }}text-align:right">{% if g.area_ha is not none %}{{ ha(g.area_ha) }}<div style="font-size:10px;color:{{ HINT }}">{{ "%.1f" | format(g.coverage_pct) }}%</div>{% else %}—{% endif %}</td>
         <td style="{{ TD }}text-align:right">{{ "%.2f" | format(g.distance_km) }} km</td>
         <td style="{{ TD }}text-align:right">{{ hours(g.patrol_hours) }}</td>
@@ -146,7 +157,7 @@
       </tr>
       {%- endfor %}
       {%- if f.guards > 1 %}
-      <tr style="background:{{ SOFT }}">
+      <tr style="background:{{ TINT }}">
         <td style="{{ TD }}"></td>
         <td style="{{ TD }}font-weight:700">Farm total</td>
         <td style="{{ TD }}"></td>
@@ -171,7 +182,7 @@
 
   {#- ── Incidents ─────────────────────────────────────────── -#}
   {%- if r.incidents %}{% set inc = r.incidents %}
-  {{ section("Incidents", RED, ("Not included: " ~ inc.hidden | join(", ")) if inc.hidden else None, new_page=r.ranking is not none) }}
+  {{ section("Incidents", ACCENT, ("Not included: " ~ inc.hidden | join(", ")) if inc.hidden else None, new_page=r.ranking is not none) }}
   {%- if not inc.total %}
   <p style="font-size:13px;color:{{ MUTED }}">No incidents in this period.</p>
   {%- else %}
@@ -184,7 +195,7 @@
       {%- for name, n in inc.by_type %}
       <table cellspacing="0" cellpadding="0" style="width:100%;margin-bottom:4px"><tr>
         <td style="font-size:12px;width:42%">{{ name | e }}</td>
-        <td><div style="height:10px;width:{{ (n / top * 100) | round(1) }}%;background:#534AB7;border-radius:3px;min-width:3px"></div></td>
+        <td><div style="height:10px;width:{{ (n / top * 100) | round(1) }}%;background:{{ ACCENT }};border-radius:3px;min-width:3px"></div></td>
         <td style="font-size:12px;width:34px;text-align:right;font-weight:600">{{ n }}</td>
       </tr></table>
       {%- endfor %}

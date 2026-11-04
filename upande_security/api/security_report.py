@@ -254,7 +254,7 @@ def build_report(first, last, farm=None, company=None, sections=SECTIONS):
 	recipient of one send."""
 	sections = [s for s in SECTIONS if s in (sections or SECTIONS)]
 	report = {"from_date": str(first), "to_date": str(last), "scope": _scope_label(farm, company),
-		"sections": sections, "brand": _brand(farm, company)}
+		"sections": sections, "brand": _brand(farm, company), "farm": farm, "company": company}
 	if "patrols" in sections:
 		report["ranking"] = _ranking("custom", str(first), str(last), farm, company)
 	if "incidents" in sections:
@@ -297,9 +297,74 @@ def _brand(farm=None, company=None):
 	return _("All companies")
 
 
-def render_html(report, note=None, with_watchlist=False):
+NEUTRAL_ACCENT = "#1f1f1c"
+HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _mix(hex_colour, other, share):
+	"""hex_colour moved `share` of the way towards other."""
+	a = [int(hex_colour[i:i + 2], 16) for i in (1, 3, 5)]
+	b = [int(other[i:i + 2], 16) for i in (1, 3, 5)]
+	return "#" + "".join(f"{round(x + (y - x) * share):02x}" for x, y in zip(a, b))
+
+
+def _luminance(hex_colour):
+	def ch(c):
+		c = c / 255
+		return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+	r, g, b = (int(hex_colour[i:i + 2], 16) for i in (1, 3, 5))
+	return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
+
+
+def _logo_src(path, for_pdf):
+	"""The logo for an <img>: the public URL for email (mail clients block
+	inline data), the file itself inlined for the PDF (the PDF renderer
+	cannot always reach the site's own URL)."""
+	if not path:
+		return None
+	if not for_pdf:
+		return None if path.startswith("/private/") else frappe.utils.get_url(path)
+	try:
+		import base64
+		import mimetypes
+
+		f = frappe.get_doc("File", {"file_url": path})
+		mime = mimetypes.guess_type(path)[0] or "image/png"
+		return f"data:{mime};base64," + base64.b64encode(f.get_content()).decode()
+	except Exception:
+		return None
+
+
+def _theme(report, for_pdf=False):
+	"""Each company's report in its own colour: the company's colour (and
+	logo) from Security Ops Settings > Badges per Company - the same one its
+	badges print in, a farm's own row winning over the company's. A report
+	spanning companies stays neutral. Red / green / severity colours are
+	never themed, so they read the same in every company's report."""
+	farm, company = report.get("farm"), report.get("company")
+	if farm and not company:
+		company = frappe.db.get_value("Farm", farm, "company")
+	accent, logo = NEUTRAL_ACCENT, None
+	if company:
+		from upande_security.api.badge_branding import get_badge_branding
+
+		b = get_badge_branding(company, farm)
+		if b.badge_colour and HEX_RE.match(b.badge_colour):
+			accent = b.badge_colour
+		logo = b.logo
+	dark = _luminance(accent) < 0.4
+	return frappe._dict(
+		accent=accent,
+		soft=_mix(accent, "#ffffff", 0.88),
+		on_accent="#ffffff" if dark else "#1f1f1c",
+		on_accent_muted=_mix("#ffffff" if dark else "#1f1f1c", accent, 0.3),
+		logo=_logo_src(logo, for_pdf),
+	)
+
+
+def render_html(report, note=None, with_watchlist=False, for_pdf=False):
 	"""The report through templates/security_report.html - the email body
-	and, through get_pdf, the PDF."""
+	and, through get_pdf, the PDF (for_pdf inlines the logo)."""
 	r = frappe._dict(report)
 	r.period_text = _period_text(r.from_date, r.to_date)
 	if r.get("ranking"):
@@ -323,6 +388,7 @@ def render_html(report, note=None, with_watchlist=False):
 		"upande_security/templates/security_report.html",
 		{
 			"r": r,
+			"theme": _theme(report, for_pdf),
 			"with_watchlist": with_watchlist,
 			"note": note,
 			"brand": r.get("brand") or _brand(),
@@ -382,15 +448,15 @@ def export_ranking(fmt="xlsx", period=None, from_date=None, to_date=None, farm=N
 	if fmt == "report":
 		first, last = resolve_period(period, from_date, to_date)
 		report = build_report(first, last, farm, company)
-		html = render_html(report, with_watchlist=bool(set(WATCHLIST_ROLES) & set(frappe.get_roles())))
+		html = render_html(report, with_watchlist=bool(set(WATCHLIST_ROLES) & set(frappe.get_roles())), for_pdf=True)
 		provide_binary_file(_filename("security-report", first, last, scope), "pdf", _pdf(html))
 		return
 	data = _ranking(period, from_date, to_date, farm, company)
 	name = _filename("guard-ranking", data["from_date"], data["to_date"], scope)
 	if fmt == "pdf":
 		report = {"from_date": data["from_date"], "to_date": data["to_date"], "scope": scope,
-			"sections": ["patrols"], "ranking": data, "brand": _brand(farm, company)}
-		provide_binary_file(name, "pdf", _pdf(render_html(report)))
+			"sections": ["patrols"], "ranking": data, "brand": _brand(farm, company), "farm": farm, "company": company}
+		provide_binary_file(name, "pdf", _pdf(render_html(report, for_pdf=True)))
 	elif fmt == "csv":
 		buf = io.StringIO()
 		csv.writer(buf).writerows(_table_rows(data))
@@ -447,11 +513,12 @@ def deliver(recipients, report, note=None):
 		if not people:
 			continue
 		html = render_html(report, note, with_watchlist=show_wl)
+		pdf = _pdf(render_html(report, note, with_watchlist=show_wl, for_pdf=True))
 		frappe.sendmail(
 			recipients=people,
 			subject=subject,
 			message=html,
-			attachments=[{"fname": fname, "fcontent": _pdf(html)}],
+			attachments=[{"fname": fname, "fcontent": pdf}],
 			now=False,
 		)
 
