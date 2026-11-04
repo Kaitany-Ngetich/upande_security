@@ -152,6 +152,15 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 			st["scans"] = sc["scans"]
 			st["valid_scans"] = sc["valid"]
 
+	# Incidents during each guard's shifts: context next to the patrol
+	# figures (not part of the score). A guard on duty when something
+	# happened is listed even with no patrol points.
+	shift_inc = _shift_incidents(farms, first, last) if farms else {}
+	for (f, gid), si in shift_inc.items():
+		if (f, gid) not in stats and si["incidents"]:
+			st = stats[(f, gid)] = _empty_stats(si["kind"])
+			st["patrols"] = 0
+
 	rows, farm_info = [], []
 	for geo in geos:
 		f = geo["farm"]
@@ -173,6 +182,12 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 	names = _guard_names([(r["kind"], r["guard"]) for r in rows])
 	for r in rows:
 		r["name"] = names.get(r["guard"]) or r["guard"]
+		si = shift_inc.get((r["farm"], r["guard"])) or {}
+		inc = si.get("incidents") or []
+		r["shifts"] = si.get("shifts", 0)
+		r["incidents"] = len(inc)
+		r["incidents_serious"] = sum(1 for i in inc if i["severity"] in SERIOUS_SEVERITIES)
+		r["incident_list"] = inc[:20]
 
 	return {
 		"period": period,
@@ -185,6 +200,7 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 		"max_gap_s": MAX_GAP_S,
 		"max_speed_kmh": MAX_SPEED_KMH,
 		"checkpoints": has_scans,
+		"incidents_in_score": False,
 		"farms": farm_info,
 		"rows": rows,
 	}
@@ -474,6 +490,77 @@ def _scans(farms, start, end):
 		(r.farm, r.g): {"kind": r.kind, "scans": int(r.scans or 0), "valid": int(r.valid or 0)}
 		for r in rows if r.g
 	}
+
+
+SERIOUS_SEVERITIES = ("High", "Critical")
+# Longest real shift; older rows spanning several days are not one shift.
+_MAX_SHIFT_HOURS = 24
+
+
+def _shift_incidents(farms, first, last):
+	"""{(farm, guard id): {kind, shifts, incidents: [{name, nature, severity,
+	at}]}} - shifts worked at the farm in the period, and the farm's
+	incidents whose time falls inside one of that guard's shifts (overnight
+	shifts included, start inclusive, end exclusive)."""
+	from upande_security.api.gate_movement import _shift_window
+
+	shifts = frappe.get_all(
+		"Security Guard Shift Assignment",
+		filters={
+			"farm": ["in", list(farms)],
+			"start_date": ["between", [frappe.utils.add_days(first, -1), last]],
+			"docstatus": ["<", 2],
+			"status": ["!=", "Cancelled"],
+		},
+		fields=["farm", "security_guard", "internal_guard", "external_guard",
+			"start_date", "end_date", "start_time", "end_time"],
+		limit_page_length=0,
+	)
+	incidents = frappe.get_all(
+		"Incident Report",
+		filters={
+			"farm": ["in", list(farms)],
+			"incident_datetime": ["between", [f"{first} 00:00:00", f"{last} 23:59:59"]],
+		},
+		fields=["name", "farm", "incident_datetime", "nature_of_incident", "severity"],
+		order_by="incident_datetime asc",
+		limit_page_length=0,
+	)
+	by_farm = {}
+	for inc in incidents:
+		by_farm.setdefault(inc.farm, []).append(inc)
+
+	out = {}
+	for sh in shifts:
+		if sh.security_guard == "Internal Guard" and sh.internal_guard:
+			gid, kind = sh.internal_guard, "Internal Guard"
+		elif sh.external_guard:
+			gid, kind = sh.external_guard, "External Guard"
+		else:
+			continue
+		try:
+			start, end = _shift_window(sh)
+		except Exception:
+			continue
+		if (end - start).total_seconds() > _MAX_SHIFT_HOURS * 3600:
+			continue
+		entry = out.setdefault((sh.farm, gid), {"kind": kind, "shifts": 0, "incidents": [], "_seen": set()})
+		if first <= frappe.utils.getdate(sh.start_date) <= last:
+			entry["shifts"] += 1
+		for inc in by_farm.get(sh.farm, []):
+			at = frappe.utils.get_datetime(inc.incident_datetime)
+			if start <= at < end and inc.name not in entry["_seen"]:
+				entry["_seen"].add(inc.name)
+				entry["incidents"].append({
+					"name": inc.name,
+					"nature": inc.nature_of_incident or "",
+					"severity": inc.severity or "",
+					"at": str(inc.incident_datetime),
+				})
+	for entry in out.values():
+		entry.pop("_seen", None)
+		entry["incidents"].sort(key=lambda i: i["at"])
+	return out
 
 
 def _rank(farm, guards, grid):
