@@ -238,6 +238,11 @@ frappe.ui.form.on('Incident Report', {
         if (!(frappe.user.has_role('Security Head') || frappe.user.has_role('System Manager'))) return;
 
         frm.add_custom_button(__('Watch a person'), function() {
+            // Anyone can be watched: someone named on this incident, or a
+            // person typed in here (they need not be a Responsible Person,
+            // Victim or Witness). ID number, phone, employee and vehicle plate
+            // are what the watch matches on.
+            const OTHER = '__other__';
             const people = [];
             [['responsible_persons', 'Responsible'], ['victims', 'Victim'], ['witnesses', 'Witness']].forEach(function([table, role]) {
                 (frm.doc[table] || []).forEach(function(row) {
@@ -246,15 +251,32 @@ frappe.ui.form.on('Incident Report', {
                     }
                 });
             });
-            if (!people.length) {
-                frappe.msgprint(__('Add the person to Responsible Persons, Victims or Witnesses first, with their ID number or phone if known - those are what the watch matches on.'));
-                return;
-            }
+            people.push({ value: OTHER, label: __('Someone else (type their details)') });
+            const other = 'eval:doc.row_name==="' + OTHER + '"';
             const d = new frappe.ui.Dialog({
                 title: __('Watch a person'),
                 fields: [
                     { fieldname: 'row_name', fieldtype: 'Select', label: __('Person'), reqd: 1,
                       options: people.map(p => p.value), default: people[0].value },
+                    { fieldname: 'full_name', fieldtype: 'Data', label: __('Full Name'),
+                      depends_on: other, mandatory_depends_on: other },
+                    { fieldname: 'person_type', fieldtype: 'Select', label: __('Person Type'), depends_on: other,
+                      options: ['', 'Visitor', 'Contractor', 'Employee', 'Supplier / Driver', 'External'] },
+                    { fieldname: 'employee', fieldtype: 'Link', options: 'Employee', label: __('Employee'),
+                      depends_on: other,
+                      onchange: function() {
+                          const emp = d.get_value('employee');
+                          if (!emp) return;
+                          frappe.db.get_value('Employee', emp, 'employee_name').then(r => {
+                              if (r.message && !d.get_value('full_name')) d.set_value('full_name', r.message.employee_name);
+                              if (!d.get_value('person_type')) d.set_value('person_type', 'Employee');
+                          });
+                      } },
+                    { fieldtype: 'Column Break', depends_on: other },
+                    { fieldname: 'id_number', fieldtype: 'Data', label: __('ID Number'), depends_on: other },
+                    { fieldname: 'phone_number', fieldtype: 'Data', label: __('Phone'), depends_on: other },
+                    { fieldname: 'vehicle_plate', fieldtype: 'Data', label: __('Vehicle Plate'), depends_on: other },
+                    { fieldtype: 'Section Break' },
                     { fieldname: 'reason', fieldtype: 'Small Text', label: __('Reason'),
                       default: (frm.doc.nature_of_incident || 'Incident') + ' - ' + frm.doc.name },
                     { fieldname: 'close_with_incident', fieldtype: 'Check', default: 1,
@@ -263,9 +285,16 @@ frappe.ui.form.on('Incident Report', {
                 ],
                 primary_action_label: __('Start watching'),
                 primary_action: function(values) {
+                    const typed = values.row_name === OTHER;
                     frappe.call({
                         method: 'upande_security.api.watchlist.watch_incident_person',
-                        args: { incident: frm.doc.name, row_name: values.row_name, reason: values.reason, close_with_incident: values.close_with_incident },
+                        args: Object.assign(
+                            { incident: frm.doc.name, reason: values.reason, close_with_incident: values.close_with_incident },
+                            typed
+                                ? { full_name: values.full_name, person_type: values.person_type, employee: values.employee,
+                                    id_number: values.id_number, phone_number: values.phone_number, vehicle_plate: values.vehicle_plate }
+                                : { row_name: values.row_name }
+                        ),
                         callback: function(r) {
                             d.hide();
                             if (!r.message) return;
