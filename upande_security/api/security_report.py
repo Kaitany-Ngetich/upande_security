@@ -408,7 +408,7 @@ def _pdf(html):
 	from frappe.utils.pdf import get_pdf
 
 	page = "<!doctype html><html><head><meta charset='utf-8'></head><body style='margin:0'>" + html + "</body></html>"
-	return get_pdf(page, {"orientation": "Landscape", "page-size": "A4"})
+	return get_pdf(page, {"orientation": "Portrait", "page-size": "A4", "margin-top": "12mm", "margin-bottom": "12mm", "margin-left": "10mm", "margin-right": "10mm"})
 
 
 def _filename(prefix, first, last, scope):

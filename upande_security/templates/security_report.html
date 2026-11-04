@@ -79,7 +79,7 @@
     <td style="padding:12px 14px;vertical-align:top;border-right:1px solid {{ LINE }}">
       <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:{{ MUTED }}">Patrols</div>
       <div style="font-size:13px;margin-top:4px"><b>{{ farms | sum(attribute="guards") }}</b> guards · <b>{{ "%.1f" | format(farms | sum(attribute="distance_km")) }} km</b></div>
-      {%- if r.area_total %}<div style="font-size:12px;color:{{ MUTED }};margin-top:2px">{{ ha(r.area_total.covered) }} of {{ ha(r.area_total.area) }} patrolled&nbsp;· <span style="color:{{ RED }}">{{ ha(r.area_total.area - r.area_total.covered) }} not patrolled</span></div>{% endif %}
+      {%- if r.area_total %}<div style="font-size:12px;color:{{ MUTED }};margin-top:2px">{{ ha(r.area_total.covered) }} of {{ ha(r.area_total.area) }} patrolled&nbsp;·&nbsp;<span style="color:{{ RED }}">{{ ha(r.area_total.area - r.area_total.covered) }} not patrolled</span></div>{% endif %}
     </td>
   {%- endif %}
   {%- if r.incidents %}
