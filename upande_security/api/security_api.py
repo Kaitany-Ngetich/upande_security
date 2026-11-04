@@ -83,6 +83,8 @@ import urllib.parse
 
 import frappe
 
+from upande_security.api.guard_lookup import guard_filters
+
 from upande_security.api import watchlist
 from upande_security.api.security_alerts import log_unauthorized_access
 from upande_security.api.visitor_sms import send_system_sms
@@ -195,7 +197,7 @@ def _guard_scope():
 		user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 		if user_full:
 			guard = frappe.db.get_value(
-				"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+				"Security Guard", guard_filters(current_user, user_full), ["company", "farm"], as_dict=True
 			)
 			if guard:
 				if not resolved_company:
@@ -731,7 +733,7 @@ def get_security_head_contact():
 			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 			if user_full:
 				guard = frappe.db.get_value(
-					"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+					"Security Guard", guard_filters(current_user, user_full), ["company", "farm"], as_dict=True
 				)
 				if guard:
 					company = guard.company or ""
@@ -3448,7 +3450,7 @@ def issue_visitor_badge(name=None, badge_number=None):
 			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 			if user_full:
 				guard = frappe.db.get_value(
-					"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+					"Security Guard", guard_filters(current_user, user_full), ["company", "farm"], as_dict=True
 				)
 				if guard:
 					company = guard.company or ""
@@ -3937,7 +3939,7 @@ def issue_supplier_badge(name=None, badge_number=None):
 						user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 						if user_full:
 							guard_company = frappe.db.get_value(
-								"Security Guard", {"full_name": user_full}, "company"
+								"Security Guard", guard_filters(current_user, user_full), "company"
 							)
 							if guard_company:
 								company = guard_company
@@ -5011,7 +5013,7 @@ def file_patrol_report(
 			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 			guard_name = None
 			if user_full:
-				guard_name = frappe.db.get_value("Security Guard", {"full_name": user_full}, "name")
+				guard_name = frappe.db.get_value("Security Guard", guard_filters(current_user, user_full), "name")
 			if guard_name:
 				personel = "External Guard"
 				external_guard = guard_name
@@ -5191,7 +5193,7 @@ def get_patrol_report(name=None):
 					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 					if user_full:
 						guard = frappe.db.get_value(
-							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+							"Security Guard", guard_filters(current_user, user_full), ["company", "farm"], as_dict=True
 						)
 						if guard:
 							if guard.company:
@@ -5316,7 +5318,7 @@ def list_patrol_reports(from_date=None, to_date=None, status=None, report_type=N
 					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 					if user_full:
 						guard = frappe.db.get_value(
-							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+							"Security Guard", guard_filters(current_user, user_full), ["company", "farm"], as_dict=True
 						)
 						if guard:
 							if guard.company:
@@ -5542,7 +5544,7 @@ def list_incidents(from_date=None, to_date=None, limit=None):
 					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 					if user_full:
 						guard = frappe.db.get_value(
-							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+							"Security Guard", guard_filters(current_user, user_full), ["company", "farm"], as_dict=True
 						)
 						if guard:
 							if guard.company:
@@ -6065,7 +6067,7 @@ def get_incident_report(name=None):
 					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 					if user_full:
 						guard = frappe.db.get_value(
-							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+							"Security Guard", guard_filters(current_user, user_full), ["company", "farm"], as_dict=True
 						)
 						if guard:
 							if guard.company:
@@ -6297,7 +6299,7 @@ def check_in_shift():
 			# a shared gate account, so fall back to matching on full name.
 			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 			if user_full:
-				external_guard = frappe.db.get_value("Security Guard", {"full_name": user_full}, "name")
+				external_guard = frappe.db.get_value("Security Guard", guard_filters(current_user, user_full), "name")
 
 		if is_internal:
 			return {"error": "Employee guards check in via attendance, not the app"}
@@ -6353,7 +6355,7 @@ def my_current_shift():
 			# a shared gate account, so fall back to matching on full name.
 			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 			if user_full:
-				guard_name = frappe.db.get_value("Security Guard", {"full_name": user_full}, "name")
+				guard_name = frappe.db.get_value("Security Guard", guard_filters(current_user, user_full), "name")
 				if guard_name:
 					external_guard = guard_name
 					guard_type = "External"
@@ -6884,7 +6886,7 @@ def _asset_scanner():
 	guard = None
 	if user_full:
 		guard = frappe.db.get_value(
-			"Security Guard", {"full_name": user_full}, ["name", "farm", "company"], as_dict=True
+			"Security Guard", guard_filters(frappe.session.user, user_full), ["name", "farm", "company"], as_dict=True
 		)
 	if guard:
 		return "External Guard", None, guard.name, guard.farm, guard.company
