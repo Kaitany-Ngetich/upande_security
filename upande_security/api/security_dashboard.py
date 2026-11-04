@@ -892,6 +892,11 @@ def _patrol_last_seen(
 
 # BEGIN INCIDENTS DASHBOARD API
 
+# Incident types the Security dashboard leaves out everywhere (counts, lists,
+# calendar, type picker, guard ranking). SOS reports still get created, alert
+# nearby guards and stay in Desk - they are just not shown on the dashboard.
+DASHBOARD_HIDDEN_INCIDENT_TYPES = ("SOS",)
+
 
 @frappe.whitelist()
 def get_incidents_dashboard(
@@ -986,6 +991,8 @@ def get_incidents_dashboard(
                 category,
             ]
         )
+
+    filters.append(["nature_of_incident", "not in", DASHBOARD_HIDDEN_INCIDENT_TYPES])
 
     if location:
         filters.append(
@@ -1398,6 +1405,7 @@ def get_incidents_dashboard(
                         category.get("color"),
                 }
                 for category in categories
+                if category.get("name") not in DASHBOARD_HIDDEN_INCIDENT_TYPES
             ],
             "locations": locations,
             "assigned_users": assigned_users,
@@ -2151,7 +2159,9 @@ def _incident_filter_options():
     return {
         "statuses": choices("status"),
         "severities": choices("severity"),
-        "categories": sorted({c["name"] for c in incident_categories()}),
+        "categories": sorted(
+            {c["name"] for c in incident_categories()} - set(DASHBOARD_HIDDEN_INCIDENT_TYPES)
+        ),
     }
 
 
@@ -2189,6 +2199,7 @@ def incident_pattern(category="All", from_date=None, to_date=None, farm=None, co
     when-does-it-happen charts. Permission-aware."""
     category = (category or "All").strip()
     filters = [] if category == "All" else [["nature_of_incident", "=", category]]
+    filters.append(["nature_of_incident", "not in", DASHBOARD_HIDDEN_INCIDENT_TYPES])
     if from_date:
         filters.append(["incident_datetime", ">=", str(frappe.utils.getdate(from_date)) + " 00:00:00"])
     if to_date:
