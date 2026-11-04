@@ -64,10 +64,15 @@ from upande_security.api.patrol_rules import (
 # farm's. Without checkpoint scans on a farm in the period their share goes
 # to the other two (NO_SCAN_WEIGHTS); without a usable boundary coverage
 # cannot be measured and distance carries the score with scans.
-WEIGHTS = {"coverage": 0.5, "distance": 0.3, "scans": 0.2}
-NO_SCAN_WEIGHTS = {"coverage": 0.6, "distance": 0.4, "scans": 0.0}
-NO_COVERAGE_WEIGHTS = {"coverage": 0.0, "distance": 0.6, "scans": 0.4}
-DISTANCE_ONLY = {"coverage": 0.0, "distance": 1.0, "scans": 0.0}
+# "safety" is the guard's scored incidents per shift on the farm (fewer is
+# better): full marks for none, zero for the farm's worst rate.
+WEIGHTS = {"coverage": 0.4, "distance": 0.25, "scans": 0.15, "safety": 0.2}
+NO_SCAN_WEIGHTS = {"coverage": 0.5, "distance": 0.3, "scans": 0.0, "safety": 0.2}
+NO_COVERAGE_WEIGHTS = {"coverage": 0.0, "distance": 0.5, "scans": 0.3, "safety": 0.2}
+DISTANCE_ONLY = {"coverage": 0.0, "distance": 0.8, "scans": 0.0, "safety": 0.2}
+# Incident types left out of the safety score: alerts, health and conduct
+# matters rather than a lapse in site security. They are still listed.
+UNSCORED_INCIDENT_TYPES = ("SOS", "Near Miss", "Medical Emergency", "Accident", "Violation of Company Policy")
 
 PERIODS = ("this_week", "last_week", "this_month", "last_month", "custom")
 
@@ -169,7 +174,7 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 		guards = {gid: st for (ff, gid), st in stats.items() if ff == f}
 		if not guards:
 			continue
-		ranked, weights, farm_cov = _rank(f, guards, geo["grid"])
+		ranked, weights, farm_cov = _rank(f, guards, geo["grid"], shift_inc)
 		rows += ranked
 		farm_info.append({
 			"farm": f,
@@ -186,7 +191,8 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 		inc = si.get("incidents") or []
 		r["shifts"] = si.get("shifts", 0)
 		r["incidents"] = len(inc)
-		r["incidents_serious"] = sum(1 for i in inc if i["severity"] in SERIOUS_SEVERITIES)
+		r["incidents_scored"] = sum(1 for i in inc if i["scored"])
+		r["incidents_serious"] = sum(1 for i in inc if i["scored"] and i["severity"] in SERIOUS_SEVERITIES)
 		r["incident_list"] = inc[:20]
 
 	return {
@@ -200,7 +206,8 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 		"max_gap_s": MAX_GAP_S,
 		"max_speed_kmh": MAX_SPEED_KMH,
 		"checkpoints": has_scans,
-		"incidents_in_score": False,
+		"incidents_in_score": True,
+		"unscored_incident_types": list(UNSCORED_INCIDENT_TYPES),
 		"farms": farm_info,
 		"rows": rows,
 	}
@@ -556,6 +563,7 @@ def _shift_incidents(farms, first, last):
 					"nature": inc.nature_of_incident or "",
 					"severity": inc.severity or "",
 					"at": str(inc.incident_datetime),
+					"scored": (inc.nature_of_incident or "") not in UNSCORED_INCIDENT_TYPES,
 				})
 	for entry in out.values():
 		entry.pop("_seen", None)
@@ -563,9 +571,16 @@ def _shift_incidents(farms, first, last):
 	return out
 
 
-def _rank(farm, guards, grid):
+def _rank(farm, guards, grid, shift_inc=None):
 	"""Score and rank one farm's guards. Returns (rows, weights, farm
-	coverage %) - farm coverage being every guard's cells together."""
+	coverage %) - farm coverage being every guard's cells together.
+	Safety: scored incidents per shift, against the farm's worst rate."""
+	shift_inc = shift_inc or {}
+
+	def inc_rate(gid):
+		si = shift_inc.get((farm, gid)) or {}
+		n = sum(1 for i in (si.get("incidents") or []) if i["scored"])
+		return (n / si["shifts"]) if n and si.get("shifts") else float(n)
 	total_cells = grid["cells"] if grid else 0
 	any_scans = any(s["valid_scans"] for s in guards.values())
 	if total_cells:
@@ -576,6 +591,7 @@ def _rank(farm, guards, grid):
 	best_cov = max((len(s["cells"]) for s in guards.values()), default=0)
 	best_m = max((s["metres"] for s in guards.values()), default=0)
 	best_scans = max((s["valid_scans"] for s in guards.values()), default=0)
+	worst_rate = max((inc_rate(g) for g in guards), default=0)
 
 	def share(v, best):
 		return (v / best) if best else 0.0
@@ -587,6 +603,7 @@ def _rank(farm, guards, grid):
 			weights["coverage"] * share(n, best_cov)
 			+ weights["distance"] * share(s["metres"], best_m)
 			+ weights["scans"] * share(s["valid_scans"], best_scans)
+			+ weights["safety"] * (1 - share(inc_rate(gid), worst_rate))
 		)
 		rows.append({
 			"farm": farm,
