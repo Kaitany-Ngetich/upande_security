@@ -210,6 +210,7 @@ function pick_cover(frm, row) {
 					shift_type: row.shift_type || frm.doc.shift_type,
 					start_time: row.start_time || frm.doc.start_time,
 					end_time: row.end_time || frm.doc.end_time,
+					limit: "all",
 				},
 			})
 			.then((r) => {
@@ -231,15 +232,39 @@ function pick_cover(frm, row) {
 					if (!done) resolve(null);
 				};
 				d.fields_dict.list.$wrapper.html(cover_list_html(data));
+				wire_cover_search(d.fields_dict.list.$wrapper, data);
 				d.show();
 			})
 			.catch(() => resolve(null));
 	});
 }
 
+// One guard as a radio row in the single-day picker.
+function cover_item_html(s, checked) {
+	const esc = frappe.utils.escape_html;
+	const tags = [];
+	if (s.previous) tags.push(`<span class="indicator-pill green">${__("Covered last {0}", [frappe.datetime.str_to_user(s.previous)])}</span>`);
+	if (s.designated) tags.push(`<span class="indicator-pill blue">${__("Reliever")}</span>`);
+	if (s.on_off_day) tags.push(`<span class="indicator-pill orange">${__("Own day off")}</span>`);
+	if (!s.available) tags.push(`<span class="indicator-pill red">${__("Busy")}</span>`);
+	return `<label class="d-flex align-items-start" style="gap:10px;padding:8px 4px;border-bottom:1px solid var(--border-color);margin:0;${
+		s.available ? "cursor:pointer" : "opacity:.6"
+	}">
+		<input type="radio" name="cover-pick" value="${esc(s.guard)}" ${checked ? "checked" : ""} ${s.available ? "" : "disabled"} style="margin-top:4px">
+		<span><b>${esc(s.full_name)}</b> <span class="text-muted small">${esc(s.home_farm || "")}</span> ${tags.join(" ")}
+		<br><span class="small">${esc(s.available ? s.reason : s.busy_reason)}</span></span>
+	</label>`;
+}
+
+// The short list (previous relievers, the designated one, the best free
+// guard) with the best free one picked, a search over every other
+// candidate, and No cover.
 function cover_list_html(data) {
 	const esc = frappe.utils.escape_html;
-	const first = (data.suggestions || []).find((s) => s.available);
+	const all = data.suggestions || [];
+	const first = all.find((s) => s.available);
+	const short = all.filter((s) => s.shortlist);
+	const others = all.length - short.length;
 	const head = `<p class="text-muted">${esc(
 		__("{0} shift at {1}, {2}-{3}. {4} of {5} guards free.", [
 			data.shift_type,
@@ -250,28 +275,80 @@ function cover_list_html(data) {
 			data.counts.candidates,
 		])
 	)}</p>`;
-	const rows = (data.suggestions || [])
-		.map((s) => {
-			const tags = [];
-			if (s.designated) tags.push(`<span class="indicator-pill blue">${__("Reliever")}</span>`);
-			if (s.on_off_day) tags.push(`<span class="indicator-pill orange">${__("Own day off")}</span>`);
-			if (!s.available) tags.push(`<span class="indicator-pill red">${__("Busy")}</span>`);
-			const checked = first && s.guard === first.guard ? "checked" : "";
-			const disabled = s.available ? "" : "disabled";
-			return `<label class="d-flex align-items-start" style="gap:10px;padding:8px 4px;border-bottom:1px solid var(--border-color);margin:0;${
-				s.available ? "cursor:pointer" : "opacity:.6"
-			}">
-				<input type="radio" name="cover-pick" value="${esc(s.guard)}" ${checked} ${disabled} style="margin-top:4px">
-				<span><b>${esc(s.full_name)}</b> <span class="text-muted small">${esc(s.home_farm || "")}</span> ${tags.join(" ")}
-				<br><span class="small">${esc(s.available ? s.reason : s.busy_reason)}</span></span>
-			</label>`;
-		})
-		.join("");
+	const rows = short.map((s) => cover_item_html(s, first && s.guard === first.guard)).join("");
+	const search = others
+		? `<div style="padding:10px 4px 4px"><input type="text" class="form-control input-sm cover-search" placeholder="${esc(
+				__("Search {0} other guards by name or farm", [others])
+		  )}"></div><div class="cover-results"></div>`
+		: "";
 	const none = `<label class="d-flex align-items-start" style="gap:10px;padding:8px 4px;margin:0;cursor:pointer">
 		<input type="radio" name="cover-pick" value="none" ${first ? "" : "checked"} style="margin-top:4px">
 		<span><b>${__("No cover")}</b><br><span class="small text-muted">${__("Leave this day off uncovered")}</span></span>
 	</label>`;
-	return head + `<div style="max-height:420px;overflow-y:auto">${rows}${none}</div>`;
+	return head + `<div style="max-height:420px;overflow-y:auto">${rows}${search}${none}</div>`;
+}
+
+function wire_cover_search($wrapper, data) {
+	const others = (data.suggestions || []).filter((s) => !s.shortlist);
+	$wrapper.on("input", ".cover-search", function () {
+		const q = ($(this).val() || "").trim().toLowerCase();
+		const hits = q
+			? others.filter((s) => (s.full_name + " " + (s.home_farm || "")).toLowerCase().includes(q)).slice(0, 30)
+			: [];
+		$wrapper
+			.find(".cover-results")
+			.html(
+				hits.map((s) => cover_item_html(s, false)).join("") ||
+					(q ? `<p class="small text-muted" style="padding:6px 4px">${__("No guard matches")}</p>` : "")
+			);
+	});
+}
+
+// A searchable list of every free guard for one off day; calls onPick with
+// the chosen option.
+function search_cover(row, onPick) {
+	const esc = frappe.utils.escape_html;
+	const free = row.options.filter((o) => o.available);
+	const d = new frappe.ui.Dialog({
+		title: __("Find a guard for {0}", [frappe.datetime.str_to_user(row.date)]),
+		fields: [
+			{ fieldtype: "Data", fieldname: "q", label: __("Search by name or farm") },
+			{ fieldtype: "HTML", fieldname: "results" },
+		],
+	});
+	const render = () => {
+		const q = (d.get_value("q") || "").trim().toLowerCase();
+		const hits = free.filter((o) => !q || (o.full_name + " " + (o.home_farm || "")).toLowerCase().includes(q)).slice(0, 40);
+		d.fields_dict.results.$wrapper.html(
+			hits
+				.map(
+					(o) => `<div class="cover-hit" data-guard="${esc(o.guard)}" style="padding:8px 4px;border-bottom:1px solid var(--border-color);cursor:pointer">
+						<b>${esc(o.full_name)}</b> <span class="text-muted small">${esc(o.home_farm || "")}</span>
+						${o.on_off_day ? `<span class="indicator-pill orange">${__("Own day off")}</span>` : ""}
+						<br><span class="small">${esc(o.reason || "")}</span></div>`
+				)
+				.join("") || `<p class="small text-muted">${__("No free guard matches")}</p>`
+		);
+	};
+	d.fields_dict.q.$input.on("input", render);
+	d.fields_dict.results.$wrapper.on("click", ".cover-hit", function () {
+		const o = free.find((x) => x.guard === $(this).attr("data-guard"));
+		d.hide();
+		onPick(o);
+	});
+	render();
+	d.show();
+	setTimeout(() => d.fields_dict.q.$input.focus(), 200);
+}
+
+function cover_option_label(o, row) {
+	return (
+		o.full_name +
+		(o.guard === row.current_cover ? " - " + __("current") : "") +
+		(o.previous ? " - " + __("covered last {0}", [frappe.datetime.str_to_user(o.previous)]) : "") +
+		(o.designated ? " - " + __("reliever") : "") +
+		(o.on_off_day ? " - " + __("own day off") : "")
+	);
 }
 
 function report_apply(frm, message, uncovered) {
@@ -308,14 +385,19 @@ function show_fill_off_days(frm) {
 				return;
 			}
 			const esc = frappe.utils.escape_html;
+			const by_row = {};
+			const option_html = (o, row) =>
+				`<option value="${esc(o.guard)}" title="${esc(o.reason || "")}" ${o.guard === row.selected ? "selected" : ""}>${esc(
+					cover_option_label(o, row)
+				)}</option>`;
 			const body = data.rows
 				.map((row) => {
-					const opts = row.options
-						.map((o) => {
-							const label = o.full_name + (o.guard === row.current_cover ? " - " + __("current") : "") + (o.on_off_day ? " - " + __("own day off") : "");
-							return `<option value="${esc(o.guard)}" title="${esc(o.reason || "")}" ${o.guard === row.selected ? "selected" : ""}>${esc(label)}</option>`;
-						})
-						.join("");
+					by_row[row.row] = row;
+					const short = row.options.filter((o) => o.shortlist);
+					const more = row.options.filter((o) => o.available && !o.shortlist).length;
+					const opts =
+						short.map((o) => option_html(o, row)).join("") +
+						(more ? `<option value="__search">${esc(__("Search {0} other guards...", [more]))}</option>` : "");
 					const reason = (row.options.find((o) => o.guard === row.selected) || {}).reason || __("Nobody free for this shift");
 					return `<tr data-row="${esc(row.row)}">
 						<td style="white-space:nowrap">${esc(frappe.datetime.str_to_user(row.date))}</td>
@@ -363,12 +445,32 @@ function show_fill_off_days(frm) {
 				},
 			});
 			d.fields_dict.table.$wrapper.html(
-				`<p class="text-muted">${__("Each off day has the best free reliever picked. Change any of them, or pick No cover.")}</p>
+				`<p class="text-muted">${__("Each off day has its previous reliever picked when they are free, else the best free guard. Change any of them, search for someone else, or pick No cover.")}</p>
 				<table class="table table-bordered"><thead><tr><th>${__("Date")}</th><th>${__("Farm / Shift")}</th><th>${__("Cover")}</th></tr></thead><tbody>${body}</tbody></table>`
 			);
+			const show_reason = ($select) => {
+				$select.closest("td").find(".cover-reason").text($select.find("option:selected").attr("title") || "");
+				$select.data("prev", $select.val());
+			};
+			d.$wrapper.find(".cover-select").each(function () {
+				$(this).data("prev", $(this).val());
+			});
 			d.$wrapper.on("change", ".cover-select", function () {
-				const opt = $(this).find("option:selected");
-				$(this).closest("td").find(".cover-reason").text(opt.attr("title") || "");
+				const $select = $(this);
+				if ($select.val() !== "__search") {
+					show_reason($select);
+					return;
+				}
+				// Back to the last pick until a guard is chosen in the search.
+				$select.val($select.data("prev") || "");
+				const row = by_row[$select.closest("tr").attr("data-row")];
+				search_cover(row, (o) => {
+					if (!$select.find(`option[value="${CSS.escape(o.guard)}"]`).length) {
+						$select.find('option[value="__search"]').before(option_html(o, row));
+					}
+					$select.val(o.guard);
+					show_reason($select);
+				});
 			});
 			d.show();
 		});
