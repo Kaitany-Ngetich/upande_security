@@ -23,13 +23,21 @@ an address with no login never gets it.
 """
 
 import csv
+import datetime
 import io
 import re
 
 import frappe
 from frappe import _
 
-from upande_security.api.patrol_ranking import get_guard_ranking, resolve_period
+from upande_security.api.patrol_ranking import (
+	day_start,
+	get_guard_ranking,
+	resolve_period,
+	resolve_window,
+	security_today,
+	window_label,
+)
 from upande_security.api.security_dashboard import _farms_of_company, hidden_incident_types
 
 # Who may email the report from the dashboard. Downloading the ranking only
@@ -143,10 +151,10 @@ def default_scope(user):
 	return None, None
 
 
-def _incidents(first, last, farm=None, company=None):
-	"""The period's incidents, minus the types left out, as the person
-	running the report may see them (get_list)."""
-	filters = [["incident_datetime", "between", [f"{first} 00:00:00", f"{last} 23:59:59"]]]
+def _incidents(start, end, farm=None, company=None):
+	"""Incidents from start up to end, minus the types left out, as the
+	person running the report may see them (get_list)."""
+	filters = [["incident_datetime", ">=", str(start)], ["incident_datetime", "<", str(end)]]
 	farms = _scope_farms(farm, company)
 	if farms is not None:
 		filters.append(["farm", "in", farms])
@@ -183,11 +191,11 @@ def _incidents(first, last, farm=None, company=None):
 	}
 
 
-def _watchlist(first, last, farm=None, company=None):
-	"""Active watches, the period's transactions by watched people, and the
-	watches opened or closed in the period. A watch restricted to a company
-	only appears in reports for that company (or all farms)."""
-	start, end = f"{first} 00:00:00", f"{last} 23:59:59"
+def _watchlist(start, end, farm=None, company=None):
+	"""Active watches, the window's transactions by watched people, and the
+	watches opened or closed in it. A watch restricted to a company only
+	appears in reports for that company (or all farms)."""
+	start, end = str(start), str(end)
 	report_company = company or (frappe.db.get_value("Farm", farm, "company") if farm else None)
 	fields = ["name", "full_name", "person_type", "status", "incident", "restrict_to_company", "reason",
 		"added_on", "closed_on", "activity_count", "last_activity_on"]
@@ -201,7 +209,7 @@ def _watchlist(first, last, farm=None, company=None):
 	)
 	closed = frappe.get_all(
 		"Security Watchlist",
-		filters=[["status", "=", "Inactive"], ["closed_on", "between", [start, end]]],
+		filters=[["status", "=", "Inactive"], ["closed_on", ">=", start], ["closed_on", "<", end]],
 		fields=fields,
 		order_by="closed_on desc",
 		limit_page_length=0,
@@ -212,7 +220,7 @@ def _watchlist(first, last, farm=None, company=None):
 
 	entries = [e for e in entries if in_scope(e)]
 	closed = [e for e in closed if in_scope(e)]
-	act_filters = [["occurred_at", "between", [start, end]]]
+	act_filters = [["occurred_at", ">=", start], ["occurred_at", "<", end]]
 	farms = _scope_farms(farm, company)
 	if farms is not None:
 		act_filters.append(["farm", "in", farms])
@@ -234,7 +242,7 @@ def _watchlist(first, last, farm=None, company=None):
 	return {
 		"active": entries,
 		"closed": closed,
-		"opened": sum(1 for e in entries + closed if e.added_on and start <= str(e.added_on) <= end),
+		"opened": sum(1 for e in entries + closed if e.added_on and start <= str(e.added_on) < end),
 		"activity": activity,
 	}
 
@@ -250,17 +258,20 @@ def _may_see_watchlist(email):
 
 
 def build_report(first, last, farm=None, company=None, sections=SECTIONS):
-	"""Everything the report shows, worked out once and shared by every
-	recipient of one send."""
+	"""Everything the report shows for the security days first to last
+	(each running from the day start, 06:00 unless changed, to the same time
+	next day), worked out once and shared by every recipient of one send."""
 	sections = [s for s in SECTIONS if s in (sections or SECTIONS)]
-	report = {"from_date": str(first), "to_date": str(last), "scope": _scope_label(farm, company),
+	first, last, start, end = resolve_window("custom", str(first), str(last))
+	report = {"from_date": str(first), "to_date": str(last), "start": str(start), "end": str(end),
+		"period_text": window_label(start, end), "scope": _scope_label(farm, company),
 		"sections": sections, "brand": _brand(farm, company), "farm": farm, "company": company}
 	if "patrols" in sections:
 		report["ranking"] = _ranking("custom", str(first), str(last), farm, company)
 	if "incidents" in sections:
-		report["incidents"] = _incidents(first, last, farm, company)
+		report["incidents"] = _incidents(start, end, farm, company)
 	if "watchlist" in sections:
-		report["watchlist"] = _watchlist(first, last, farm, company)
+		report["watchlist"] = _watchlist(start, end, farm, company)
 	return report
 
 
@@ -366,7 +377,7 @@ def render_html(report, note=None, with_watchlist=False, for_pdf=False):
 	"""The report through templates/security_report.html - the email body
 	and, through get_pdf, the PDF (for_pdf inlines the logo)."""
 	r = frappe._dict(report)
-	r.period_text = _period_text(r.from_date, r.to_date)
+	r.period_text = r.get("period_text") or _period_text(r.from_date, r.to_date)
 	if r.get("ranking"):
 		by_farm = {}
 		for g in r.ranking.get("rows") or []:
@@ -455,7 +466,8 @@ def export_ranking(fmt="xlsx", period=None, from_date=None, to_date=None, farm=N
 	name = _filename("guard-ranking", data["from_date"], data["to_date"], scope)
 	if fmt == "pdf":
 		report = {"from_date": data["from_date"], "to_date": data["to_date"], "scope": scope,
-			"sections": ["patrols"], "ranking": data, "brand": _brand(farm, company), "farm": farm, "company": company}
+			"sections": ["patrols"], "ranking": data, "brand": _brand(farm, company), "farm": farm, "company": company,
+			"period_text": data.get("window_label")}
 		provide_binary_file(name, "pdf", _pdf(render_html(report, for_pdf=True)))
 	elif fmt == "csv":
 		buf = io.StringIO()
@@ -507,7 +519,7 @@ def deliver(recipients, report, note=None):
 	groups = {True: [], False: []}
 	for e in recipients:
 		groups[with_wl and _may_see_watchlist(e)].append(e)
-	subject = f"Security report · {report['scope']} · {_period_text(report['from_date'], report['to_date'])}"
+	subject = f"Security report · {report['scope']} · {report.get('period_text') or _period_text(report['from_date'], report['to_date'])}"
 	fname = _filename("security-report", report["from_date"], report["to_date"], report["scope"]) + ".pdf"
 	for show_wl, people in groups.items():
 		if not people:
@@ -636,42 +648,92 @@ def _row_sections(row):
 		("watchlist", "include_watchlist")) if row.get(f))
 
 
+def _group_rows(rows):
+	"""{(farm, company, sections): rows} - rows asking for the same report
+	share one build."""
+	groups = {}
+	for r in rows:
+		sections = _row_sections(r)
+		if sections:
+			groups.setdefault((r.farm or "", "" if r.farm else (r.company or ""), sections), []).append(r)
+	return groups
+
+
+def _still_allowed(r):
+	"""Access may have changed since the row was saved."""
+	if covers(r.user or _user_of(r.email), r.farm, r.company):
+		return True
+	frappe.log_error(f"Security report not sent to {r.email}",
+		f"{r.email} can no longer see everything in a report on {_scope_label(r.farm, r.company)}. "
+		"Fix the row in Security Ops Settings > Security Reports.")
+	return False
+
+
+def _send_group(first, last, farm, company, sections, members, note):
+	report = build_report(first, last, farm or None, company or None, sections)
+	deliver(_clean_emails([m.email for m in members]), report, note)
+
+
 def send_scheduled_reports():
-	"""Daily, 07:00 (hooks cron): email each due subscription. Rows asking
-	for the same report (period, scope and sections) share one build and one
+	"""Hourly (hooks cron), acting once the security day that just ended is
+	an hour old (07:00 with the default 06:00 start): email each due
+	subscription. Rows asking for the same report share one build and one
 	email per audience; last_sent_on keeps a re-run on the same day from
 	sending twice."""
+	now = frappe.utils.now_datetime()
+	today = now.date()
+	if now < datetime.datetime.combine(today, day_start()) + datetime.timedelta(hours=1):
+		return
 	settings = frappe.get_single("Security Ops Settings")
 	rows = [r for r in (settings.get("security_report_subscriptions") or []) if r.enabled and r.email]
-	if not rows:
-		return
-	today = frappe.utils.getdate()
-	groups = {}
+	due_rows = {}
 	for r in rows:
 		if r.last_sent_on and frappe.utils.getdate(r.last_sent_on) == today:
 			continue
-		# Access may have changed since the row was saved.
-		if not covers(r.user or _user_of(r.email), r.farm, r.company):
-			frappe.log_error(f"Security report not sent to {r.email}",
-				f"{r.email} can no longer see everything in a report on {_scope_label(r.farm, r.company)}. "
-				"Fix the row in Security Ops Settings > Security Reports.")
+		if not _still_allowed(r):
 			continue
 		due = _due_period(r, today)
-		sections = _row_sections(r)
-		if not due or not sections:
-			continue
-		key = (due, r.farm or "", "" if r.farm else (r.company or ""), sections)
-		groups.setdefault(key, []).append(r)
-	for (due, farm, company, sections), members in groups.items():
+		if due:
+			due_rows.setdefault(due, []).append(r)
+	for due, members_due in due_rows.items():
 		first, last = due
+		for (farm, company, sections), members in _group_rows(members_due).items():
+			try:
+				freq = {m.frequency.lower() for m in members}
+				_send_group(first, last, farm, company, sections, members,
+					f"Your {' / '.join(sorted(freq))} security report.")
+				for m in members:
+					frappe.db.set_value("Security Report Subscription", m.name, "last_sent_on", today,
+						update_modified=False)
+				frappe.db.commit()
+			except Exception:
+				frappe.db.rollback()
+				frappe.log_error(f"Security report for {_scope_label(farm, company)} failed")
+
+
+@frappe.whitelist(methods=["POST"])
+def send_to_subscribers_now(day=None):
+	"""Email every enabled subscriber now, whatever their frequency, the
+	report for one security day (default: the last full one - yesterday
+	06:00 to today 06:00). Does not touch their schedule. For a Security
+	Head or System Manager; built in the background."""
+	if not set(WATCHLIST_ROLES) & set(frappe.get_roles()):
+		frappe.throw(_("Only a Security Head or System Manager can send to every subscriber."), frappe.PermissionError)
+	day = frappe.utils.getdate(day) if day else frappe.utils.add_days(security_today(), -1)
+	if day >= security_today():
+		frappe.throw(_("Pick a security day that has ended."))
+	frappe.enqueue("upande_security.api.security_report._send_to_subscribers", queue="long", timeout=3000,
+		day=str(day))
+	return {"queued": True, "day": str(day)}
+
+
+def _send_to_subscribers(day):
+	settings = frappe.get_single("Security Ops Settings")
+	rows = [r for r in (settings.get("security_report_subscriptions") or [])
+		if r.enabled and r.email and _still_allowed(r)]
+	for (farm, company, sections), members in _group_rows(rows).items():
 		try:
-			report = build_report(first, last, farm or None, company or None, sections)
-			freq = {m.frequency.lower() for m in members}
-			deliver(_clean_emails([m.email for m in members]), report,
-				f"Your {' / '.join(sorted(freq))} security report.")
-			for m in members:
-				frappe.db.set_value("Security Report Subscription", m.name, "last_sent_on", today,
-					update_modified=False)
+			_send_group(day, day, farm, company, sections, members, "Your security report.")
 			frappe.db.commit()
 		except Exception:
 			frappe.db.rollback()

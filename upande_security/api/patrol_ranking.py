@@ -35,6 +35,7 @@ WHICH POINTS COUNT
   (patrol_rules) sums the Patrol Map's and the app report's distance.
 """
 
+import datetime
 import hashlib
 import json
 import math
@@ -75,7 +76,8 @@ DISTANCE_ONLY = {"coverage": 0.0, "distance": 0.8, "scans": 0.0, "safety": 0.2}
 # matters rather than a lapse in site security. They are still listed.
 UNSCORED_INCIDENT_TYPES = ("SOS", "Near Miss", "Medical Emergency", "Accident", "Violation of Company Policy")
 
-PERIODS = ("this_week", "last_week", "this_month", "last_month", "custom")
+PERIODS = ("today", "yesterday", "this_week", "last_week", "this_month", "last_month", "custom")
+DEFAULT_DAY_START = datetime.time(6, 0)
 
 # Each day's figures are kept once worked out. A day more than two days
 # back is settled (a phone that was offline has uploaded by then) and is
@@ -84,12 +86,36 @@ _TTL_RECENT_S = 300
 _TTL_SETTLED_S = 31 * 86400
 
 
-def resolve_period(period=None, from_date=None, to_date=None):
-	"""(first day, last day) of the named period. Weeks start on Monday."""
-	today = frappe.utils.getdate()
+def day_start():
+	"""When a security day starts - Security Ops Settings > Security Day
+	Starts At, 06:00 unless a site changes it. Every period runs from this
+	time to the same time, so a night shift is one day, not two halves."""
+	value = frappe.db.get_single_value("Security Ops Settings", "security_day_starts_at")
+	try:
+		return frappe.utils.get_time(value) if value else DEFAULT_DAY_START
+	except Exception:
+		return DEFAULT_DAY_START
+
+
+def security_today(now=None):
+	"""The security day it is now: before the day start, still yesterday."""
+	now = now or frappe.utils.now_datetime()
+	d = now.date()
+	return d - datetime.timedelta(days=1) if now.time() < day_start() else d
+
+
+def resolve_period(period=None, from_date=None, to_date=None, today=None):
+	"""(first day, last day) of the named period, in security days. Weeks
+	start on Monday."""
+	today = today or security_today()
 	if period == "custom" and from_date and to_date:
 		a, b = frappe.utils.getdate(from_date), frappe.utils.getdate(to_date)
 		return (a, b) if a <= b else (b, a)
+	if period == "today":
+		return today, today
+	if period == "yesterday":
+		y = frappe.utils.add_days(today, -1)
+		return y, y
 	monday = frappe.utils.add_days(today, -today.weekday())
 	if period == "last_week":
 		return frappe.utils.add_days(monday, -7), frappe.utils.add_days(monday, -1)
@@ -102,6 +128,64 @@ def resolve_period(period=None, from_date=None, to_date=None):
 	return monday, today
 
 
+def resolve_window(period=None, from_date=None, to_date=None):
+	"""(first day, last day, start, end): the period's security days and the
+	moments they run between - first day at the day start up to the day
+	after the last at the day start, or now if that is still to come."""
+	first, last = resolve_period(period, from_date, to_date)
+	t = day_start()
+	start = datetime.datetime.combine(first, t)
+	end = datetime.datetime.combine(frappe.utils.add_days(last, 1), t)
+	return first, last, start, min(end, frappe.utils.now_datetime().replace(microsecond=0))
+
+
+def window_label(start, end):
+	"""4 Nov 2026 06:00 to 5 Nov 2026 06:00 (or "to now")."""
+	fmt = lambda d: frappe.utils.format_datetime(d, "d MMM yyyy HH:mm")
+	now = frappe.utils.now_datetime()
+	return fmt(start) + " to " + ("now" if (now - end).total_seconds() < 120 else fmt(end))
+
+
+def _merge(st, d):
+	"""Add one piece of a guard's figures (a cached day, or a part day
+	worked out live) to their running total."""
+	st["points"] += d["points"]
+	st["metres"] += d["metres"]
+	st["seconds"] += d["seconds"]
+	st["patrol_ids"].update(d["patrols"] if "patrols" in d and not isinstance(d["patrols"], int) else d.get("patrol_ids") or ())
+	st["cells"].update(d["cells"])
+	for key, pick in (("first", min), ("last", max)):
+		v = str(d[key]) if d.get(key) else None
+		st[key] = pick(filter(None, [st[key], v]), default=None)
+
+
+def _window_stats(ctx, start, end, in_scope):
+	"""{(farm, guard): stats} for start <= time < end. Whole calendar days
+	inside the window come from the day cache; the part days at either end
+	are worked out live."""
+	stats = {}
+	d = start.date()
+	while datetime.datetime.combine(d, datetime.time.min) < end:
+		day_from = datetime.datetime.combine(d, datetime.time.min)
+		day_to = day_from + datetime.timedelta(days=1)
+		a, b = max(start, day_from), min(end, day_to)
+		if a == day_from and b == day_to:
+			pieces = ((tuple(k.split("\x1f", 1)), v) for k, v in _day_stats(d, ctx).items())
+		elif a < b:
+			pieces = _guard_stats(ctx["geos"], str(a), str(b - datetime.timedelta(seconds=1)), ctx["boundary_on"]).items()
+		else:
+			pieces = ()
+		for (f, gid), piece in pieces:
+			if f not in in_scope:
+				continue
+			st = stats.get((f, gid))
+			if st is None:
+				st = stats[(f, gid)] = _empty_stats(piece["kind"])
+			_merge(st, piece)
+		d = d + datetime.timedelta(days=1)
+	return stats
+
+
 @frappe.whitelist()
 def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=None, company=None):
 	"""Per-guard patrol metrics and ranking for a period, per farm.
@@ -112,7 +196,7 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 		frappe.throw(_("You do not have permission to view Patrol GPS Logs."), frappe.PermissionError)
 
 	period = period if period in PERIODS else "this_week"
-	first, last = resolve_period(period, from_date, to_date)
+	first, last, start, end = resolve_window(period, from_date, to_date)
 	if frappe.utils.date_diff(last, first) > 92:
 		frappe.throw(_("Pick a period of three months or less."))
 
@@ -129,29 +213,12 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 	geos = ctx["geos"]
 	has_scans = frappe.db.table_exists("Checkpoint Scan Log")
 
-	stats = {}
-	day = first
-	while day <= last:
-		for k, d in _day_stats(day, ctx).items():
-			f, gid = k.split("\x1f", 1)
-			if f not in in_scope:
-				continue
-			st = stats.get((f, gid))
-			if st is None:
-				st = stats[(f, gid)] = _empty_stats(d["kind"])
-			st["points"] += d["points"]
-			st["metres"] += d["metres"]
-			st["seconds"] += d["seconds"]
-			st["patrol_ids"].update(d["patrols"])
-			st["cells"].update(d["cells"])
-			st["first"] = min(filter(None, [st["first"], d["first"]]), default=None)
-			st["last"] = max(filter(None, [st["last"], d["last"]]), default=None)
-		day = frappe.utils.add_days(day, 1)
+	stats = _window_stats(ctx, start, end, in_scope)
 	for st in stats.values():
 		st["patrols"] = len(st["patrol_ids"])
 
 	if has_scans and farms:
-		for (f, gid), sc in _scans(farms, f"{first} 00:00:00", f"{last} 23:59:59").items():
+		for (f, gid), sc in _scans(farms, str(start), str(end - datetime.timedelta(seconds=1))).items():
 			st = stats.get((f, gid))
 			if st is None:
 				st = stats[(f, gid)] = _empty_stats(sc["kind"])
@@ -161,7 +228,7 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 	# Incidents during each guard's shifts: context next to the patrol
 	# figures (not part of the score). A guard on duty when something
 	# happened is listed even with no patrol points.
-	shift_inc = _shift_incidents(farms, first, last) if farms else {}
+	shift_inc = _shift_incidents(farms, start, end) if farms else {}
 	for (f, gid), si in shift_inc.items():
 		if (f, gid) not in stats and si["incidents"]:
 			st = stats[(f, gid)] = _empty_stats(si["kind"])
@@ -216,6 +283,10 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 		"period": period,
 		"from_date": str(first),
 		"to_date": str(last),
+		"start": str(start),
+		"end": str(end),
+		"window_label": window_label(start, end),
+		"day_start": day_start().strftime("%H:%M"),
 		"cell_width_m": ctx["width"],
 		"cell_height_m": ctx["height"],
 		"weights": WEIGHTS,
@@ -521,11 +592,13 @@ SERIOUS_SEVERITIES = ("High", "Critical")
 _MAX_SHIFT_HOURS = 24
 
 
-def _shift_incidents(farms, first, last):
+def _shift_incidents(farms, start, end):
 	"""{(farm, guard id): {kind, shifts, incidents: [{name, nature, severity,
-	at}]}} - shifts worked at the farm in the period, and the farm's
-	incidents whose time falls inside one of that guard's shifts (overnight
-	shifts included, start inclusive, end exclusive)."""
+	at}]}} - shifts that started in start <= time < end at the farm, and the
+	farm's incidents in that window whose time falls inside one of that
+	guard's shifts (overnight shifts included, start inclusive, end
+	exclusive)."""
+	first, last = start.date(), end.date()
 	from upande_security.api.gate_movement import _shift_window
 	from upande_security.api.security_dashboard import hidden_incident_types
 
@@ -543,7 +616,7 @@ def _shift_incidents(farms, first, last):
 	)
 	inc_filters = {
 		"farm": ["in", list(farms)],
-		"incident_datetime": ["between", [f"{first} 00:00:00", f"{last} 23:59:59"]],
+		"incident_datetime": ["between", [str(start), str(end - datetime.timedelta(seconds=1))]],
 	}
 	hidden = hidden_incident_types()
 	if hidden:
@@ -568,17 +641,17 @@ def _shift_incidents(farms, first, last):
 		else:
 			continue
 		try:
-			start, end = _shift_window(sh)
+			sh_start, sh_end = _shift_window(sh)
 		except Exception:
 			continue
-		if (end - start).total_seconds() > _MAX_SHIFT_HOURS * 3600:
+		if (sh_end - sh_start).total_seconds() > _MAX_SHIFT_HOURS * 3600:
 			continue
 		entry = out.setdefault((sh.farm, gid), {"kind": kind, "shifts": 0, "incidents": [], "_seen": set()})
-		if first <= frappe.utils.getdate(sh.start_date) <= last:
+		if start <= sh_start < end:
 			entry["shifts"] += 1
 		for inc in by_farm.get(sh.farm, []):
 			at = frappe.utils.get_datetime(inc.incident_datetime)
-			if start <= at < end and inc.name not in entry["_seen"]:
+			if sh_start <= at < sh_end and inc.name not in entry["_seen"]:
 				entry["_seen"].add(inc.name)
 				entry["incidents"].append({
 					"name": inc.name,

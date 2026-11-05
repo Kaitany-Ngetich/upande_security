@@ -305,9 +305,10 @@ scheduler_events = {
             # feature_zone_breach_alerts.
             "upande_security.tasks.check_zone_breaches",
         ],
-        # Security report subscriptions (Security Ops Settings): each
-        # morning, email whoever's daily / weekly / monthly report is due.
-        "0 7 * * *": [
+        # Security report subscriptions (Security Ops Settings): hourly, and
+        # sends once the security day that just ended is an hour old (07:00
+        # with the default 06:00 start) to whoever's report is due.
+        "0 * * * *": [
             "upande_security.api.security_report.send_scheduled_reports",
         ],
     },

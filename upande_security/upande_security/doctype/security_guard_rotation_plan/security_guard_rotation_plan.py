@@ -402,7 +402,7 @@ def _plan_off_rows(plan_name):
 @frappe.whitelist()
 def get_off_day_cover_options(plan_name):
 	"""For the Fill Off Days dialog: every off-day row of the plan with its
-	ranked relievers and one pre-selected.
+	ranked relievers (previous relievers first) and one pre-selected.
 
 	The pre-selection walks the days in date order and takes the best
 	available reliever not already picked for an overlapping shift on another
@@ -435,19 +435,27 @@ def get_off_day_cover_options(plan_name):
 		if selected:
 			picked.setdefault(selected, []).append(win)
 
+		# Every free guard, for the dialog's search; `shortlist` marks the few
+		# it lists up front (previous relievers, the designated one, the best
+		# free guard).
 		options = [
 			{
 				"guard": c["guard"],
 				"full_name": c["full_name"],
+				"home_farm": c["home_farm"],
 				"available": c["available"],
 				"on_off_day": c["on_off_day"],
+				"previous": c["previous"],
+				"designated": c["designated"],
+				"shortlist": c["shortlist"] or c["guard"] in (current, selected),
 				"reason": c["busy_reason"] if not c["available"] else c["reason"],
 			}
 			for c in ranked.suggestions
 			if c["available"] or c["guard"] == current
-		][:25]
+		]
 		if current and not any(o["guard"] == current for o in options):
-			options.insert(0, {"guard": current, "full_name": current_name, "available": 1, "on_off_day": 0, "reason": ""})
+			options.insert(0, {"guard": current, "full_name": current_name, "available": 1, "on_off_day": 0,
+				"previous": None, "designated": 0, "shortlist": 1, "reason": ""})
 		out.append(
 			{
 				"row": r.name,

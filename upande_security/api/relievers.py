@@ -25,6 +25,8 @@ from upande_security.api.gate_movement import _shift_window
 PLANNER_ROLES = ("Security Head", "System Manager")
 HISTORY_DAYS = 60
 DEFAULT_LIMIT = 25
+# How many of a guard's past relievers the pickers list first.
+PREVIOUS_LIMIT = 3
 
 
 def require_planner():
@@ -175,6 +177,29 @@ def _history(candidates, farm, date_val):
 	return out
 
 
+def _previous_covers(guard, date_val, limit=PREVIOUS_LIMIT):
+	"""{cover guard: last date they covered `guard`} for the most recent
+	`limit` guards who covered them before date_val - the reliever a planner
+	reaches for first."""
+	rows = frappe.db.sql(
+		"""
+		SELECT external_guard, MAX(start_date) AS last_date
+		FROM `tabSecurity Guard Shift Assignment`
+		WHERE covering_for = %(guard)s
+		  AND start_date < %(date)s
+		  AND ifnull(external_guard, '') != ''
+		  AND status != 'Cancelled'
+		  AND docstatus < 2
+		GROUP BY external_guard
+		ORDER BY last_date DESC
+		LIMIT %(limit)s
+		""",
+		{"guard": guard, "date": getdate(date_val), "limit": limit},
+		as_dict=True,
+	)
+	return {r.external_guard: r.last_date for r in rows}
+
+
 def _on_off_day(candidates, date_val):
 	if not candidates:
 		return set()
@@ -195,6 +220,8 @@ def _on_off_day(candidates, date_val):
 
 def _reason(c, farm, shift_type, off_guard_name):
 	parts = []
+	if c["previous"]:
+		parts.append(_("Covered {0} last on {1}").format(off_guard_name, frappe.utils.formatdate(c["previous"])))
 	if c["designated"]:
 		parts.append(_("Designated reliever for {0}").format(off_guard_name))
 	same = c["shift_type_shifts"]
@@ -245,6 +272,7 @@ def rank_relievers(guard, date, farm=None, shift_type=None, start_time=None, end
 	busy = busy_reasons(ids, guard, date_val, window)
 	history = _history(ids, farm, date_val)
 	off_days = _on_off_day(ids, date_val)
+	previous = _previous_covers(guard, date_val)
 
 	out = []
 	for g in guards:
@@ -254,6 +282,7 @@ def rank_relievers(guard, date, farm=None, shift_type=None, start_time=None, end
 			"full_name": g.full_name or g.name,
 			"home_farm": g.farm,
 			"designated": 1 if off.reliever == g.name else 0,
+			"previous": previous.get(g.name),
 			"available": 0 if g.name in busy else 1,
 			"busy_reason": busy.get(g.name),
 			"on_off_day": 1 if g.name in off_days else 0,
@@ -264,9 +293,12 @@ def rank_relievers(guard, date, farm=None, shift_type=None, start_time=None, end
 		c["reason"] = _reason(c, farm, shift_type, off.full_name or guard)
 		out.append(c)
 
+	# Who covered this guard last comes first, then their designated
+	# reliever, then experience at the farm.
 	out.sort(
 		key=lambda c: (
 			-c["available"],
+			-(c["previous"].toordinal() if c["previous"] else 0),
 			-c["designated"],
 			c["on_off_day"],
 			-c["farm_shifts"],
@@ -276,6 +308,13 @@ def rank_relievers(guard, date, farm=None, shift_type=None, start_time=None, end
 			c["full_name"],
 		)
 	)
+	# The short list a picker shows before anyone searches: previous
+	# relievers and the designated one (free or not, so a planner sees why
+	# they are out), plus the best free guard.
+	best = next((c for c in out if c["available"]), None)
+	for c in out:
+		c["shortlist"] = 1 if (c["previous"] or c["designated"] or c is best) else 0
+		c["previous"] = str(c["previous"]) if c["previous"] else None
 	return frappe._dict(
 		guard=guard,
 		guard_name=off.full_name,
@@ -286,6 +325,7 @@ def rank_relievers(guard, date, farm=None, shift_type=None, start_time=None, end
 		end_time=_hhmm(t.end_time),
 		window=window,
 		designated_reliever=off.reliever,
+		previous_relievers=[{"guard": g, "last_covered": str(d)} for g, d in previous.items()],
 		suggestions=out,
 		counts={
 			"candidates": len(out),
@@ -303,20 +343,24 @@ def suggest_relievers(guard, date, farm=None, shift_type=None, start_time=None, 
 	Candidates are the active External Guards of the off guard's company (the
 	farm's when the guard has none), minus the off guard and `exclude` (a
 	list, JSON list or comma-separated ids). Available first; within that:
-	the off guard's designated reliever, then a guard on their own day off
+	whoever covered this guard most recently, then the off guard's
+	designated reliever, then a guard on their own day off
 	last, then shifts worked at this farm in the last 60 days, then shifts of
 	this same shift type there, then most recent shift there, then guards
 	based at this farm (some farms' shifts carry no farm). A guard on their
 	own day off can still be picked - it is only labelled.
 
-	Returns the cover shift, `counts` and up to `limit` (default 25)
-	`suggestions`, each {guard, full_name, home_farm, designated, available,
-	busy_reason, on_off_day, farm_shifts, shift_type_shifts, last_at_farm,
-	reason}.
+	Returns the cover shift, `counts`, `previous_relievers` and up to `limit`
+	(default 25, "all" for every candidate) `suggestions`, each {guard,
+	full_name, home_farm, designated, previous (last date they covered this
+	guard), shortlist, available, busy_reason, on_off_day, farm_shifts,
+	shift_type_shifts, last_at_farm, reason}. `shortlist` marks what a
+	picker shows before anyone searches.
 	"""
 	require_planner()
 	result = rank_relievers(guard, date, farm, shift_type, start_time, end_time, exclude)
 	result.pop("window", None)
-	limit = frappe.utils.cint(limit) or DEFAULT_LIMIT
-	result["suggestions"] = result["suggestions"][:limit]
+	# "all" for the pickers' search, which looks through every candidate.
+	if str(limit).lower() != "all":
+		result["suggestions"] = result["suggestions"][: frappe.utils.cint(limit) or DEFAULT_LIMIT]
 	return result

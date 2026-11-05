@@ -32,6 +32,7 @@
   "checkpoint_column_break",
   "checkpoint_max_accuracy_m",
   "security_report_section",
+  "security_day_starts_at",
   "security_report_subscriptions",
   "hidden_incident_types",
   "notification_recipients_section",
@@ -522,6 +523,12 @@
    "fieldtype": "Section Break",
    "label": "Security Reports",
    "collapsible": 1
+  },
+  {
+   "fieldname": "security_day_starts_at",
+   "fieldtype": "Time",
+   "label": "Security Day Starts At",
+   "default": "06:00:00"
   },
   {
    "fieldname": "security_report_subscriptions",
