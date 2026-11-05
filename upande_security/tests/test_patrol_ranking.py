@@ -21,7 +21,17 @@ def _stats(cells=0, metres=0.0, valid_scans=0):
 class TestResolvePeriod(unittest.TestCase):
 	def resolve(self, period, today, **kw):
 		with patch("frappe.utils.getdate", side_effect=lambda d=None: today if d is None else datetime.date.fromisoformat(str(d))):
-			return pr.resolve_period(period, **kw)
+			return pr.resolve_period(period, today=today, **kw)
+
+	def test_today_and_yesterday(self):
+		wed = datetime.date(2026, 11, 4)
+		self.assertEqual(self.resolve("today", wed), (wed, wed))
+		self.assertEqual(self.resolve("yesterday", wed), (datetime.date(2026, 11, 3),) * 2)
+
+	def test_security_day_turns_at_the_day_start(self):
+		with patch.object(pr, "day_start", return_value=datetime.time(6, 0)):
+			self.assertEqual(pr.security_today(datetime.datetime(2026, 11, 5, 5, 59)), datetime.date(2026, 11, 4))
+			self.assertEqual(pr.security_today(datetime.datetime(2026, 11, 5, 6, 0)), datetime.date(2026, 11, 5))
 
 	def test_weeks_start_on_monday(self):
 		wed = datetime.date(2026, 11, 4)
