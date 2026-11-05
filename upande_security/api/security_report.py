@@ -77,9 +77,9 @@ COLUMNS = [
 
 # --- data ----------------------------------------------------------------------
 
-def _ranking(period=None, from_date=None, to_date=None, farm=None, company=None):
+def _ranking(period=None, from_date=None, to_date=None, farm=None, company=None, half="all"):
 	return get_guard_ranking(
-		period=period or "this_week", from_date=from_date, to_date=to_date, farm=farm, company=company
+		period=period or "this_week", from_date=from_date, to_date=to_date, farm=farm, company=company, half=half
 	)
 
 
@@ -449,7 +449,7 @@ def _table_rows(data):
 
 
 @frappe.whitelist()
-def export_ranking(fmt="xlsx", period=None, from_date=None, to_date=None, farm=None, company=None):
+def export_ranking(fmt="xlsx", period=None, from_date=None, to_date=None, farm=None, company=None, half="all"):
 	"""Download what the dashboard shows: the guard ranking as Excel, CSV or
 	PDF, or ("report") the whole security report as a PDF - its watch list
 	included only for a Security Head or System Manager."""
@@ -462,8 +462,8 @@ def export_ranking(fmt="xlsx", period=None, from_date=None, to_date=None, farm=N
 		html = render_html(report, with_watchlist=bool(set(WATCHLIST_ROLES) & set(frappe.get_roles())), for_pdf=True)
 		provide_binary_file(_filename("security-report", first, last, scope), "pdf", _pdf(html))
 		return
-	data = _ranking(period, from_date, to_date, farm, company)
-	name = _filename("guard-ranking", data["from_date"], data["to_date"], scope)
+	data = _ranking(period, from_date, to_date, farm, company, half)
+	name = _filename("guard-ranking" + ("-" + half if half in ("day", "night") else ""), data["from_date"], data["to_date"], scope)
 	if fmt == "pdf":
 		report = {"from_date": data["from_date"], "to_date": data["to_date"], "scope": scope,
 			"sections": ["patrols"], "ranking": data, "brand": _brand(farm, company), "farm": farm, "company": company,

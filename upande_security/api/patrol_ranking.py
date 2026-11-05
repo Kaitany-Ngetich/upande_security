@@ -77,6 +77,9 @@ DISTANCE_ONLY = {"coverage": 0.0, "distance": 0.8, "scans": 0.0, "safety": 0.2}
 UNSCORED_INCIDENT_TYPES = ("SOS", "Near Miss", "Medical Emergency", "Accident", "Violation of Company Policy")
 
 PERIODS = ("today", "yesterday", "this_week", "last_week", "this_month", "last_month", "custom")
+# Which part of each security day to rank: all of it, the day half (the
+# day start + 12 hours, 06:00-18:00 by default) or the night half.
+HALVES = ("all", "day", "night")
 DEFAULT_DAY_START = datetime.time(6, 0)
 
 # Each day's figures are kept once worked out. A day more than two days
@@ -139,11 +142,35 @@ def resolve_window(period=None, from_date=None, to_date=None):
 	return first, last, start, min(end, frappe.utils.now_datetime().replace(microsecond=0))
 
 
-def window_label(start, end):
-	"""4 Nov 2026 06:00 to 5 Nov 2026 06:00 (or "to now")."""
+def window_label(start, end, half="all"):
+	"""4 Nov 2026 06:00 to 5 Nov 2026 06:00 (or "to now"), and which half
+	of each day when only one is ranked."""
 	fmt = lambda d: frappe.utils.format_datetime(d, "d MMM yyyy HH:mm")
 	now = frappe.utils.now_datetime()
-	return fmt(start) + " to " + ("now" if (now - end).total_seconds() < 120 else fmt(end))
+	label = fmt(start) + " to " + ("now" if (now - end).total_seconds() < 120 else fmt(end))
+	if half in ("day", "night"):
+		t = datetime.datetime.combine(datetime.date.today(), day_start())
+		a, b = (t, t + datetime.timedelta(hours=12)) if half == "day" else (t + datetime.timedelta(hours=12), t)
+		label += " · " + ("day" if half == "day" else "night") + " only (" + a.strftime("%H:%M") + "-" + b.strftime("%H:%M") + ")"
+	return label
+
+
+def half_windows(first, last, start, end, half="all"):
+	"""[(start, end)] the ranking covers: the whole window, or each security
+	day's day half (day start to +12h) or night half (+12h to the next day
+	start), cut to the window."""
+	if half not in ("day", "night"):
+		return [(start, end)]
+	out = []
+	d = first
+	while d <= last:
+		a = datetime.datetime.combine(d, day_start()) + datetime.timedelta(hours=0 if half == "day" else 12)
+		b = a + datetime.timedelta(hours=12)
+		a, b = max(a, start), min(b, end)
+		if a < b:
+			out.append((a, b))
+		d = frappe.utils.add_days(d, 1)
+	return out
 
 
 def _merge(st, d):
@@ -187,16 +214,19 @@ def _window_stats(ctx, start, end, in_scope):
 
 
 @frappe.whitelist()
-def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=None, company=None):
+def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=None, company=None, half="all"):
 	"""Per-guard patrol metrics and ranking for a period, per farm.
 
 	`farm` narrows to one farm; otherwise `company`'s farms, otherwise every
-	farm the user may read. Guards are ranked within each farm."""
+	farm the user may read. Guards are ranked within each farm. `half`
+	ranks only the day or the night half of each security day."""
 	if not frappe.has_permission("Patrol GPS Log", ptype="read"):
 		frappe.throw(_("You do not have permission to view Patrol GPS Logs."), frappe.PermissionError)
 
 	period = period if period in PERIODS else "this_week"
+	half = half if half in HALVES else "all"
 	first, last, start, end = resolve_window(period, from_date, to_date)
+	windows = half_windows(first, last, start, end, half)
 	if frappe.utils.date_diff(last, first) > 92:
 		frappe.throw(_("Pick a period of three months or less."))
 
@@ -213,22 +243,35 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 	geos = ctx["geos"]
 	has_scans = frappe.db.table_exists("Checkpoint Scan Log")
 
-	stats = _window_stats(ctx, start, end, in_scope)
+	stats = {}
+	for a, b in windows:
+		for k, piece in _window_stats(ctx, a, b, in_scope).items():
+			st = stats.get(k)
+			if st is None:
+				st = stats[k] = _empty_stats(piece["kind"])
+			_merge(st, piece)
 	for st in stats.values():
 		st["patrols"] = len(st["patrol_ids"])
 
 	if has_scans and farms:
-		for (f, gid), sc in _scans(farms, str(start), str(end - datetime.timedelta(seconds=1))).items():
-			st = stats.get((f, gid))
-			if st is None:
-				st = stats[(f, gid)] = _empty_stats(sc["kind"])
-			st["scans"] = sc["scans"]
-			st["valid_scans"] = sc["valid"]
+		for a, b in windows:
+			for (f, gid), sc in _scans(farms, str(a), str(b - datetime.timedelta(seconds=1))).items():
+				st = stats.get((f, gid))
+				if st is None:
+					st = stats[(f, gid)] = _empty_stats(sc["kind"])
+				st["scans"] += sc["scans"]
+				st["valid_scans"] += sc["valid"]
 
 	# Incidents during each guard's shifts: context next to the patrol
 	# figures (not part of the score). A guard on duty when something
 	# happened is listed even with no patrol points.
-	shift_inc = _shift_incidents(farms, start, end) if farms else {}
+	shift_inc = {}
+	for a, b in (windows if farms else []):
+		for k, si in _shift_incidents(farms, a, b).items():
+			acc = shift_inc.setdefault(k, {"kind": si["kind"], "shifts": 0, "incidents": []})
+			acc["shifts"] += si["shifts"]
+			seen = {i["name"] for i in acc["incidents"]}
+			acc["incidents"] += [i for i in si["incidents"] if i["name"] not in seen]
 	for (f, gid), si in shift_inc.items():
 		if (f, gid) not in stats and si["incidents"]:
 			st = stats[(f, gid)] = _empty_stats(si["kind"])
@@ -285,7 +328,8 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 		"to_date": str(last),
 		"start": str(start),
 		"end": str(end),
-		"window_label": window_label(start, end),
+		"window_label": window_label(start, end, half),
+		"half": half,
 		"day_start": day_start().strftime("%H:%M"),
 		"cell_width_m": ctx["width"],
 		"cell_height_m": ctx["height"],
