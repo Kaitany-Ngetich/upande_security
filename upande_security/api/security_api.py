@@ -1374,7 +1374,7 @@ def approved_appointments():
 			       a.custom_check_in_time, a.custom_mode_of_transport,
 			       a.custom_vehicles_number_plate, a.custom_vehicles_colour,
 			       a.custom_number_of_passengers,
-			       a.custom_host_received_time,
+			       a.custom_host_received_time, a.custom_temp_exit_time,
 			       a.custom_visitor_type, a.customer_organization,
 			       b.badge_number,
 			       e.employee_name AS host_name
@@ -1433,6 +1433,8 @@ def approved_appointments():
 					"custom_host_received_time": str(r.custom_host_received_time)
 					if r.custom_host_received_time
 					else "",
+					# Set while an inside visitor has stepped out (gate temp exit).
+					"custom_temp_exit_time": str(r.custom_temp_exit_time) if r.custom_temp_exit_time else None,
 					"custom_visitor_type": str(r.custom_visitor_type)
 					if r.custom_visitor_type
 					else "",
@@ -7527,7 +7529,9 @@ def daily_summary(date=None):
 		for a in all_records:
 			if a["custom_check_in_time"]:
 				checked_in = checked_in + 1
-				if not a["custom_check_out_time"]:
+				# Inside means the workflow says so too: a visit checked out
+				# through the workflow without a check-out time is not here.
+				if not a["custom_check_out_time"] and a["workflow_state"] == "Visitor Checked In":
 					still_inside.append(a)
 			if a["custom_check_out_time"]:
 				checked_out = checked_out + 1
@@ -7780,12 +7784,17 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 			return fl
 
 		VIS = "(COALESCE(a.custom_visitor_type,'') <> 'Contractor')"
+		# Inside now: checked in, no check-out time, and the workflow agrees.
+		# Visits checked out through the workflow without a check-out time
+		# (old customer bookings, Desk actions) otherwise sit here as
+		# overstays for months.
+		INSIDE = " AND a.custom_check_in_time IS NOT NULL AND a.custom_check_out_time IS NULL AND a.workflow_state = 'Visitor Checked In'"
 		CON = "a.custom_visitor_type = 'Contractor'"
 
 		def appt_kpis(who):
 			ci = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE " + who + FARM_SQL + " AND a.custom_check_in_time BETWEEN %s AND %s", tuple(FARM_P + [start, end]))
 			co = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE " + who + FARM_SQL + " AND a.custom_check_out_time BETWEEN %s AND %s", tuple(FARM_P + [start, end]))
-			inside = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE " + who + FARM_SQL + " AND a.custom_check_in_time IS NOT NULL AND a.custom_check_out_time IS NULL", tuple(FARM_P))
+			inside = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE " + who + FARM_SQL + INSIDE, tuple(FARM_P))
 			avg = scalar("SELECT ROUND(AVG(TIMESTAMPDIFF(MINUTE, a.custom_check_in_time, a.custom_check_out_time))) FROM `tabAppointment` a WHERE " + who + FARM_SQL + " AND a.custom_check_out_time BETWEEN %s AND %s", tuple(FARM_P + [start, end]))
 			return [ci, co, inside, avg]
 
@@ -7798,14 +7807,16 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 
 		def overstay_rows(who):
 			rows = []
-			r = frappe.db.sql("SELECT a.customer_name, COALESCE(NULLIF(e.employee_name,''), a.custom_meet_with, '—'), a.custom_check_in_time FROM `tabAppointment` a LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with WHERE " + who + FARM_SQL + " AND a.custom_check_in_time IS NOT NULL AND a.custom_check_out_time IS NULL AND a.custom_check_in_time < %s ORDER BY a.custom_check_in_time ASC LIMIT 25", tuple(FARM_P + [frappe.utils.add_to_date(now, hours=-8)]))
+			r = frappe.db.sql("SELECT a.customer_name, COALESCE(NULLIF(e.employee_name,''), a.custom_meet_with, '—'), a.custom_check_in_time, a.name FROM `tabAppointment` a LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with WHERE " + who + FARM_SQL + INSIDE + " AND a.custom_check_in_time < %s ORDER BY a.custom_check_in_time ASC LIMIT 25", tuple(FARM_P + [frappe.utils.add_to_date(now, hours=-8)]))
 			for row in r:
 				hrs = 0
 				try:
 					hrs = round(frappe.utils.time_diff_in_hours(now, row[2]), 1)
 				except Exception:
 					hrs = 0
-				rows.append({"label": (row[0] or "—") + " · " + str(row[1]), "detail": str(hrs) + "h inside"})
+				# name lets the app check a stale one out from the list.
+				rows.append({"label": (row[0] or "—") + " · " + str(row[1]), "detail": str(hrs) + "h inside", "name": row[3],
+					"action": "contractor_check_out" if who == CON else "check_out"})
 			return rows
 
 		if tab == "visitors":
@@ -7972,7 +7983,7 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 			extra["farms"] = rep["farms"]
 
 		else:
-			vis_inside = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE a.custom_check_in_time IS NOT NULL AND a.custom_check_out_time IS NULL", ())
+			vis_inside = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE a.custom_check_in_time IS NOT NULL AND a.custom_check_out_time IS NULL AND a.workflow_state = 'Visitor Checked In'", ())
 			veh_inside = scalar("SELECT COUNT(*) FROM `tabTractor Daily Task` tdt JOIN `tabTimesheet` ts ON tdt.timesheet = ts.name WHERE ts.docstatus = 0", ())
 			entries = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE a.custom_check_in_time BETWEEN %s AND %s", (start, end))
 			open_inc = scalar("SELECT COUNT(*) FROM `tabIncident Report` WHERE status = 'Open'", ())

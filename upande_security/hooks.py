@@ -468,6 +468,8 @@ override_whitelisted_methods = {
 	"my_patrol_reports": "upande_security.api.security_api.my_patrol_reports",
 	"createPatrolEntry": "upande_security.api.security_api.createPatrolEntry",
 	"fetchPatrolData": "upande_security.api.security_dashboard.fetchPatrolData",
+	# Command Center: guard performance (the Security Dashboard's ranking).
+	"guard_ranking": "upande_security.api.patrol_ranking.get_guard_ranking",
 	"submit_patrol_points": "upande_security.api.security_api.submit_patrol_points",
 	"file_patrol_report": "upande_security.api.security_api.file_patrol_report",
 	# -- SECTION 7  incidents
