@@ -467,6 +467,14 @@ override_whitelisted_methods = {
 	"fetchPatrolData": "upande_security.api.security_dashboard.fetchPatrolData",
 	# Command Center: guard performance (the Security Dashboard's ranking).
 	"guard_ranking": "upande_security.api.patrol_ranking.get_guard_ranking",
+	# Security messages (guards and supervisors, in the app).
+	"list_conversations": "upande_security.api.messaging.list_conversations",
+	"get_messages": "upande_security.api.messaging.get_messages",
+	"send_message": "upande_security.api.messaging.send_message",
+	"mark_conversation_read": "upande_security.api.messaging.mark_conversation_read",
+	"message_contacts": "upande_security.api.messaging.message_contacts",
+	"message_farm_guards": "upande_security.api.messaging.message_farm_guards",
+	"unread_messages": "upande_security.api.messaging.unread_messages",
 	"submit_patrol_points": "upande_security.api.security_api.submit_patrol_points",
 	"file_patrol_report": "upande_security.api.security_api.file_patrol_report",
 	# -- SECTION 7  incidents
