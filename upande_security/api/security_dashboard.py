@@ -3029,6 +3029,30 @@ def _biometric_attendance(range_rows, windows, now, sources):
     return out
 
 
+def _shift_off_days(range_from, range_to, farm_scope=None):
+    """[{guard, farm, off_date}] - External Guards' days off in the range
+    (Security Guard Off Days), limited to guards based at the farms in
+    farm_scope when given."""
+    params = {"from": range_from, "to": range_to}
+    farm_sql = ""
+    if farm_scope is not None:
+        farm_sql = " AND g.farm IN %(farms)s"
+        params["farms"] = tuple(farm_scope) or ("__no_farm_matches__",)
+    return frappe.db.sql(
+        f"""
+        SELECT d.external_guard AS guard, g.farm AS farm, od.off_date AS off_date
+        FROM `tabSecurity Guard Off Day` od
+        JOIN `tabSecurity Guard Off Days` d ON d.name = od.parent
+        JOIN `tabSecurity Guard` g ON g.name = d.external_guard
+        WHERE od.parenttype = 'Security Guard Off Days'
+          AND od.off_date BETWEEN %(from)s AND %(to)s{farm_sql}
+        ORDER BY od.off_date, g.farm, g.full_name
+        """,
+        params,
+        as_dict=True,
+    )
+
+
 def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=None, company=None):
     doctype = "Security Guard Shift Assignment"
     farm_name_field = _farm_name_field()
@@ -3092,7 +3116,7 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
             "name", "security_guard", "internal_guard", "external_guard",
             "farm", "block", "shift_type", "start_date", "start_time",
             "end_date", "end_time", "status", "checked_in",
-            "assigned_by", "remarks", "modified",
+            "assigned_by", "remarks", "modified", "covering_for",
         ],
         order_by="start_date desc",
         # Unlimited: a 30d range is a few thousand rows on live, and a cap
@@ -3143,6 +3167,9 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
 
     employee_ids = {r["internal_guard"] for r in range_rows + all_rows if r.get("internal_guard")}
     security_guard_ids = {r["external_guard"] for r in range_rows + all_rows if r.get("external_guard")}
+    security_guard_ids |= {r["covering_for"] for r in range_rows if r.get("covering_for")}
+    off_rows = _shift_off_days(range_from, range_to, farm_scope)
+    security_guard_ids |= {o["guard"] for o in off_rows}
 
     employee_names = {
         e.name: e.employee_name
@@ -3203,7 +3230,29 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
             "status": r.get("status"),
             "remarks": r.get("remarks") or "",
             "biometric": attendance.get(r["name"]),
+            # Whether the guard checked in for this shift, and whose day off
+            # it covers - for the mobile Command Center's plan.
+            "checked_in": 1 if r.get("checked_in") else 0,
+            "covering_for": r.get("covering_for") or None,
+            "covering_for_name": security_guard_names.get(r.get("covering_for")) if r.get("covering_for") else None,
         })
+
+    # Guards off in the range, with whoever covers each day.
+    covers = {
+        (r.get("covering_for"), str(frappe.utils.getdate(r["start_date"]))): _shift_guard_name(r, employee_names, security_guard_names)
+        for r in range_rows
+        if r.get("covering_for") and r.get("start_date") and r.get("status") != "Cancelled"
+    }
+    off_days = [
+        {
+            "guard": o["guard"],
+            "guard_name": security_guard_names.get(o["guard"], o["guard"]),
+            "farm": o["farm"],
+            "date": str(o["off_date"]),
+            "covered_by": covers.get((o["guard"], str(o["off_date"]))),
+        }
+        for o in off_rows
+    ]
 
     # Today's coverage board: farm -> {shift_type: guard_name}. Not every farm
     # runs the same shift pattern any more - most are still the original
@@ -3313,8 +3362,11 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
         "success": True,
         "range_from": str(range_from),
         "range_to": str(range_to),
+        "off_days": off_days,
         "summary": {
             "total_assignments": len(rows),
+            "off_count": len(off_days),
+            "off_uncovered": sum(1 for o in off_days if not o["covered_by"]),
             "shift_type_counts": shift_type_counts,
             "shift_type_checked_in": shift_type_checked_in,
             "shift_type_summary": shift_type_summary,
