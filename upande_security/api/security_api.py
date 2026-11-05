@@ -1374,7 +1374,7 @@ def approved_appointments():
 			       a.custom_check_in_time, a.custom_mode_of_transport,
 			       a.custom_vehicles_number_plate, a.custom_vehicles_colour,
 			       a.custom_number_of_passengers,
-			       a.custom_host_received_time,
+			       a.custom_host_received_time, a.custom_temp_exit_time,
 			       a.custom_visitor_type, a.customer_organization,
 			       b.badge_number,
 			       e.employee_name AS host_name
@@ -1433,6 +1433,8 @@ def approved_appointments():
 					"custom_host_received_time": str(r.custom_host_received_time)
 					if r.custom_host_received_time
 					else "",
+					# Set while an inside visitor has stepped out (gate temp exit).
+					"custom_temp_exit_time": str(r.custom_temp_exit_time) if r.custom_temp_exit_time else None,
 					"custom_visitor_type": str(r.custom_visitor_type)
 					if r.custom_visitor_type
 					else "",
