@@ -98,9 +98,38 @@
   {%- endif %}
   </tr></table>
 
+  {#- ── Gate and shift sections (visitors, contractors, staff, vehicles, shifts) ── -#}
+  {%- for g in r.gate_sections or [] %}
+  {{ section(g.title, ACCENT, None) }}
+  {{ kpis(g.kpis) }}
+  {%- for title, pairs in g.breakdown or [] %}
+  <div style="font-size:12px;margin:0 0 10px"><span style="color:{{ MUTED }}">{{ title }}:</span>
+    {% for k, v in pairs %}{{ k | e }} <b>{{ v }}</b>{{ " · " if not loop.last }}{% endfor %}</div>
+  {%- endfor %}
+  {%- for w in g.watch or [] %}
+  <div style="border-left:3px solid {{ RED if w.tone == 'danger' else '#ba7517' }};background:{{ '#FCEBEB' if w.tone == 'danger' else '#FAEEDA' }};border-radius:6px;padding:8px 12px;margin:0 0 10px;page-break-inside:avoid">
+    <div style="font-size:12px;font-weight:700;color:{{ RED if w.tone == 'danger' else '#854F0B' }};margin-bottom:4px">{{ w.title | e }} · {{ w.rows | length }}</div>
+    {%- for row in w.rows %}<div style="font-size:12px">{{ row.label | e }} <span style="color:{{ MUTED }}">— {{ row.detail | e }}</span></div>{% endfor %}
+  </div>
+  {%- endfor %}
+  {%- if not g.tables or (g.tables | sum(attribute="rows", start=[]) | length) == 0 %}
+  <p style="font-size:13px;color:{{ MUTED }}">{{ g.empty }}</p>
+  {%- endif %}
+  {%- for t in g.tables or [] %}{% if t.rows %}
+  <div style="font-size:13px;font-weight:700;margin:12px 0 6px">{{ t.title | e }} · {{ t.rows | length + t.more }}</div>
+  <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%">
+    <thead><tr>{% for label, align in t.columns %}<th style="{{ TH }}text-align:{{ align }}">{{ label }}</th>{% endfor %}</tr></thead>
+    {%- for row in t.rows %}
+    <tr style="page-break-inside:avoid">{% for cell in row %}<td style="{{ TD }}text-align:{{ t.columns[loop.index0][1] }}{{ ';color:' ~ RED if cell in ('inside','still out','Not checked in','Absent','No clock-in','No cover','Rejected','not recorded') else '' }}">{{ cell | e }}</td>{% endfor %}</tr>
+    {%- endfor %}
+  </table>
+  {%- if t.more %}<p style="font-size:11px;color:{{ MUTED }}">…and {{ t.more }} more in Desk.</p>{% endif %}
+  {%- endif %}{% endfor %}
+  {%- endfor %}
+
   {#- ── Patrols ───────────────────────────────────────────── -#}
   {%- if r.ranking %}{% set d = r.ranking %}
-  {{ section("Patrols", ACCENT, "Guard ranking for the period, each farm on its own") }}
+  {{ section("Patrols", ACCENT, "Guard ranking for the period, each farm on its own", new_page=(r.gate_sections or []) | length > 0) }}
   {%- if not d.farms %}
   <p style="font-size:13px;color:{{ MUTED }}">No patrols in this period.</p>
   {%- endif %}
