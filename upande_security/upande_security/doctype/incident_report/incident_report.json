@@ -19,6 +19,7 @@
   "severity",
   "status",
   "section_reporter",
+  "is_anonymous",
   "reported_by",
   "reporter_name",
   "column_break_rep_1",
@@ -183,13 +184,21 @@
    "label": "Reporter"
   },
   {
-   "default": "user",
+   "default": "0",
+   "fieldname": "is_anonymous",
+   "fieldtype": "Check",
+   "label": "Anonymous Report",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "default": "__user",
    "fieldname": "reported_by",
    "fieldtype": "Link",
    "label": "Reported By",
    "options": "User",
    "read_only": 1,
-   "reqd": 1
+   "mandatory_depends_on": "eval:!doc.is_anonymous"
   },
   {
    "fetch_from": "reported_by.full_name",
@@ -690,7 +699,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-11-03 08:05:15.737993",
+ "modified": "2026-11-05 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Incident Report",

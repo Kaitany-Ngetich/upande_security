@@ -5544,26 +5544,25 @@ def list_incidents(from_date=None, to_date=None, limit=None):
 			for idx, value in enumerate(scope_companies):
 				params["c" + str(idx)] = value
 			if scope_companies:
-				conditions.append(
-					"e.company IN ("
-					+ ", ".join("%(c" + str(i) + ")s" for i in range(len(scope_companies)))
-					+ ")"
-				)
+				comp_list = ", ".join("%(c" + str(i) + ")s" for i in range(len(scope_companies)))
+				conditions.append("e.company IN (" + comp_list + ")")
+				# The incident's own farm: reports with no Employee behind
+				# them (external guards, anonymous) are still seen.
+				conditions.append("fm.company IN (" + comp_list + ")")
 			for idx, value in enumerate(scope_farms):
 				params["f" + str(idx)] = value
 			if scope_farms:
-				conditions.append(
-					"e.custom_farm IN ("
-					+ ", ".join("%(f" + str(i) + ")s" for i in range(len(scope_farms)))
-					+ ")"
-				)
+				farm_list = ", ".join("%(f" + str(i) + ")s" for i in range(len(scope_farms)))
+				conditions.append("e.custom_farm IN (" + farm_list + ")")
+				conditions.append("i.farm IN (" + farm_list + ")")
 			where_parts.append("(" + " OR ".join(conditions) + ")" if conditions else "1=0")
 
 		rows = frappe.db.sql(
 			"SELECT i.name, i.incident_datetime, i.location, i.nature_of_incident, i.severity, "
-			"i.description, i.status, i.reported_datetime, i.reported_by "
+			"i.description, i.status, i.reported_datetime, i.reported_by, i.reporter_name, i.is_anonymous "
 			"FROM `tabIncident Report` i "
 			"LEFT JOIN `tabEmployee` e ON e.user_id = i.reported_by "
+			"LEFT JOIN `tabFarm` fm ON fm.name = i.farm "
 			"WHERE " + " AND ".join(where_parts) + " "
 			"ORDER BY i.incident_datetime DESC "
 			"LIMIT %(row_limit)s",
@@ -5581,6 +5580,8 @@ def list_incidents(from_date=None, to_date=None, limit=None):
 				"status": r.status or "",
 				"reported_datetime": str(r.reported_datetime) if r.reported_datetime else "",
 				"reported_by": r.reported_by or "",
+				"reporter_name": "Anonymous" if r.is_anonymous else (r.reporter_name or ""),
+				"is_anonymous": 1 if r.is_anonymous else 0,
 			}
 			for r in rows
 		]
@@ -5683,8 +5684,16 @@ def create_incident(
 	nature_of_injury=None,
 	injury_current_location=None,
 	notify=None,
+	anonymous=None,
 ):
 	"""Create an Incident Report from the mobile app.
+
+	anonymous: true files the report with nobody's name on it. Nothing ties
+	it to the reporter: reported_by stays empty, reporter_name reads
+	"Anonymous", the record is inserted as Administrator (so owner,
+	modified_by and the version history name nobody), and the photos the
+	guard uploaded for it are handed to Administrator too. It is not shown
+	in the guard's own "my incidents". Who filed it cannot be recovered.
 
 	notify: optional list (or JSON list) of Employee IDs the reporter picked to
 	be told - see api/incident_notify.py, which notifies them on save.
@@ -5738,6 +5747,7 @@ def create_incident(
 		user = frappe.session.user
 		full_name = frappe.db.get_value("User", user, "full_name") or user
 		now = frappe.utils.now_datetime()
+		is_anonymous = s(anonymous) in ("1", "true", "True")
 
 		doc = frappe.new_doc("Incident Report")
 		doc.incident_datetime = incident_datetime
@@ -5748,8 +5758,14 @@ def create_incident(
 		doc.nature_of_incident = nature_of_incident
 		doc.severity = severity
 		doc.description = description
-		doc.reported_by = user
-		doc.reporter_name = full_name
+		if is_anonymous:
+			doc.is_anonymous = 1
+			# Clear the field's own default (the current user) as well.
+			doc.reported_by = None
+			doc.reporter_name = "Anonymous"
+		else:
+			doc.reported_by = user
+			doc.reporter_name = full_name
 		doc.reported_datetime = now
 		doc.status = "Open"
 		if attachment_1:
@@ -5793,7 +5809,26 @@ def create_incident(
 			except Exception:
 				doshs_deadline = ""
 
-		doc.insert(ignore_permissions=True)
+		if is_anonymous:
+			# Inserted as Administrator so owner, modified_by and the Version
+			# row name nobody; the photos were uploaded as the guard, so hand
+			# their File records over too.
+			frappe.set_user("Administrator")
+			try:
+				doc.insert(ignore_permissions=True)
+				# insert fills the empty Reported By with its default (now
+				# Administrator) and fetches that name; put it back.
+				frappe.db.set_value("Incident Report", doc.name, {"reported_by": None, "reporter_name": "Anonymous"},
+					update_modified=False)
+				for url in (attachment_1, attachment_2, attachment_3, attachment_4):
+					if url:
+						for f in frappe.get_all("File", filters={"file_url": url}, pluck="name"):
+							frappe.db.set_value("File", f, {"owner": "Administrator", "modified_by": "Administrator"},
+								update_modified=False)
+			finally:
+				frappe.set_user(user)
+		else:
+			doc.insert(ignore_permissions=True)
 		frappe.db.commit()
 		return {
 			"name": doc.name,
@@ -5802,8 +5837,9 @@ def create_incident(
 			"nature_of_incident": nature_of_incident,
 			"severity": severity,
 			"description": description,
-			"reported_by": user,
-			"reporter_name": full_name,
+			"reported_by": "" if is_anonymous else user,
+			"reporter_name": "Anonymous" if is_anonymous else full_name,
+			"is_anonymous": 1 if is_anonymous else 0,
 			"status": "Open",
 			"doshs_deadline": doshs_deadline,
 		}
@@ -5959,6 +5995,8 @@ def get_incident_report(name=None):
 				"reported_by",
 				"reporter_name",
 				"reported_datetime",
+				"farm",
+				"is_anonymous",
 				"activity_at_time_of_injury",
 				"body_part_affected",
 				"nature_of_injury",
@@ -6051,9 +6089,16 @@ def get_incident_report(name=None):
 							if guard.farm:
 								scope_farms.append(guard.farm)
 
+			incident_company = frappe.db.get_value("Farm", r.farm, "company") if r.farm else None
 			if reporter_company and reporter_company in scope_companies:
 				allowed = True
 			elif reporter_farm and reporter_farm in scope_farms:
+				allowed = True
+			# The incident's own farm: reports with no Employee behind them
+			# (external guards, anonymous) are still reachable.
+			elif r.farm and r.farm in scope_farms:
+				allowed = True
+			elif incident_company and incident_company in scope_companies:
 				allowed = True
 
 		if not allowed:
@@ -6079,6 +6124,7 @@ def get_incident_report(name=None):
 			"status": r.status or "",
 			"reported_by": r.reported_by or "",
 			"reporter_name": r.reporter_name or "",
+			"is_anonymous": 1 if r.is_anonymous else 0,
 			"reported_datetime": str(r.reported_datetime) if r.reported_datetime else "",
 			"activity_at_time_of_injury": r.activity_at_time_of_injury or "",
 			"body_part_affected": r.body_part_affected or "",

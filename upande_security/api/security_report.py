@@ -44,7 +44,19 @@ from upande_security.api.security_dashboard import _farms_of_company, hidden_inc
 # needs what viewing it needs.
 SEND_ROLES = ("System Manager", "Security Head", "Security Manager")
 WATCHLIST_ROLES = ("System Manager", "Security Head")
-SECTIONS = ("patrols", "incidents", "watchlist")
+# In the order the report shows them. Each subscription (and each send from
+# the dashboard) picks which go out.
+SECTIONS = ("visitors", "contractors", "staff", "vehicles", "shifts", "patrols", "incidents", "watchlist")
+SECTION_LABELS = {
+	"visitors": "Visitors",
+	"contractors": "Contractors",
+	"staff": "Staff movements",
+	"vehicles": "Vehicles",
+	"shifts": "Shift attendance",
+	"patrols": "Patrols",
+	"incidents": "Incidents",
+	"watchlist": "Watch list",
+}
 EMAIL_RE = re.compile(r"^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$")
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 OPEN_STATUSES = ("Open", "In Progress")
@@ -257,6 +269,228 @@ def _may_see_watchlist(email):
 	return bool(set(WATCHLIST_ROLES) & set(frappe.get_roles(user)))
 
 
+def _fmt_mins(m):
+	m = int(m or 0)
+	return f"{m // 60}h {m % 60:02d}m" if m >= 60 else f"{m}m"
+
+
+def _hhmm(v):
+	return frappe.utils.format_datetime(v, "HH:mm") if v else ""
+
+
+def _in_farms(expr, farms, params):
+	"""SQL fragment limiting `expr` to the report's farms (all when None)."""
+	if farms is None:
+		return ""
+	params["farms"] = tuple(farms) or ("__no_farm__",)
+	return f" AND {expr} IN %(farms)s"
+
+
+def _visits(start, end, farm=None, company=None, contractors=False):
+	"""Visitors (or contractors) checked in during the window at the
+	report's farms: figures, every visit with its times, and overstays."""
+	params = {"start": str(start), "end": str(end)}
+	who = "a.custom_visitor_type = 'Contractor'" if contractors else "COALESCE(a.custom_visitor_type, '') <> 'Contractor'"
+	farm_sql = _in_farms("COALESCE(NULLIF(a.custom_farmunit, ''), a.custom_meet_with_farm)", _scope_farms(farm, company), params)
+	rows = frappe.db.sql(
+		f"""
+		SELECT a.name, a.customer_name, a.customer_organization, a.custom_visitor_type,
+			COALESCE(NULLIF(e.employee_name, ''), a.custom_meet_with) AS host,
+			COALESCE(NULLIF(a.custom_farmunit, ''), a.custom_meet_with_farm) AS farm,
+			a.custom_check_in_time AS time_in, a.custom_check_out_time AS time_out, a.workflow_state
+		FROM `tabAppointment` a LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with
+		WHERE {who}{farm_sql}
+		  AND a.custom_check_in_time >= %(start)s AND a.custom_check_in_time < %(end)s
+		ORDER BY a.custom_check_in_time
+		""",
+		params,
+		as_dict=True,
+	)
+	now = frappe.utils.now_datetime()
+	out_count, mins, overstays = 0, [], []
+	table = []
+	for r in rows:
+		inside = not r.time_out and r.workflow_state == "Visitor Checked In"
+		if r.time_out:
+			out_count += 1
+			mins.append(frappe.utils.time_diff_in_seconds(r.time_out, r.time_in) / 60)
+		stay = frappe.utils.time_diff_in_seconds(r.time_out or now, r.time_in) / 60
+		if inside and stay > 8 * 60:
+			overstays.append({"label": f"{r.customer_name} · {r.host or '—'}", "detail": f"{_fmt_mins(stay)} inside"})
+		table.append([
+			_hhmm(r.time_in),
+			r.customer_name or "",
+			(r.customer_organization or "") if contractors else (r.host or ""),
+			r.farm or "",
+			_hhmm(r.time_out) if r.time_out else ("inside" if inside else "not recorded"),
+			_fmt_mins(stay),
+		])
+	return {
+		"title": SECTION_LABELS["contractors" if contractors else "visitors"],
+		"kpis": [
+			("Checked in", len(rows), None),
+			("Checked out", out_count, None),
+			("Still inside", sum(1 for t in table if t[4] == "inside"), None),
+			("Average visit", _fmt_mins(sum(mins) / len(mins)) if mins else "—", None),
+		],
+		"tables": [{
+			"title": "Contractor visits" if contractors else "Visits",
+			"columns": [("In", "left"), ("Contractor" if contractors else "Visitor", "left"),
+				("Company" if contractors else "Host", "left"), ("Farm", "left"), ("Out", "left"), ("Stay", "right")],
+			"rows": table[:LIST_LIMIT],
+			"more": max(0, len(table) - LIST_LIMIT),
+		}],
+		"watch": [{"title": "Inside more than 8 hours", "tone": "danger", "rows": overstays}] if overstays else [],
+		"empty": "No contractor visits in this period." if contractors else "No visitors in this period.",
+	}
+
+
+def _staff_moves(start, end, farm=None, company=None):
+	"""Gate movements (staff, and drivers or others logged the same way) in
+	the window at the report's farms."""
+	params = {"start": str(start), "end": str(end)}
+	farm_sql = _in_farms("m.farm", _scope_farms(farm, company), params)
+	rows = frappe.db.sql(
+		f"""
+		SELECT m.party_type, COALESCE(NULLIF(m.employee_name, ''), m.employee, m.id_number) AS who,
+			m.farm, m.entry_gate, m.exit_gate, m.vehicle_plate,
+			TIMESTAMP(m.movement_date, m.time_in) AS time_in,
+			IF(m.time_out IS NULL, NULL, TIMESTAMP(m.movement_date, m.time_out)) AS time_out
+		FROM `tabGate Movement` m
+		WHERE m.docstatus < 2{farm_sql}
+		  AND TIMESTAMP(m.movement_date, COALESCE(m.time_in, m.time_out)) >= %(start)s
+		  AND TIMESTAMP(m.movement_date, COALESCE(m.time_in, m.time_out)) < %(end)s
+		ORDER BY time_in
+		""",
+		params,
+		as_dict=True,
+	)
+	by_type = {}
+	for r in rows:
+		by_type[r.party_type or "Other"] = by_type.get(r.party_type or "Other", 0) + 1
+	still_in = [r for r in rows if r.time_in and not r.time_out]
+	return {
+		"title": SECTION_LABELS["staff"],
+		"kpis": [
+			("Movements", len(rows), None),
+			("People", len({r.who for r in rows}), None),
+			("Still inside", len(still_in), None),
+			("With a vehicle", sum(1 for r in rows if r.vehicle_plate), None),
+		],
+		"breakdown": [("By type", sorted(by_type.items(), key=lambda x: -x[1]))],
+		"tables": [{
+			"title": "Movements",
+			"columns": [("In", "left"), ("Who", "left"), ("Type", "left"), ("Farm / gate", "left"), ("Out", "left"), ("Vehicle", "left")],
+			"rows": [[_hhmm(r.time_in), r.who or "", r.party_type or "", " · ".join(x for x in (r.farm, r.entry_gate) if x),
+				_hhmm(r.time_out) or "inside", r.vehicle_plate or ""] for r in rows][:LIST_LIMIT],
+			"more": max(0, len(rows) - LIST_LIMIT),
+		}],
+		"watch": [],
+		"empty": "No staff gate movements in this period.",
+	}
+
+
+def _vehicles(start, end, farm=None, company=None):
+	"""Company vehicles through the gate (Gate Vehicle Verification): exits
+	and returns in the window at the report's farms, rejections, and any
+	still out."""
+	params = {"start": str(start), "end": str(end)}
+	farms = _scope_farms(farm, company)
+	farm_sql = ""
+	if farms is not None:
+		params["farms"] = tuple(farms) or ("__no_farm__",)
+		farm_sql = " AND (v.from_farm IN %(farms)s OR v.to_farm IN %(farms)s)"
+	rows = frappe.db.sql(
+		f"""
+		SELECT v.vehicle_no, v.from_farm, v.to_farm, v.task_description, v.gate_exit_time, v.gate_exit_status,
+			v.gate_entry_time, v.gate_entry_status, v.exit_gate, v.entry_gate
+		FROM `tabGate Vehicle Verification` v
+		WHERE ((v.gate_exit_time >= %(start)s AND v.gate_exit_time < %(end)s)
+		    OR (v.gate_entry_time >= %(start)s AND v.gate_entry_time < %(end)s)){farm_sql}
+		ORDER BY COALESCE(v.gate_exit_time, v.gate_entry_time)
+		""",
+		params,
+		as_dict=True,
+	)
+	rejected = [r for r in rows if r.gate_exit_status == "Rejected" or r.gate_entry_status == "Rejected"]
+	out_now = [r for r in rows if r.gate_exit_time and r.gate_exit_status == "Verified" and not r.gate_entry_time]
+	return {
+		"title": SECTION_LABELS["vehicles"],
+		"kpis": [
+			("Exits", sum(1 for r in rows if r.gate_exit_time), None),
+			("Returns", sum(1 for r in rows if r.gate_entry_time), None),
+			("Still out", len(out_now), "#ba7517" if out_now else None),
+			("Rejected", len(rejected), "#a32d2d" if rejected else None),
+		],
+		"tables": [{
+			"title": "Vehicle movements",
+			"columns": [("Vehicle", "left"), ("Task", "left"), ("Out", "left"), ("Back", "left"), ("Status", "left")],
+			"rows": [[r.vehicle_no or "", (r.task_description or "")[:60], _hhmm(r.gate_exit_time), _hhmm(r.gate_entry_time) or ("still out" if r.gate_exit_time else ""),
+				"Rejected" if r in rejected else "Verified"] for r in rows][:LIST_LIMIT],
+			"more": max(0, len(rows) - LIST_LIMIT),
+		}],
+		"watch": [{"title": "Rejected at the gate", "tone": "danger",
+			"rows": [{"label": r.vehicle_no or "", "detail": (r.task_description or "")[:80]} for r in rejected]}] if rejected else [],
+		"empty": "No company vehicles through the gate in this period.",
+	}
+
+
+def _shift_attendance(first, last, farm=None, company=None):
+	"""Who was on duty: shifts starting in the security days first to last,
+	checked in (HR biometric where the guard punches one, else the app's
+	shift check-in), late, not in, and who was off without cover."""
+	from upande_security.api.security_dashboard import _fetch_shifts_tab
+
+	data = _fetch_shifts_tab(first, last, farm=farm, company=company)
+	rows = [r for r in data.get("rows") or [] if r.get("status") != "Cancelled"]
+	now = frappe.utils.now_datetime()
+
+	def state(r):
+		bio = r.get("biometric") or {}
+		res = bio.get("result")
+		if res in ("On time", "Late", "Absent", "No clock-in"):
+			return res
+		if r.get("checked_in"):
+			return "Checked in"
+		start = frappe.utils.get_datetime(r["start_date"]) if r.get("start_date") else None
+		return "Not checked in" if start and start <= now else "Upcoming"
+
+	states = [(r, state(r)) for r in rows]
+	present = [x for x in states if x[1] in ("On time", "Late", "Checked in")]
+	missing = [x for x in states if x[1] in ("Absent", "No clock-in", "Not checked in")]
+	late = [x for x in states if x[1] == "Late"]
+	off = data.get("off_days") or []
+	uncovered = [o for o in off if not o.get("covered_by")]
+
+	def row_of(r, st):
+		bio = r.get("biometric") or {}
+		return [r.get("guard_name") or "", r.get("farm") or "", r.get("shift_type") or "",
+			_hhmm(r.get("start_date")) + "-" + _hhmm(r.get("end_date")),
+			st + (f" {bio.get('late_min')}m" if st == "Late" and bio.get("late_min") else "")]
+
+	cols = [("Guard", "left"), ("Farm", "left"), ("Shift", "left"), ("Time", "left"), ("Status", "left")]
+	tables = []
+	if missing:
+		tables.append({"title": "Not checked in", "columns": cols, "rows": [row_of(r, st) for r, st in missing], "more": 0})
+	if late:
+		tables.append({"title": "Late", "columns": cols, "rows": [row_of(r, st) for r, st in late], "more": 0})
+	if off:
+		tables.append({"title": "Off", "columns": [("Date", "left"), ("Guard", "left"), ("Farm", "left"), ("Cover", "left")],
+			"rows": [[o["date"], o["guard_name"], o.get("farm") or "", o.get("covered_by") or "No cover"] for o in off], "more": 0})
+	return {
+		"title": SECTION_LABELS["shifts"],
+		"kpis": [
+			("Shifts", len(rows), None),
+			("Checked in", len(present), "#3b6d11"),
+			("Not checked in", len(missing), "#a32d2d" if missing else None),
+			("Off · no cover", f"{len(off)} · {len(uncovered)}", "#a32d2d" if uncovered else None),
+		],
+		"tables": tables,
+		"watch": [],
+		"empty": "No shifts in this period.",
+	}
+
+
 def build_report(first, last, farm=None, company=None, sections=SECTIONS):
 	"""Everything the report shows for the security days first to last
 	(each running from the day start, 06:00 unless changed, to the same time
@@ -266,6 +500,20 @@ def build_report(first, last, farm=None, company=None, sections=SECTIONS):
 	report = {"from_date": str(first), "to_date": str(last), "start": str(start), "end": str(end),
 		"period_text": window_label(start, end), "scope": _scope_label(farm, company),
 		"sections": sections, "brand": _brand(farm, company), "farm": farm, "company": company}
+	# The gate and shift sections share one shape (figures, tables, watch
+	# lists) and one template block.
+	gate = []
+	if "visitors" in sections:
+		gate.append(_visits(start, end, farm, company))
+	if "contractors" in sections:
+		gate.append(_visits(start, end, farm, company, contractors=True))
+	if "staff" in sections:
+		gate.append(_staff_moves(start, end, farm, company))
+	if "vehicles" in sections:
+		gate.append(_vehicles(start, end, farm, company))
+	if "shifts" in sections:
+		gate.append(_shift_attendance(first, last, farm, company))
+	report["gate_sections"] = gate
 	if "patrols" in sections:
 		report["ranking"] = _ranking("custom", str(first), str(last), farm, company)
 	if "incidents" in sections:
@@ -644,8 +892,7 @@ def _due_period(row, today):
 
 
 def _row_sections(row):
-	return tuple(s for s, f in (("patrols", "include_patrols"), ("incidents", "include_incidents"),
-		("watchlist", "include_watchlist")) if row.get(f))
+	return tuple(sec for sec in SECTIONS if row.get("include_" + sec))
 
 
 def _group_rows(rows):
@@ -674,25 +921,38 @@ def _send_group(first, last, farm, company, sections, members, note):
 	deliver(_clean_emails([m.email for m in members]), report, note)
 
 
+DEFAULT_SEND_AT = datetime.time(7, 0)
+
+
+def _send_at(row):
+	try:
+		return frappe.utils.get_time(row.send_at) if row.send_at else DEFAULT_SEND_AT
+	except Exception:
+		return DEFAULT_SEND_AT
+
+
 def send_scheduled_reports():
-	"""Hourly (hooks cron), acting once the security day that just ended is
-	an hour old (07:00 with the default 06:00 start): email each due
-	subscription. Rows asking for the same report share one build and one
-	email per audience; last_sent_on keeps a re-run on the same day from
-	sending twice."""
+	"""Every 15 minutes (hooks cron): email each subscription whose Send At
+	time has passed today and that has not gone out today. Daily covers the
+	last finished security day; weekly and monthly the last finished week or
+	month. Rows asking for the same report share one build and one email per
+	audience; last_sent_on keeps it to once a day."""
 	now = frappe.utils.now_datetime()
 	today = now.date()
-	if now < datetime.datetime.combine(today, day_start()) + datetime.timedelta(hours=1):
-		return
+	# The security day it is now: a Send At before the day start (05:00)
+	# reports on the day before the one still running.
+	sec_today = security_today(now)
 	settings = frappe.get_single("Security Ops Settings")
 	rows = [r for r in (settings.get("security_report_subscriptions") or []) if r.enabled and r.email]
 	due_rows = {}
 	for r in rows:
 		if r.last_sent_on and frappe.utils.getdate(r.last_sent_on) == today:
 			continue
+		if now.time() < _send_at(r):
+			continue
 		if not _still_allowed(r):
 			continue
-		due = _due_period(r, today)
+		due = _due_period(r, sec_today)
 		if due:
 			due_rows.setdefault(due, []).append(r)
 	for due, members_due in due_rows.items():
