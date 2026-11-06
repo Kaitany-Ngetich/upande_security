@@ -7499,17 +7499,20 @@ def submit_staff_sticker_request(
 def daily_summary(date=None):
 	"""Gate-guard 'Summary' tab: one day's appointments plus check-in/out counts.
 
-	Read-only. `date` is YYYY-MM-DD and defaults to today. The day is selected
-	on Appointment.scheduled_time, NOT on check-in time, so a visitor who was
-	scheduled yesterday but checked in today is not counted here.
+	Read-only. `date` is YYYY-MM-DD and defaults to today. A visit belongs to
+	the day when it was scheduled that day OR checked in or out that day, and
+	everyone still inside is listed whatever day they were booked for - so a
+	visitor booked for another date who came through the gate today counts.
+	total_checked_in / total_checked_out count gate movements that happened
+	on the day (by check-in / check-out time), not visits scheduled for it.
 
 	Access scoping is visit_scope: System Manager everything, Security Head
 	their User Permission companies/farms, a guard only the farm they are at
 	(GPS at sign-in, else roster, else their record) - never "everything" when
 	nothing resolves. A visit's farm is its gate farm, else its host's farm.
 
-	still_inside = checked in but not checked out, within the day's rows only
-	(and the 200-row LIMIT), so it is a day-view figure, not a live headcount.
+	still_inside = checked in (workflow "Visitor Checked In") and not checked
+	out, across all dates: the live headcount, not just today's bookings.
 	"""
 	try:
 		date_str = ""
@@ -7541,14 +7544,21 @@ def daily_summary(date=None):
 				   a.customer_details
 			FROM `tabAppointment` a
 			LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with
-			WHERE a.scheduled_time BETWEEN %s AND %s
+			WHERE (
+				a.scheduled_time BETWEEN %s AND %s
+				OR a.custom_check_in_time BETWEEN %s AND %s
+				OR a.custom_check_out_time BETWEEN %s AND %s
+				OR (a.workflow_state = 'Visitor Checked In'
+					AND a.custom_check_in_time IS NOT NULL
+					AND a.custom_check_out_time IS NULL)
+			)
 			"""
 			+ scope_sql
 			+ """
 			ORDER BY a.custom_check_in_time DESC, a.scheduled_time DESC
-			LIMIT 200
+			LIMIT 300
 			""",
-			[start, end] + scope_params,
+			[start, end, start, end, start, end] + scope_params,
 			as_dict=True,
 		)
 
@@ -7582,14 +7592,19 @@ def daily_summary(date=None):
 		checked_out = 0
 		still_inside = []
 		for a in all_records:
-			if a["custom_check_in_time"]:
+			# Counted on the day the gate movement happened.
+			if start <= a["custom_check_in_time"][:19] <= end:
 				checked_in = checked_in + 1
-				# Inside means the workflow says so too: a visit checked out
-				# through the workflow without a check-out time is not here.
-				if not a["custom_check_out_time"] and a["workflow_state"] == "Visitor Checked In":
-					still_inside.append(a)
-			if a["custom_check_out_time"]:
+			if start <= a["custom_check_out_time"][:19] <= end:
 				checked_out = checked_out + 1
+			# Inside means the workflow says so too: a visit checked out
+			# through the workflow without a check-out time is not here.
+			if (
+				a["custom_check_in_time"]
+				and not a["custom_check_out_time"]
+				and a["workflow_state"] == "Visitor Checked In"
+			):
+				still_inside.append(a)
 
 		return {
 			"date": date_str,
