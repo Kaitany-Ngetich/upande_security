@@ -5457,11 +5457,10 @@ def list_incident_categories():
 def list_incidents(from_date=None, to_date=None, limit=None):
 	"""Incident Reports for the dashboard, optionally within a date range.
 
-	Scoping is indirect: Incident Report carries no company or farm field,
-	so the scope is inferred from whoever reported it, by joining Employee
-	on user_id = reported_by. System Manager sees everything; a Security
-	Head sees what their User Permissions grant; anyone else sees their own
-	company/farm.
+	System Manager sees everything; a Security Head sees what their User
+	Permissions grant (by the reporter's company/farm or the incident's
+	farm); anyone else - guards included - sees only the incidents they
+	reported themselves.
 
 	A caller with no resolvable company or farm gets `1=0` - nothing -
 	rather than falling through to every incident on the instance.
@@ -5489,7 +5488,7 @@ def list_incidents(from_date=None, to_date=None, limit=None):
 		roles = [row[0] for row in role_rows if row and row[0]]
 
 		is_system_manager = "System Manager" in roles
-		is_security_head = "Security Head" in roles
+		is_security_head = "Security Head" in roles or "Security Manager" in roles
 
 		scope_companies = []
 		scope_farms = []
@@ -5537,7 +5536,14 @@ def list_incidents(from_date=None, to_date=None, limit=None):
 			where_parts.append("DATE(i.incident_datetime) <= %(to_date)s")
 			params["to_date"] = to_date
 
-		if not is_system_manager:
+		if not is_system_manager and not is_security_head:
+			# Guards and other staff see only what they reported themselves;
+			# other people's incidents (and their reporters) stay with the
+			# Security Heads. Anonymous reports carry no reporter, so they
+			# are not listed back to anyone but the heads.
+			where_parts.append("i.reported_by = %(me)s")
+			params["me"] = current_user
+		elif not is_system_manager:
 			# Placeholders are generated, values are still bound - the IN
 			# list length varies, the content never reaches the SQL text.
 			conditions = []
@@ -5963,8 +5969,8 @@ def get_incident_report(name=None):
 
 	Hierarchy mirrors list_incidents: System Manager sees everything; the
 	reporter always sees their own; a Security Head is scoped to their own User
-	Permission grants; anyone else only their own company/farm. Unlike Patrol
-	Report, Incident Report has no farm/company column, so the company/farm of
+	Permission grants; anyone else only what they reported themselves. Unlike Patrol
+	Report, the company/farm of
 	the incident is INFERRED from the reporter's Employee row (company,
 	custom_farm). A reporter with no Employee record therefore yields no
 	company/farm and only owner/System Manager access applies.
@@ -6043,11 +6049,11 @@ def get_incident_report(name=None):
 				roles.append(row[0])
 
 		is_system_manager = "System Manager" in roles
-		is_security_head = "Security Head" in roles
+		is_security_head = "Security Head" in roles or "Security Manager" in roles
 
 		allowed = is_system_manager or r.reported_by == current_user
 
-		if not allowed:
+		if not allowed and is_security_head:
 			reporter_employee = frappe.db.get_value(
 				"Employee", {"user_id": r.reported_by}, ["company", "custom_farm"], as_dict=True
 			)
@@ -6174,8 +6180,8 @@ def update_workplace_injury(name=None):
 	`name` is a named parameter.
 
 	Writes with frappe.db.set_value: NO validate(), no on_update hooks, no
-	workflow, and no permission check -- any authenticated caller can update any
-	Workplace Injury incident (preserved from the original). Closing the case
+	workflow; only System Manager, Security Head and Security Manager may call
+	it. Closing the case
 	(injury_case_status == "Closed") also sets the parent status to "Resolved"
 	so the general incident list reflects it.
 
@@ -6190,6 +6196,9 @@ def update_workplace_injury(name=None):
 		data = frappe.local.form_dict
 
 		name = str(name or "").strip()
+
+		if not _can_read_all_incidents():
+			return {"error": "You do not have access to this action."}
 
 		if not name:
 			return {"error": "name is required"}
@@ -7733,6 +7742,15 @@ def gate_activity():
 	except Exception as e:
 		frappe.log_error("gate_activity", str(e))
 		return {"error": str(e)}
+INCIDENT_READER_ROLES = ("System Manager", "Security Head", "Security Manager")
+
+
+def _can_read_all_incidents(user=None):
+	"""True for the roles that may see other people's incident reports."""
+	roles = set(frappe.get_roles(user or frappe.session.user))
+	return bool(roles & set(INCIDENT_READER_ROLES))
+
+
 @frappe.whitelist()
 def security_report(tab=None, from_date=None, to_date=None, farm=None, location=None):
 	"""Command Center / dashboard report, one payload shape for seven tabs.
@@ -7780,6 +7798,10 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 			return str(v).strip()
 
 		tab = s(tab) or "overview"
+		if tab == "incidents" and not _can_read_all_incidents():
+			# The incidents tab lists descriptions and reporters; it is for
+			# the Security Heads, not every signed-in user.
+			frappe.throw("Only Security Heads can view the incident report.", frappe.PermissionError)
 		fromd = s(from_date) or str(frappe.utils.nowdate())
 		tod = s(to_date) or str(frappe.utils.nowdate())
 		farm = s(farm)
