@@ -376,3 +376,28 @@ def get_playback_extent(farm=None):
 		"last_at": str(r.get("last_at")) if r.get("last_at") else None,
 		"points": r.get("points") or 0,
 	}
+
+
+@frappe.whitelist()
+def get_farm_boundary_shapes(farm=None):
+	"""Each farm's boundary as a GeoJSON geometry, for the gate app's patrol
+	map. The web map fetches the boundary file itself; the app cannot reach
+	a private file, so the shape comes back here, simplified to about a metre
+	so it stays light on a phone's data. Only farms the user may read."""
+	from shapely.geometry import mapping
+
+	from upande_security.api.patrol_coverage import _load_farm_polygon
+
+	if not frappe.has_permission("Farm", ptype="read"):
+		frappe.throw(_("You do not have permission to view Farms."), frappe.PermissionError)
+	farms = [farm] if farm else frappe.get_list("Farm", pluck="name", order_by="name asc", limit_page_length=0)
+	out = []
+	for f in farms:
+		try:
+			poly = _load_farm_polygon(f)
+		except Exception:
+			poly = None
+		if poly is None or poly.is_empty:
+			continue
+		out.append({"farm": f, "geometry": mapping(poly.simplify(0.00001, preserve_topology=True))})
+	return out
