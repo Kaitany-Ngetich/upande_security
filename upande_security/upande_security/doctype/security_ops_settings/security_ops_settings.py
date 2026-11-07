@@ -32,6 +32,10 @@ class SecurityOpsSettings(Document):
 		from upande_security.api.security_report import covers, default_scope
 
 		for row in self.get("security_report_subscriptions") or []:
+			# Day / Night halves are a daily report's; weekly and monthly
+			# reports always cover whole days.
+			if row.frequency != "Daily" or not row.covers:
+				row.covers = "Full day"
 			if row.user and not row.email:
 				row.email = frappe.db.get_value("User", row.user, "email")
 			user = row.user or frappe.db.get_value("User", {"email": row.email, "enabled": 1}, "name")

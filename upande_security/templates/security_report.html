@@ -209,9 +209,33 @@
   </p>
   {%- endif %}
 
+  {#- ── Patrol coverage maps: the pictures go in the PDF only (mail clients block inline images) ── -#}
+  {%- if r.coverage_maps %}{% set cw, chh = r.coverage_cell or (50, 50) %}
+  {{ section("Patrol coverage maps", ACCENT, "Each farm's " ~ cw ~ " × " ~ chh ~ " m squares: green where a guard patrolled during the period, red where nobody did", new_page=(r.ranking is not none or (r.gate_sections or []) | length > 0)) }}
+  {%- for m in r.coverage_maps %}
+  <div style="margin:0 0 18px;page-break-inside:avoid">
+    <div style="font-size:14px;font-weight:700">{{ m.farm | e }}</div>
+    {%- if m.error %}
+    <div style="font-size:12px;color:{{ MUTED }};margin-top:2px">{{ m.error | e }}</div>
+    {%- else %}
+    <div style="font-size:12px;color:{{ MUTED }};margin:2px 0 8px">
+      <b style="color:{{ GREEN }}">{{ ha(m.covered_ha) }}</b> of {{ ha(m.area_ha) }} patrolled ({{ "%.1f" | format(m.coverage_pct or 0) }}%)
+      &nbsp;·&nbsp;<span style="color:{{ RED }}">{{ ha((m.area_ha or 0) - (m.covered_ha or 0)) }} not patrolled</span>
+    </div>
+    {%- if for_pdf and m.image %}
+    <img src="{{ m.image }}" style="width:100%;max-height:215mm;border:1px solid {{ LINE }};border-radius:8px">
+    {%- endif %}
+    {%- endif %}
+  </div>
+  {%- endfor %}
+  {%- if not for_pdf %}
+  <p style="font-size:12px;color:{{ MUTED }}">The map of each farm is in the attached PDF.</p>
+  {%- endif %}
+  {%- endif %}
+
   {#- ── Incidents ─────────────────────────────────────────── -#}
   {%- if r.incidents %}{% set inc = r.incidents %}
-  {{ section("Incidents", ACCENT, ("Not included: " ~ inc.hidden | join(", ")) if inc.hidden else None, new_page=r.ranking is not none) }}
+  {{ section("Incidents", ACCENT, ("Not included: " ~ inc.hidden | join(", ")) if inc.hidden else None, new_page=(r.ranking is not none or r.coverage_maps)) }}
   {%- if not inc.total %}
   <p style="font-size:13px;color:{{ MUTED }}">No incidents in this period.</p>
   {%- else %}
@@ -272,7 +296,7 @@
 
   {#- ── Watch list (Security Heads only) ──────────────────── -#}
   {%- if with_watchlist and r.watchlist %}{% set wl = r.watchlist %}
-  {{ section("Watch list", "#7f1d1d", "People under investigation and every gate transaction they made", new_page=(r.ranking is not none or r.incidents is not none)) }}
+  {{ section("Watch list", "#7f1d1d", "People under investigation and every gate transaction they made", new_page=(r.ranking is not none or r.incidents is not none or r.coverage_maps)) }}
   <div style="background:#FCEBEB;color:{{ RED }};border-radius:8px;padding:8px 12px;font-size:11px;font-weight:600;margin-bottom:10px">
     CONFIDENTIAL — for Security Heads only. Do not forward or print for guards.
   </div>

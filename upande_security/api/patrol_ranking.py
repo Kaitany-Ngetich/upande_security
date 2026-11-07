@@ -214,12 +214,18 @@ def _window_stats(ctx, start, end, in_scope):
 
 
 @frappe.whitelist()
-def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=None, company=None, half="all"):
+def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=None, company=None, half="all",
+		with_cells=False):
 	"""Per-guard patrol metrics and ranking for a period, per farm.
 
 	`farm` narrows to one farm; otherwise `company`'s farms, otherwise every
 	farm the user may read. Guards are ranked within each farm. `half`
-	ranks only the day or the night half of each security day."""
+	ranks only the day or the night half of each security day.
+
+	with_cells (server-side only, e.g. the report's coverage maps) adds
+	covered_cells: {farm: [cell keys any guard patrolled]} for every farm in
+	scope with a usable boundary - the squares behind each farm's covered
+	area, empty when nobody patrolled it."""
 	if not frappe.has_permission("Patrol GPS Log", ptype="read"):
 		frappe.throw(_("You do not have permission to view Patrol GPS Logs."), frappe.PermissionError)
 
@@ -311,6 +317,17 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 			"valid_scans": sum(r["valid_scans"] for r in ranked),
 		})
 
+	covered_cells = None
+	if with_cells is True:
+		covered_cells = {}
+		for geo in geos:
+			if geo["farm"] in in_scope and geo["grid"]:
+				cells = set()
+				for (ff, _gid), st in stats.items():
+					if ff == geo["farm"]:
+						cells |= st["cells"]
+				covered_cells[geo["farm"]] = sorted(cells)
+
 	names = _guard_names([(r["kind"], r["guard"]) for r in rows])
 	for r in rows:
 		r["name"] = names.get(r["guard"]) or r["guard"]
@@ -342,6 +359,7 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 		"unscored_incident_types": list(UNSCORED_INCIDENT_TYPES),
 		"farms": farm_info,
 		"rows": rows,
+		**({"covered_cells": covered_cells} if covered_cells is not None else {}),
 	}
 
 
