@@ -63,6 +63,9 @@ SECTION_LABELS = {
 # half (day start to +12 h, +12 h to the next day start - 06:00-18:00 and
 # 18:00-06:00 by default). Halves are for daily reports only.
 HALF_OF_COVERS = {"Day": "day", "Night": "night"}
+# Covers "Day and night": two reports a day to the same people - the day
+# half at Send At, the night half at Night Report At, each sent once a day.
+BOTH_HALVES = "Day and night"
 EMAIL_RE = re.compile(r"^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$")
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 OPEN_STATUSES = ("Open", "In Progress")
@@ -1028,7 +1031,21 @@ def _row_half(row):
 	return "all"
 
 
-def _due_period(row, today, now=None):
+def _row_jobs(row):
+	"""The reports one subscription row sends: [{row, half, send_at,
+	last_field}] - one, or two for a daily Day and night row (day half at
+	Send At, night half at Night Report At), each with its own once-a-day
+	marker."""
+	if row.get("frequency") == "Daily" and row.get("covers") == BOTH_HALVES:
+		return [
+			frappe._dict(row=row, half="day", send_at=_time_or(row.send_at, DAY_REPORT_AT), last_field="last_sent_on"),
+			frappe._dict(row=row, half="night", send_at=_time_or(row.get("night_send_at"), NIGHT_REPORT_AT),
+				last_field="last_night_sent_on"),
+		]
+	return [frappe._dict(row=row, half=_row_half(row), send_at=_send_at(row), last_field="last_sent_on")]
+
+
+def _due_period(row, today, now=None, half=None):
 	"""(first, last) when this subscription is due today, else None.
 	Daily: yesterday; Weekly: last week, on the chosen weekday; Monthly:
 	last month, on the 1st. A daily Day row: the latest day half that has
@@ -1036,7 +1053,7 @@ def _due_period(row, today, now=None):
 	a daily Night row: the night that ended at this morning's day start."""
 	if row.frequency == "Daily":
 		y = frappe.utils.add_days(today, -1)
-		if _row_half(row) == "day":
+		if (half or _row_half(row)) == "day":
 			now = now or frappe.utils.now_datetime()
 			day_end = datetime.datetime.combine(today, day_start()) + datetime.timedelta(hours=12)
 			return (today, today) if now >= day_end else (y, y)
@@ -1058,16 +1075,17 @@ def _row_sections(row):
 	return tuple(sec for sec in SECTIONS if row.get("include_" + sec))
 
 
-def _group_rows(rows):
-	"""{(farm, company, sections, half, doctypes): rows} - rows asking for
-	the same report share one build."""
+def _group_rows(jobs):
+	"""{(farm, company, sections, half, doctypes): jobs} - jobs (see
+	_row_jobs) asking for the same report share one build."""
 	groups = {}
-	for r in rows:
+	for j in jobs:
+		r = j.row
 		sections = _row_sections(r)
 		doctypes = tuple(parse_doctypes(r.get("doctypes")))
 		if sections or doctypes:
-			key = (r.farm or "", "" if r.farm else (r.company or ""), sections, _row_half(r), doctypes)
-			groups.setdefault(key, []).append(r)
+			key = (r.farm or "", "" if r.farm else (r.company or ""), sections, j.half, doctypes)
+			groups.setdefault(key, []).append(j)
 	return groups
 
 
@@ -1083,17 +1101,23 @@ def _still_allowed(r):
 
 def _send_group(first, last, farm, company, sections, members, note, half="all", doctypes=()):
 	report = build_report(first, last, farm or None, company or None, sections, half, doctypes)
-	deliver(_clean_emails([m.email for m in members]), report, note)
+	deliver(_clean_emails([m.row.email for m in members]), report, note)
 
 
 DEFAULT_SEND_AT = datetime.time(7, 0)
+DAY_REPORT_AT = datetime.time(18, 0)
+NIGHT_REPORT_AT = datetime.time(6, 0)
+
+
+def _time_or(value, default):
+	try:
+		return frappe.utils.get_time(value) if value else default
+	except Exception:
+		return default
 
 
 def _send_at(row):
-	try:
-		return frappe.utils.get_time(row.send_at) if row.send_at else DEFAULT_SEND_AT
-	except Exception:
-		return DEFAULT_SEND_AT
+	return _time_or(row.send_at, DEFAULT_SEND_AT)
 
 
 def send_scheduled_reports():
@@ -1111,25 +1135,27 @@ def send_scheduled_reports():
 	rows = [r for r in (settings.get("security_report_subscriptions") or []) if r.enabled and r.email]
 	due_rows = {}
 	for r in rows:
-		if r.last_sent_on and frappe.utils.getdate(r.last_sent_on) == today:
-			continue
-		if now.time() < _send_at(r):
-			continue
 		if not _still_allowed(r):
 			continue
-		due = _due_period(r, sec_today, now)
-		if due:
-			due_rows.setdefault(due, []).append(r)
+		for j in _row_jobs(r):
+			last = r.get(j.last_field)
+			if last and frappe.utils.getdate(last) == today:
+				continue
+			if now.time() < j.send_at:
+				continue
+			due = _due_period(r, sec_today, now, j.half)
+			if due:
+				due_rows.setdefault(due, []).append(j)
 	for due, members_due in due_rows.items():
 		first, last = due
 		for (farm, company, sections, half, doctypes), members in _group_rows(members_due).items():
 			try:
-				freq = {m.frequency.lower() for m in members}
+				freq = {m.row.frequency.lower() for m in members}
 				kind = {"day": " day", "night": " night"}.get(half, "")
 				_send_group(first, last, farm, company, sections, members,
 					f"Your {' / '.join(sorted(freq))}{kind} security report.", half, doctypes)
 				for m in members:
-					frappe.db.set_value("Security Report Subscription", m.name, "last_sent_on", today,
+					frappe.db.set_value("Security Report Subscription", m.row.name, m.last_field, today,
 						update_modified=False)
 				frappe.db.commit()
 			except Exception:
@@ -1157,7 +1183,8 @@ def _send_to_subscribers(day):
 	settings = frappe.get_single("Security Ops Settings")
 	rows = [r for r in (settings.get("security_report_subscriptions") or [])
 		if r.enabled and r.email and _still_allowed(r)]
-	for (farm, company, sections, half, doctypes), members in _group_rows(rows).items():
+	jobs = [j for r in rows for j in _row_jobs(r)]
+	for (farm, company, sections, half, doctypes), members in _group_rows(jobs).items():
 		try:
 			_send_group(day, day, farm, company, sections, members, "Your security report.", half, doctypes)
 			frappe.db.commit()

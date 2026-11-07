@@ -36,6 +36,8 @@ class SecurityOpsSettings(Document):
 			# reports always cover whole days.
 			if row.frequency != "Daily" or not row.covers:
 				row.covers = "Full day"
+			if row.covers == "Day and night" and not row.night_send_at:
+				row.night_send_at = "06:00:00"
 			if row.user and not row.email:
 				row.email = frappe.db.get_value("User", row.user, "email")
 			user = row.user or frappe.db.get_value("User", {"email": row.email, "enabled": 1}, "name")
