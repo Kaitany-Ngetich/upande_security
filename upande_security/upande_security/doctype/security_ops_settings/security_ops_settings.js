@@ -169,3 +169,50 @@ function gridFieldFor(cdt) {
 		},
 	});
 });
+
+// Security Reports: "Choose records to include" ticks the doctypes whose
+// records each person's report lists, one section per doctype.
+frappe.ui.form.on("Security Report Subscription", {
+	choose_doctypes(frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		const picked = new Set(
+			(row.doctypes || "")
+				.split(/[\n,]+/)
+				.map((s) => s.trim())
+				.filter(Boolean)
+		);
+		frappe
+			.call("upande_security.api.security_report.report_doctype_options")
+			.then((r) => {
+				const options = (r.message || []).map((o) => ({
+					label: __(o.doctype),
+					value: o.doctype,
+					checked: picked.has(o.doctype),
+					description: o.module,
+				}));
+				if (!options.length) {
+					frappe.msgprint(__("No doctypes are available to add."));
+					return;
+				}
+				const d = new frappe.ui.Dialog({
+					title: __("Records to include for {0}", [row.email || row.user || __("this person")]),
+					size: "large",
+					fields: [
+						{
+							fieldtype: "HTML",
+							options: `<p class="text-muted small">${__(
+								"Each ticked doctype becomes a section of the report, listing its records created in the report's period for this row's company or farm."
+							)}</p>`,
+						},
+						{ fieldname: "doctypes", fieldtype: "MultiCheck", columns: 2, options },
+					],
+					primary_action_label: __("Use these"),
+					primary_action(values) {
+						frappe.model.set_value(cdt, cdn, "doctypes", (values.doctypes || []).join("\n"));
+						d.hide();
+					},
+				});
+				d.show();
+			});
+	},
+});

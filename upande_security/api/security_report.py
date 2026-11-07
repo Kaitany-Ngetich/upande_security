@@ -32,6 +32,7 @@ from frappe import _
 
 from upande_security.api.patrol_ranking import (
 	day_start,
+	half_windows,
 	get_guard_ranking,
 	resolve_period,
 	resolve_window,
@@ -46,7 +47,7 @@ SEND_ROLES = ("System Manager", "Security Head", "Security Manager")
 WATCHLIST_ROLES = ("System Manager", "Security Head")
 # In the order the report shows them. Each subscription (and each send from
 # the dashboard) picks which go out.
-SECTIONS = ("visitors", "contractors", "staff", "vehicles", "shifts", "patrols", "incidents", "watchlist")
+SECTIONS = ("visitors", "contractors", "staff", "vehicles", "shifts", "patrols", "coverage", "incidents", "watchlist")
 SECTION_LABELS = {
 	"visitors": "Visitors",
 	"contractors": "Contractors",
@@ -54,9 +55,17 @@ SECTION_LABELS = {
 	"vehicles": "Vehicles",
 	"shifts": "Shift attendance",
 	"patrols": "Patrols",
+	"coverage": "Patrol coverage maps",
 	"incidents": "Incidents",
 	"watchlist": "Watch list",
 }
+# A subscription row's Covers: the whole security day, or its day or night
+# half (day start to +12 h, +12 h to the next day start - 06:00-18:00 and
+# 18:00-06:00 by default). Halves are for daily reports only.
+HALF_OF_COVERS = {"Day": "day", "Night": "night"}
+# Covers "Day and night": two reports a day to the same people - the day
+# half at Send At, the night half at Night Report At, each sent once a day.
+BOTH_HALVES = "Day and night"
 EMAIL_RE = re.compile(r"^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$")
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 OPEN_STATUSES = ("Open", "In Progress")
@@ -64,6 +73,16 @@ SEVERITY_ORDER = ("Critical", "High", "Medium", "Low")
 # The most incidents / watch list transactions listed in one email; the
 # summary counts always cover all of them.
 LIST_LIMIT = 300
+# Doctypes a subscription cannot pick as "other records": raw or private
+# data (GPS fixes, device tokens, people's messages), and the covert watch
+# list, which has its own section that only Security Heads receive.
+EXCLUDED_DOCTYPES = {
+	"Patrol GPS Log", "Guard Device Token", "Security Conversation", "Security Message",
+	"Security Watchlist", "Watchlist Activity", "Security Ops Settings",
+}
+# Columns that hold no value worth a report cell.
+_NO_VALUE_TYPES = {"Table", "Table MultiSelect", "HTML", "Button", "Image", "Attach Image", "Signature",
+	"Geolocation", "Code", "Text Editor", "HTML Editor", "Markdown Editor", "JSON", "Password"}
 
 COLUMNS = [
 	("farm", "Farm"),
@@ -89,9 +108,10 @@ COLUMNS = [
 
 # --- data ----------------------------------------------------------------------
 
-def _ranking(period=None, from_date=None, to_date=None, farm=None, company=None, half="all"):
+def _ranking(period=None, from_date=None, to_date=None, farm=None, company=None, half="all", with_cells=False):
 	return get_guard_ranking(
-		period=period or "this_week", from_date=from_date, to_date=to_date, farm=farm, company=company, half=half
+		period=period or "this_week", from_date=from_date, to_date=to_date, farm=farm, company=company, half=half,
+		with_cells=bool(with_cells),
 	)
 
 
@@ -435,14 +455,21 @@ def _vehicles(start, end, farm=None, company=None):
 	}
 
 
-def _shift_attendance(first, last, farm=None, company=None):
+def _shift_attendance(first, last, farm=None, company=None, window=None):
 	"""Who was on duty: shifts starting in the security days first to last,
 	checked in (HR biometric where the guard punches one, else the app's
-	shift check-in), late, not in, and who was off without cover."""
+	shift check-in), late, not in, and who was off without cover. `window`
+	(start, end) keeps only shifts starting in it - a day or night report;
+	off days are dated, not timed, so they go with the day half."""
 	from upande_security.api.security_dashboard import _fetch_shifts_tab
 
 	data = _fetch_shifts_tab(first, last, farm=farm, company=company)
 	rows = [r for r in data.get("rows") or [] if r.get("status") != "Cancelled"]
+	if window:
+		a, b = window
+		rows = [r for r in rows if r.get("start_date") and a <= frappe.utils.get_datetime(r["start_date"]) < b]
+		if (b - a) < datetime.timedelta(hours=13) and a.time() != day_start():
+			data["off_days"] = []
 	now = frappe.utils.now_datetime()
 
 	def state(r):
@@ -491,15 +518,123 @@ def _shift_attendance(first, last, farm=None, company=None):
 	}
 
 
-def build_report(first, last, farm=None, company=None, sections=SECTIONS):
+def parse_doctypes(value):
+	"""The doctypes a subscription row picked (one per line or comma), in
+	order, without repeats."""
+	out = []
+	for part in re.split(r"[\n,]+", value or ""):
+		dt = part.strip()
+		if dt and dt not in out:
+			out.append(dt)
+	return out
+
+
+def doctype_problem(dt, user=None):
+	"""Why dt cannot be a report section (for this user), or None."""
+	if dt in EXCLUDED_DOCTYPES:
+		return _("{0} cannot be sent in a report.").format(dt)
+	row = frappe.db.get_value("DocType", dt, ["istable", "issingle"], as_dict=True)
+	if not row:
+		return _("{0} is not a doctype on this site.").format(dt)
+	if row.istable or row.issingle:
+		return _("{0} has no records of its own to list.").format(dt)
+	if user and not frappe.has_permission(dt, "read", user=user):
+		return _("{0} cannot read {1}.").format(user, dt)
+	return None
+
+
+@frappe.whitelist()
+def report_doctype_options():
+	"""For the Choose records to include picker: every Upande Security
+	doctype and any other doctype whose records carry a farm, minus the
+	excluded ones."""
+	if not set(SEND_ROLES) & set(frappe.get_roles()):
+		return []
+	modules = frappe.get_all("Module Def", filters={"app_name": "upande_security"}, pluck="name")
+	names = set(frappe.get_all("DocType", filters={"module": ["in", modules], "istable": 0, "issingle": 0}, pluck="name"))
+	for table in ("DocField", "Custom Field"):
+		names |= set(frappe.get_all(table, filters={"fieldtype": "Link", "options": "Farm"}, pluck="parent" if table == "DocField" else "dt"))
+	out = []
+	for dt in sorted(names):
+		if not doctype_problem(dt):
+			out.append({"doctype": dt, "module": frappe.db.get_value("DocType", dt, "module")})
+	return out
+
+
+def _link_field(meta, target):
+	for f in meta.fields:
+		if f.fieldtype == "Link" and f.options == target:
+			return f.fieldname
+	return None
+
+
+def _cell(v):
+	if v is None or v == "":
+		return ""
+	if isinstance(v, datetime.datetime):
+		return frappe.utils.format_datetime(v, "d MMM HH:mm")
+	if isinstance(v, datetime.date):
+		return frappe.utils.format_date(v, "d MMM yyyy")
+	text = " ".join(frappe.utils.strip_html(str(v)).split())
+	return text if len(text) <= 80 else text[:77] + "…"
+
+
+def _doctype_section(dt, start, end, farm=None, company=None):
+	"""A report section listing dt's records created in start..end, narrowed
+	to the report's farms by the doctype's own Farm (else Company) field.
+	Read through get_list, so a report sent from the dashboard holds only
+	what the sender may see."""
+	meta = frappe.get_meta(dt)
+	label = _(dt)
+	section = {"title": label, "kpis": [], "tables": [], "watch": [], "empty": f"No {label} records in this period."}
+	filters = [["creation", ">=", start], ["creation", "<", end]]
+	farms = _scope_farms(farm, company)
+	if farms is not None:
+		farm_f, company_f = _link_field(meta, "Farm"), _link_field(meta, "Company")
+		if farm_f:
+			filters.append([farm_f, "in", farms or [""]])
+		elif company_f:
+			companies = [company] if company else list({frappe.db.get_value("Farm", f, "company") for f in farms})
+			filters.append([company_f, "in", companies or [""]])
+		else:
+			section["empty"] = f"{label} records have no farm or company, so they are left out of a report on {_scope_label(farm, company)}."
+			return section
+	cols = [f for f in meta.fields if f.in_list_view and f.fieldtype not in _NO_VALUE_TYPES][:5]
+	if meta.title_field and meta.title_field not in [f.fieldname for f in cols] and meta.has_field(meta.title_field):
+		cols = [meta.get_field(meta.title_field)] + cols[:4]
+	total = frappe.get_list(dt, filters=filters, fields=[{"COUNT": "*", "as": "n"}])[0].n
+	rows = frappe.get_list(dt, filters=filters, fields=["name", "creation"] + [f.fieldname for f in cols],
+		order_by="creation desc", limit_page_length=LIST_LIMIT)
+	section["kpis"] = [("Records", total, None)]
+	if rows:
+		section["tables"] = [{
+			"title": label,
+			"columns": [("Created", "left"), ("ID", "left")] + [(_(f.label), "left") for f in cols],
+			"rows": [[_cell(r.creation), r.name] + [_cell(r.get(f.fieldname)) for f in cols] for r in rows],
+			"more": max(0, total - len(rows)),
+		}]
+	return section
+
+
+def build_report(first, last, farm=None, company=None, sections=SECTIONS, half="all", doctypes=()):
 	"""Everything the report shows for the security days first to last
 	(each running from the day start, 06:00 unless changed, to the same time
-	next day), worked out once and shared by every recipient of one send."""
-	sections = [s for s in SECTIONS if s in (sections or SECTIONS)]
+	next day), worked out once and shared by every recipient of one send.
+	half "day" / "night" narrows a one-day report to that half of the day."""
+	# An empty list is a report of picked doctypes only; None is every section.
+	sections = [s for s in SECTIONS if s in (SECTIONS if sections is None else sections)]
 	first, last, start, end = resolve_window("custom", str(first), str(last))
+	half = half if half in ("day", "night") and first == last else "all"
+	window = None
+	if half != "all":
+		start, end = half_windows(first, last, start, end, half)[0]
+		window = (start, end)
 	report = {"from_date": str(first), "to_date": str(last), "start": str(start), "end": str(end),
-		"period_text": window_label(start, end), "scope": _scope_label(farm, company),
+		"period_text": window_label(start, end), "scope": _scope_label(farm, company), "half": half,
+		"doctypes": list(doctypes or []),
 		"sections": sections, "brand": _brand(farm, company), "farm": farm, "company": company}
+	if half != "all":
+		report["period_text"] += " · " + ("day" if half == "day" else "night")
 	# The gate and shift sections share one shape (figures, tables, watch
 	# lists) and one template block.
 	gate = []
@@ -512,10 +647,25 @@ def build_report(first, last, farm=None, company=None, sections=SECTIONS):
 	if "vehicles" in sections:
 		gate.append(_vehicles(start, end, farm, company))
 	if "shifts" in sections:
-		gate.append(_shift_attendance(first, last, farm, company))
+		gate.append(_shift_attendance(first, last, farm, company, window))
+	for dt in doctypes or []:
+		if doctype_problem(dt):
+			continue
+		try:
+			gate.append(_doctype_section(dt, start, end, farm, company))
+		except Exception:
+			frappe.log_error(f"Security report: {dt} section failed")
 	report["gate_sections"] = gate
-	if "patrols" in sections:
-		report["ranking"] = _ranking("custom", str(first), str(last), farm, company)
+	if "patrols" in sections or "coverage" in sections:
+		ranking = _ranking("custom", str(first), str(last), farm, company, half=half, with_cells="coverage" in sections)
+		if "patrols" in sections:
+			report["ranking"] = {k: v for k, v in ranking.items() if k != "covered_cells"}
+		if "coverage" in sections:
+			from upande_security.api.coverage_map import farm_coverage_maps
+
+			# The farms in scope that have a usable boundary.
+			farms_with_grid = list(ranking.get("covered_cells") or {})
+			report["coverage_maps"] = farm_coverage_maps(farms_with_grid, start, end, ranking.get("farms"))
 	if "incidents" in sections:
 		report["incidents"] = _incidents(start, end, farm, company)
 	if "watchlist" in sections:
@@ -643,6 +793,8 @@ def render_html(report, note=None, with_watchlist=False, for_pdf=False):
 		r.incidents = frappe._dict(r.incidents)
 	if r.get("watchlist"):
 		r.watchlist = frappe._dict(r.watchlist)
+	if r.get("coverage_maps"):
+		r.coverage_maps = [frappe._dict(m) for m in r.coverage_maps]
 	return frappe.render_template(
 		"upande_security/templates/security_report.html",
 		{
@@ -650,6 +802,7 @@ def render_html(report, note=None, with_watchlist=False, for_pdf=False):
 			"theme": _theme(report, for_pdf),
 			"with_watchlist": with_watchlist,
 			"note": note,
+			"for_pdf": for_pdf,
 			"brand": r.get("brand") or _brand(),
 			"generated": frappe.utils.format_datetime(frappe.utils.now_datetime(), "dd MMM yyyy HH:mm"),
 			"dashboard_url": frappe.utils.get_url("/security-dashboard"),
@@ -804,7 +957,7 @@ def send_report(recipients, period=None, from_date=None, to_date=None, farm=None
 	# Only someone who can read the watch list can send it.
 	if "watchlist" in sections and not frappe.has_permission("Security Watchlist", ptype="read"):
 		sections = [s for s in sections if s != "watchlist"]
-	if "patrols" in sections and not frappe.has_permission("Patrol GPS Log", ptype="read"):
+	if {"patrols", "coverage"} & set(sections) and not frappe.has_permission("Patrol GPS Log", ptype="read"):
 		frappe.throw(_("You do not have permission to view Patrol GPS Logs."), frappe.PermissionError)
 	first, last = resolve_period(period, from_date, to_date)
 	if frappe.utils.date_diff(last, first) > 92:
@@ -871,12 +1024,39 @@ def report_recipient_options():
 
 # --- schedule --------------------------------------------------------------------
 
-def _due_period(row, today):
+def _row_half(row):
+	"""'day' / 'night' for a daily row covering half the security day, else 'all'."""
+	if row.get("frequency") == "Daily":
+		return HALF_OF_COVERS.get(row.get("covers") or "", "all")
+	return "all"
+
+
+def _row_jobs(row):
+	"""The reports one subscription row sends: [{row, half, send_at,
+	last_field}] - one, or two for a daily Day and night row (day half at
+	Send At, night half at Night Report At), each with its own once-a-day
+	marker."""
+	if row.get("frequency") == "Daily" and row.get("covers") == BOTH_HALVES:
+		return [
+			frappe._dict(row=row, half="day", send_at=_time_or(row.send_at, DAY_REPORT_AT), last_field="last_sent_on"),
+			frappe._dict(row=row, half="night", send_at=_time_or(row.get("night_send_at"), NIGHT_REPORT_AT),
+				last_field="last_night_sent_on"),
+		]
+	return [frappe._dict(row=row, half=_row_half(row), send_at=_send_at(row), last_field="last_sent_on")]
+
+
+def _due_period(row, today, now=None, half=None):
 	"""(first, last) when this subscription is due today, else None.
 	Daily: yesterday; Weekly: last week, on the chosen weekday; Monthly:
-	last month, on the 1st."""
+	last month, on the 1st. A daily Day row: the latest day half that has
+	ended (today's from the half's end, 18:00 by default, else yesterday's);
+	a daily Night row: the night that ended at this morning's day start."""
 	if row.frequency == "Daily":
 		y = frappe.utils.add_days(today, -1)
+		if (half or _row_half(row)) == "day":
+			now = now or frappe.utils.now_datetime()
+			day_end = datetime.datetime.combine(today, day_start()) + datetime.timedelta(hours=12)
+			return (today, today) if now >= day_end else (y, y)
 		return y, y
 	if row.frequency == "Weekly":
 		if WEEKDAYS[today.weekday()] != (row.send_on or "Monday"):
@@ -895,14 +1075,17 @@ def _row_sections(row):
 	return tuple(sec for sec in SECTIONS if row.get("include_" + sec))
 
 
-def _group_rows(rows):
-	"""{(farm, company, sections): rows} - rows asking for the same report
-	share one build."""
+def _group_rows(jobs):
+	"""{(farm, company, sections, half, doctypes): jobs} - jobs (see
+	_row_jobs) asking for the same report share one build."""
 	groups = {}
-	for r in rows:
+	for j in jobs:
+		r = j.row
 		sections = _row_sections(r)
-		if sections:
-			groups.setdefault((r.farm or "", "" if r.farm else (r.company or ""), sections), []).append(r)
+		doctypes = tuple(parse_doctypes(r.get("doctypes")))
+		if sections or doctypes:
+			key = (r.farm or "", "" if r.farm else (r.company or ""), sections, j.half, doctypes)
+			groups.setdefault(key, []).append(j)
 	return groups
 
 
@@ -916,19 +1099,25 @@ def _still_allowed(r):
 	return False
 
 
-def _send_group(first, last, farm, company, sections, members, note):
-	report = build_report(first, last, farm or None, company or None, sections)
-	deliver(_clean_emails([m.email for m in members]), report, note)
+def _send_group(first, last, farm, company, sections, members, note, half="all", doctypes=()):
+	report = build_report(first, last, farm or None, company or None, sections, half, doctypes)
+	deliver(_clean_emails([m.row.email for m in members]), report, note)
 
 
 DEFAULT_SEND_AT = datetime.time(7, 0)
+DAY_REPORT_AT = datetime.time(18, 0)
+NIGHT_REPORT_AT = datetime.time(6, 0)
+
+
+def _time_or(value, default):
+	try:
+		return frappe.utils.get_time(value) if value else default
+	except Exception:
+		return default
 
 
 def _send_at(row):
-	try:
-		return frappe.utils.get_time(row.send_at) if row.send_at else DEFAULT_SEND_AT
-	except Exception:
-		return DEFAULT_SEND_AT
+	return _time_or(row.send_at, DEFAULT_SEND_AT)
 
 
 def send_scheduled_reports():
@@ -946,24 +1135,27 @@ def send_scheduled_reports():
 	rows = [r for r in (settings.get("security_report_subscriptions") or []) if r.enabled and r.email]
 	due_rows = {}
 	for r in rows:
-		if r.last_sent_on and frappe.utils.getdate(r.last_sent_on) == today:
-			continue
-		if now.time() < _send_at(r):
-			continue
 		if not _still_allowed(r):
 			continue
-		due = _due_period(r, sec_today)
-		if due:
-			due_rows.setdefault(due, []).append(r)
+		for j in _row_jobs(r):
+			last = r.get(j.last_field)
+			if last and frappe.utils.getdate(last) == today:
+				continue
+			if now.time() < j.send_at:
+				continue
+			due = _due_period(r, sec_today, now, j.half)
+			if due:
+				due_rows.setdefault(due, []).append(j)
 	for due, members_due in due_rows.items():
 		first, last = due
-		for (farm, company, sections), members in _group_rows(members_due).items():
+		for (farm, company, sections, half, doctypes), members in _group_rows(members_due).items():
 			try:
-				freq = {m.frequency.lower() for m in members}
+				freq = {m.row.frequency.lower() for m in members}
+				kind = {"day": " day", "night": " night"}.get(half, "")
 				_send_group(first, last, farm, company, sections, members,
-					f"Your {' / '.join(sorted(freq))} security report.")
+					f"Your {' / '.join(sorted(freq))}{kind} security report.", half, doctypes)
 				for m in members:
-					frappe.db.set_value("Security Report Subscription", m.name, "last_sent_on", today,
+					frappe.db.set_value("Security Report Subscription", m.row.name, m.last_field, today,
 						update_modified=False)
 				frappe.db.commit()
 			except Exception:
@@ -991,9 +1183,10 @@ def _send_to_subscribers(day):
 	settings = frappe.get_single("Security Ops Settings")
 	rows = [r for r in (settings.get("security_report_subscriptions") or [])
 		if r.enabled and r.email and _still_allowed(r)]
-	for (farm, company, sections), members in _group_rows(rows).items():
+	jobs = [j for r in rows for j in _row_jobs(r)]
+	for (farm, company, sections, half, doctypes), members in _group_rows(jobs).items():
 		try:
-			_send_group(day, day, farm, company, sections, members, "Your security report.")
+			_send_group(day, day, farm, company, sections, members, "Your security report.", half, doctypes)
 			frappe.db.commit()
 		except Exception:
 			frappe.db.rollback()
