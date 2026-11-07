@@ -2,12 +2,13 @@
 # For license information, please see license.txt
 
 """Patrol coverage maps for the security report: one picture per farm of the
-Patrol Map's continuous coverage surface - the same pixels, influence
-radius, fresh / not-patrolled hours and green-to-dark-red colour ramp as the
-dashboard (Security Ops Settings > coverage) - inside the farm's boundary,
-with no grid. Built only from the report period's pings, as of its end, the
-way Playback builds it. Drawn server-side with matplotlib into a PNG, so the
-PDF needs no map tiles or network."""
+Patrol Map's continuous coverage surface - the same pixels, influence radius
+and green-to-dark-red colour ramp as the dashboard - inside the farm's
+boundary, with no grid. Built only from the report window's pings (a day,
+a night, a week), as of the window's end, and the ramp spans that window:
+dark green is patrolled at its end, orange at its start, and dark red is
+kept for ground nobody patrolled in it. Drawn server-side with matplotlib
+into a PNG, so the PDF needs no map tiles or network."""
 
 import base64
 import io
@@ -18,6 +19,9 @@ import frappe
 
 from upande_security.api.patrol_coverage import _load_farm_polygon, get_patrol_coverage_grid
 
+# Where the window's start lands on the ramp: patrols from its first minute
+# show orange, leaving dark red to mean not patrolled at all.
+START_AT = 0.7
 # The Patrol Map's ramp (patrol-map COV_STOPS): 0 = patrolled, 1 = not.
 COV_STOPS = [(0, "#1a9850"), (0.25, "#a6d96a"), (0.5, "#fee08b"), (0.7, "#fdae61"), (0.86, "#d73027"), (1, "#67001f")]
 OUTLINE = "#1f1f1c"
@@ -34,15 +38,13 @@ def _rings(geom):
 	return [[(c[0], c[1]) for c in p.exterior.coords] for p in parts if p.geom_type == "Polygon"]
 
 
-def _h(hours):
-	"""2 h, 7 days."""
-	hours = float(hours or 0)
-	if hours >= 48 and hours % 24 == 0:
-		return f"{int(hours // 24)} days"
-	return f"{hours:g} h"
+def _when(dt, long_window=False):
+	"""at 06:00, or on 3 Nov for a window longer than a day."""
+	dt = frappe.utils.get_datetime(dt)
+	return ("on " + dt.strftime("%-d %b")) if long_window else ("at " + dt.strftime("%H:%M"))
 
 
-def _draw(poly, surface, fresh_hours, stale_hours):
+def _draw(poly, surface, start, end):
 	import matplotlib
 
 	matplotlib.use("Agg")
@@ -82,8 +84,10 @@ def _draw(poly, surface, fresh_hours, stale_hours):
 	cax = fig.add_axes([0.2, 0.32 * bar_in / (fh + bar_in), 0.6, 0.18 * bar_in / (fh + bar_in)])
 	cax.imshow(np.linspace(0, 1, 256)[None, :], cmap=cmap, aspect="auto", extent=(0, 1, 0, 1))
 	cax.set_yticks([])
-	cax.set_xticks([0, 1])
-	cax.set_xticklabels([f"Patrolled ≤ {_h(fresh_hours)} before the end", f"Not patrolled (≥ {_h(stale_hours)})"], fontsize=8)
+	cax.set_xticks([0, START_AT, 1])
+	long_window = (frappe.utils.get_datetime(end) - frappe.utils.get_datetime(start)).total_seconds() > 86400
+	cax.set_xticklabels([f"Patrolled {_when(end, long_window)}", f"Patrolled {_when(start, long_window)}", "Not patrolled"],
+		fontsize=7.5)
 	cax.tick_params(length=0, pad=2)
 	for spine in cax.spines.values():
 		spine.set_visible(False)
@@ -106,7 +110,9 @@ def farm_coverage_maps(farms, start, end, farm_rows=None):
 		m.area_ha, m.covered_ha, m.coverage_pct = t.get("area_ha"), t.get("covered_ha"), t.get("coverage_pct")
 		try:
 			poly = _load_farm_polygon(farm)
-			data = get_patrol_coverage_grid(farm, from_datetime=str(start), to_datetime=str(end))
+			window_h = max((frappe.utils.get_datetime(end) - frappe.utils.get_datetime(start)).total_seconds() / 3600, 1)
+			data = get_patrol_coverage_grid(farm, from_datetime=str(start), to_datetime=str(end),
+				ramp_hours=(0.0, window_h / START_AT))
 		except Exception:
 			frappe.log_error(f"Coverage map for {farm} failed")
 			m.error = "The map could not be drawn."
@@ -124,7 +130,7 @@ def farm_coverage_maps(farms, start, end, farm_rows=None):
 				minx, miny, maxx, maxy = poly.bounds
 				m.area_ha = round(poly.area * 111320 * math.cos(math.radians((miny + maxy) / 2)) * 110540 / 10000, 2)
 			try:
-				m.image = _draw(poly, data["surface"], data.get("fresh_hours"), data.get("stale_hours"))
+				m.image = _draw(poly, data["surface"], start, end)
 			except Exception:
 				frappe.log_error(f"Coverage map for {farm} failed")
 				m.error = "The map could not be drawn."

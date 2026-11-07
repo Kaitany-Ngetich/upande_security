@@ -211,7 +211,7 @@
 
   {#- ── Patrol coverage maps: the pictures go in the PDF only (mail clients block inline images) ── -#}
   {%- if r.coverage_maps %}
-  {{ section("Patrol coverage maps", ACCENT, "Each farm as on the dashboard's Patrol Map at the end of the period: green where guards walked, fading to dark red where none came. Hectares count the farm's grid squares a guard entered.", new_page=(r.ranking is not none or (r.gate_sections or []) | length > 0)) }}
+  {{ section("Patrol coverage maps", ACCENT, "Where guards walked in this report's window, coloured by when: dark green at its end, orange at its start, dark red where nobody patrolled. Hectares count the farm's grid squares a guard entered.", new_page=(r.ranking is not none or (r.gate_sections or []) | length > 0)) }}
   {%- for m in r.coverage_maps %}
   <div style="margin:0 0 18px;page-break-inside:avoid">
     <div style="font-size:14px;font-weight:700">{{ m.farm | e }}</div>

@@ -170,7 +170,7 @@ def _as_of(date):
 
 @frappe.whitelist()
 def get_patrol_coverage_grid(
-	farm, date=None, from_datetime=None, to_datetime=None, include_on_duty=0, guards=None
+	farm, date=None, from_datetime=None, to_datetime=None, include_on_duty=0, guards=None, ramp_hours=None
 ):
 	"""Coverage is a continuous surface, not a per-cell value: every pixel
 	(a few meters across) gets an effective age from the nearest pings, so
@@ -188,7 +188,11 @@ def get_patrol_coverage_grid(
 	with no guard link, the User that sent it - or its JSON) keeps
 	only those guards' points - Playback passes the guards ticked in its
 	list so a hidden guard's walk does not paint the map. Left out, every
-	guard counts."""
+	guard counts.
+
+	ramp_hours (fresh, stale) - server-side only, numbers, e.g. the security
+	report's maps - replaces Security Ops Settings' fresh / not-patrolled
+	hours, so the colour ramp can span the report's own window."""
 	if not is_feature_enabled("feature_patrol_coverage_grid"):
 		return {"enabled": False}
 	if not frappe.has_permission("Patrol GPS Log", ptype="read"):
@@ -199,6 +203,11 @@ def get_patrol_coverage_grid(
 		frappe.throw(_("You do not have permission to view {0}.").format(farm), frappe.PermissionError)
 
 	cell_width_m, cell_height_m, fresh_hours, stale_hours, radius_m = _coverage_settings()
+	if (
+		isinstance(ramp_hours, (tuple, list)) and len(ramp_hours) == 2
+		and all(isinstance(h, (int, float)) for h in ramp_hours) and 0 <= ramp_hours[0] < ramp_hours[1]
+	):
+		fresh_hours, stale_hours = float(ramp_hours[0]), float(ramp_hours[1])
 	base = {
 		"enabled": True,
 		"farm": farm,
