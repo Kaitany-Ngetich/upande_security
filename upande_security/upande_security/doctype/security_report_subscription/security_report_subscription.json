@@ -28,7 +28,10 @@
   "include_coverage",
   "column_break_4",
   "include_incidents",
-  "include_watchlist"
+  "include_watchlist",
+  "other_records_section",
+  "choose_doctypes",
+  "doctypes"
  ],
  "fields": [
   {
@@ -191,11 +194,27 @@
   {
    "fieldname": "column_break_4",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "other_records_section",
+   "fieldtype": "Section Break",
+   "label": "Other records"
+  },
+  {
+   "fieldname": "choose_doctypes",
+   "fieldtype": "Button",
+   "label": "Choose records to include"
+  },
+  {
+   "fieldname": "doctypes",
+   "fieldtype": "Small Text",
+   "label": "Records included",
+   "description": "Each doctype listed here gets its own section: its records created in the report's period, for this row's company or farm. Pick them with Choose records to include."
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-11-07 12:46:40.158065",
+ "modified": "2026-11-07 13:22:15.011300",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Report Subscription",

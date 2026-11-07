@@ -70,6 +70,16 @@ SEVERITY_ORDER = ("Critical", "High", "Medium", "Low")
 # The most incidents / watch list transactions listed in one email; the
 # summary counts always cover all of them.
 LIST_LIMIT = 300
+# Doctypes a subscription cannot pick as "other records": raw or private
+# data (GPS fixes, device tokens, people's messages), and the covert watch
+# list, which has its own section that only Security Heads receive.
+EXCLUDED_DOCTYPES = {
+	"Patrol GPS Log", "Guard Device Token", "Security Conversation", "Security Message",
+	"Security Watchlist", "Watchlist Activity", "Security Ops Settings",
+}
+# Columns that hold no value worth a report cell.
+_NO_VALUE_TYPES = {"Table", "Table MultiSelect", "HTML", "Button", "Image", "Attach Image", "Signature",
+	"Geolocation", "Code", "Text Editor", "HTML Editor", "Markdown Editor", "JSON", "Password"}
 
 COLUMNS = [
 	("farm", "Farm"),
@@ -505,12 +515,111 @@ def _shift_attendance(first, last, farm=None, company=None, window=None):
 	}
 
 
-def build_report(first, last, farm=None, company=None, sections=SECTIONS, half="all"):
+def parse_doctypes(value):
+	"""The doctypes a subscription row picked (one per line or comma), in
+	order, without repeats."""
+	out = []
+	for part in re.split(r"[\n,]+", value or ""):
+		dt = part.strip()
+		if dt and dt not in out:
+			out.append(dt)
+	return out
+
+
+def doctype_problem(dt, user=None):
+	"""Why dt cannot be a report section (for this user), or None."""
+	if dt in EXCLUDED_DOCTYPES:
+		return _("{0} cannot be sent in a report.").format(dt)
+	row = frappe.db.get_value("DocType", dt, ["istable", "issingle"], as_dict=True)
+	if not row:
+		return _("{0} is not a doctype on this site.").format(dt)
+	if row.istable or row.issingle:
+		return _("{0} has no records of its own to list.").format(dt)
+	if user and not frappe.has_permission(dt, "read", user=user):
+		return _("{0} cannot read {1}.").format(user, dt)
+	return None
+
+
+@frappe.whitelist()
+def report_doctype_options():
+	"""For the Choose records to include picker: every Upande Security
+	doctype and any other doctype whose records carry a farm, minus the
+	excluded ones."""
+	if not set(SEND_ROLES) & set(frappe.get_roles()):
+		return []
+	modules = frappe.get_all("Module Def", filters={"app_name": "upande_security"}, pluck="name")
+	names = set(frappe.get_all("DocType", filters={"module": ["in", modules], "istable": 0, "issingle": 0}, pluck="name"))
+	for table in ("DocField", "Custom Field"):
+		names |= set(frappe.get_all(table, filters={"fieldtype": "Link", "options": "Farm"}, pluck="parent" if table == "DocField" else "dt"))
+	out = []
+	for dt in sorted(names):
+		if not doctype_problem(dt):
+			out.append({"doctype": dt, "module": frappe.db.get_value("DocType", dt, "module")})
+	return out
+
+
+def _link_field(meta, target):
+	for f in meta.fields:
+		if f.fieldtype == "Link" and f.options == target:
+			return f.fieldname
+	return None
+
+
+def _cell(v):
+	if v is None or v == "":
+		return ""
+	if isinstance(v, datetime.datetime):
+		return frappe.utils.format_datetime(v, "d MMM HH:mm")
+	if isinstance(v, datetime.date):
+		return frappe.utils.format_date(v, "d MMM yyyy")
+	text = " ".join(frappe.utils.strip_html(str(v)).split())
+	return text if len(text) <= 80 else text[:77] + "…"
+
+
+def _doctype_section(dt, start, end, farm=None, company=None):
+	"""A report section listing dt's records created in start..end, narrowed
+	to the report's farms by the doctype's own Farm (else Company) field.
+	Read through get_list, so a report sent from the dashboard holds only
+	what the sender may see."""
+	meta = frappe.get_meta(dt)
+	label = _(dt)
+	section = {"title": label, "kpis": [], "tables": [], "watch": [], "empty": f"No {label} records in this period."}
+	filters = [["creation", ">=", start], ["creation", "<", end]]
+	farms = _scope_farms(farm, company)
+	if farms is not None:
+		farm_f, company_f = _link_field(meta, "Farm"), _link_field(meta, "Company")
+		if farm_f:
+			filters.append([farm_f, "in", farms or [""]])
+		elif company_f:
+			companies = [company] if company else list({frappe.db.get_value("Farm", f, "company") for f in farms})
+			filters.append([company_f, "in", companies or [""]])
+		else:
+			section["empty"] = f"{label} records have no farm or company, so they are left out of a report on {_scope_label(farm, company)}."
+			return section
+	cols = [f for f in meta.fields if f.in_list_view and f.fieldtype not in _NO_VALUE_TYPES][:5]
+	if meta.title_field and meta.title_field not in [f.fieldname for f in cols] and meta.has_field(meta.title_field):
+		cols = [meta.get_field(meta.title_field)] + cols[:4]
+	total = frappe.get_list(dt, filters=filters, fields=[{"COUNT": "*", "as": "n"}])[0].n
+	rows = frappe.get_list(dt, filters=filters, fields=["name", "creation"] + [f.fieldname for f in cols],
+		order_by="creation desc", limit_page_length=LIST_LIMIT)
+	section["kpis"] = [("Records", total, None)]
+	if rows:
+		section["tables"] = [{
+			"title": label,
+			"columns": [("Created", "left"), ("ID", "left")] + [(_(f.label), "left") for f in cols],
+			"rows": [[_cell(r.creation), r.name] + [_cell(r.get(f.fieldname)) for f in cols] for r in rows],
+			"more": max(0, total - len(rows)),
+		}]
+	return section
+
+
+def build_report(first, last, farm=None, company=None, sections=SECTIONS, half="all", doctypes=()):
 	"""Everything the report shows for the security days first to last
 	(each running from the day start, 06:00 unless changed, to the same time
 	next day), worked out once and shared by every recipient of one send.
 	half "day" / "night" narrows a one-day report to that half of the day."""
-	sections = [s for s in SECTIONS if s in (sections or SECTIONS)]
+	# An empty list is a report of picked doctypes only; None is every section.
+	sections = [s for s in SECTIONS if s in (SECTIONS if sections is None else sections)]
 	first, last, start, end = resolve_window("custom", str(first), str(last))
 	half = half if half in ("day", "night") and first == last else "all"
 	window = None
@@ -519,6 +628,7 @@ def build_report(first, last, farm=None, company=None, sections=SECTIONS, half="
 		window = (start, end)
 	report = {"from_date": str(first), "to_date": str(last), "start": str(start), "end": str(end),
 		"period_text": window_label(start, end), "scope": _scope_label(farm, company), "half": half,
+		"doctypes": list(doctypes or []),
 		"sections": sections, "brand": _brand(farm, company), "farm": farm, "company": company}
 	if half != "all":
 		report["period_text"] += " · " + ("day" if half == "day" else "night")
@@ -535,6 +645,13 @@ def build_report(first, last, farm=None, company=None, sections=SECTIONS, half="
 		gate.append(_vehicles(start, end, farm, company))
 	if "shifts" in sections:
 		gate.append(_shift_attendance(first, last, farm, company, window))
+	for dt in doctypes or []:
+		if doctype_problem(dt):
+			continue
+		try:
+			gate.append(_doctype_section(dt, start, end, farm, company))
+		except Exception:
+			frappe.log_error(f"Security report: {dt} section failed")
 	report["gate_sections"] = gate
 	if "patrols" in sections or "coverage" in sections:
 		ranking = _ranking("custom", str(first), str(last), farm, company, half=half, with_cells="coverage" in sections)
@@ -942,13 +1059,15 @@ def _row_sections(row):
 
 
 def _group_rows(rows):
-	"""{(farm, company, sections, half): rows} - rows asking for the same
-	report share one build."""
+	"""{(farm, company, sections, half, doctypes): rows} - rows asking for
+	the same report share one build."""
 	groups = {}
 	for r in rows:
 		sections = _row_sections(r)
-		if sections:
-			groups.setdefault((r.farm or "", "" if r.farm else (r.company or ""), sections, _row_half(r)), []).append(r)
+		doctypes = tuple(parse_doctypes(r.get("doctypes")))
+		if sections or doctypes:
+			key = (r.farm or "", "" if r.farm else (r.company or ""), sections, _row_half(r), doctypes)
+			groups.setdefault(key, []).append(r)
 	return groups
 
 
@@ -962,8 +1081,8 @@ def _still_allowed(r):
 	return False
 
 
-def _send_group(first, last, farm, company, sections, members, note, half="all"):
-	report = build_report(first, last, farm or None, company or None, sections, half)
+def _send_group(first, last, farm, company, sections, members, note, half="all", doctypes=()):
+	report = build_report(first, last, farm or None, company or None, sections, half, doctypes)
 	deliver(_clean_emails([m.email for m in members]), report, note)
 
 
@@ -1003,12 +1122,12 @@ def send_scheduled_reports():
 			due_rows.setdefault(due, []).append(r)
 	for due, members_due in due_rows.items():
 		first, last = due
-		for (farm, company, sections, half), members in _group_rows(members_due).items():
+		for (farm, company, sections, half, doctypes), members in _group_rows(members_due).items():
 			try:
 				freq = {m.frequency.lower() for m in members}
 				kind = {"day": " day", "night": " night"}.get(half, "")
 				_send_group(first, last, farm, company, sections, members,
-					f"Your {' / '.join(sorted(freq))}{kind} security report.", half)
+					f"Your {' / '.join(sorted(freq))}{kind} security report.", half, doctypes)
 				for m in members:
 					frappe.db.set_value("Security Report Subscription", m.name, "last_sent_on", today,
 						update_modified=False)
@@ -1038,9 +1157,9 @@ def _send_to_subscribers(day):
 	settings = frappe.get_single("Security Ops Settings")
 	rows = [r for r in (settings.get("security_report_subscriptions") or [])
 		if r.enabled and r.email and _still_allowed(r)]
-	for (farm, company, sections, half), members in _group_rows(rows).items():
+	for (farm, company, sections, half, doctypes), members in _group_rows(rows).items():
 		try:
-			_send_group(day, day, farm, company, sections, members, "Your security report.", half)
+			_send_group(day, day, farm, company, sections, members, "Your security report.", half, doctypes)
 			frappe.db.commit()
 		except Exception:
 			frappe.db.rollback()

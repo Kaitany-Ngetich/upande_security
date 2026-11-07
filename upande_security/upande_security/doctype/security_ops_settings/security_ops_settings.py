@@ -29,7 +29,7 @@ class SecurityOpsSettings(Document):
 		Roses farms, and so on for whatever companies a site has. A row
 		left blank for someone limited to one company or farm is filled in
 		with it; a row reaching beyond their access is refused."""
-		from upande_security.api.security_report import covers, default_scope
+		from upande_security.api.security_report import covers, default_scope, doctype_problem, parse_doctypes
 
 		for row in self.get("security_report_subscriptions") or []:
 			# Day / Night halves are a daily report's; weekly and monthly
@@ -39,6 +39,13 @@ class SecurityOpsSettings(Document):
 			if row.user and not row.email:
 				row.email = frappe.db.get_value("User", row.user, "email")
 			user = row.user or frappe.db.get_value("User", {"email": row.email, "enabled": 1}, "name")
+			# Picked doctypes: one per line, each one this person may read.
+			picked = parse_doctypes(row.doctypes)
+			for dt in picked:
+				problem = doctype_problem(dt, user)
+				if problem:
+					frappe.throw("Security Reports row {0}: {1}".format(row.idx, problem))
+			row.doctypes = "\n".join(picked)
 			if not user:
 				continue
 			if row.farm:
