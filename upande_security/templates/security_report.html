@@ -210,8 +210,8 @@
   {%- endif %}
 
   {#- ── Patrol coverage maps: the pictures go in the PDF only (mail clients block inline images) ── -#}
-  {%- if r.coverage_maps %}{% set cw, chh = r.coverage_cell or (50, 50) %}
-  {{ section("Patrol coverage maps", ACCENT, "Each farm's " ~ cw ~ " × " ~ chh ~ " m squares: green where a guard patrolled during the period, red where nobody did", new_page=(r.ranking is not none or (r.gate_sections or []) | length > 0)) }}
+  {%- if r.coverage_maps %}
+  {{ section("Patrol coverage maps", ACCENT, "Each farm as on the dashboard's Patrol Map at the end of the period: green where guards walked, fading to dark red where none came. Hectares count the farm's grid squares a guard entered.", new_page=(r.ranking is not none or (r.gate_sections or []) | length > 0)) }}
   {%- for m in r.coverage_maps %}
   <div style="margin:0 0 18px;page-break-inside:avoid">
     <div style="font-size:14px;font-weight:700">{{ m.farm | e }}</div>

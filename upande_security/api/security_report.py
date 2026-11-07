@@ -543,9 +543,9 @@ def build_report(first, last, farm=None, company=None, sections=SECTIONS, half="
 		if "coverage" in sections:
 			from upande_security.api.coverage_map import farm_coverage_maps
 
-			cells = ranking.get("covered_cells") or {}
-			report["coverage_maps"] = farm_coverage_maps(list(cells), cells, ranking.get("farms"))
-			report["coverage_cell"] = (ranking.get("cell_width_m"), ranking.get("cell_height_m"))
+			# The farms in scope that have a usable boundary.
+			farms_with_grid = list(ranking.get("covered_cells") or {})
+			report["coverage_maps"] = farm_coverage_maps(farms_with_grid, start, end, ranking.get("farms"))
 	if "incidents" in sections:
 		report["incidents"] = _incidents(start, end, farm, company)
 	if "watchlist" in sections:
