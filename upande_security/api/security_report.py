@@ -455,6 +455,46 @@ def _vehicles(start, end, farm=None, company=None):
 	}
 
 
+def _guard_place(r, cache):
+	"""(company, farm) a shift row is listed under: its farm and that farm's
+	company; a shift with no farm goes under its guard's farm or company."""
+	farm = r.get("farm") or ""
+	if not farm and r.get("guard_key"):
+		kind, _sep, gid = r["guard_key"].partition("::")
+		key = ("guard", r["guard_key"])
+		if key not in cache:
+			if kind == "employee":
+				cache[key] = (frappe.db.get_value("Employee", gid, "company"), None)
+			else:
+				g = frappe.db.get_value("Security Guard", gid, ["company", "farm"], as_dict=True) or {}
+				cache[key] = (g.get("company"), g.get("farm"))
+		company, farm = cache[key][0], cache[key][1] or ""
+		if company:
+			return company, farm or _("No farm")
+	if ("farm", farm) not in cache:
+		cache[("farm", farm)] = frappe.db.get_value("Farm", farm, "company") if farm else None
+	return cache[("farm", farm)] or _("No company"), farm or _("No farm")
+
+
+def _grouped_table(title, columns, items):
+	"""A report table whose rows are grouped by company, then farm, each
+	group under a heading row ({"group": ..., "level": 1 | 2}). items are
+	(source row, cells)."""
+	cache = {}
+	placed = sorted(((_guard_place(src, cache), cells) for src, cells in items),
+		key=lambda x: (x[0][0], x[0][1], [str(c) for c in x[1]]))
+	rows, last_company, last_farm = [], None, None
+	for (company, farm), cells in placed:
+		if company != last_company:
+			rows.append({"group": company, "level": 1})
+			last_company, last_farm = company, None
+		if farm != last_farm:
+			rows.append({"group": farm, "level": 2})
+			last_farm = farm
+		rows.append(cells)
+	return {"title": title, "columns": columns, "rows": rows, "count": len(items), "more": 0}
+
+
 def _shift_attendance(first, last, farm=None, company=None, window=None):
 	"""Who was on duty: shifts starting in the security days first to last,
 	checked in (HR biometric where the guard punches one, else the app's
@@ -491,19 +531,19 @@ def _shift_attendance(first, last, farm=None, company=None, window=None):
 
 	def row_of(r, st):
 		bio = r.get("biometric") or {}
-		return [r.get("guard_name") or "", r.get("farm") or "", r.get("shift_type") or "",
+		return [r.get("guard_name") or "", r.get("shift_type") or "",
 			_hhmm(r.get("start_date")) + "-" + _hhmm(r.get("end_date")),
 			st + (f" {bio.get('late_min')}m" if st == "Late" and bio.get("late_min") else "")]
 
-	cols = [("Guard", "left"), ("Farm", "left"), ("Shift", "left"), ("Time", "left"), ("Status", "left")]
+	cols = [("Guard", "left"), ("Shift", "left"), ("Time", "left"), ("Status", "left")]
 	tables = []
 	if missing:
-		tables.append({"title": "Not checked in", "columns": cols, "rows": [row_of(r, st) for r, st in missing], "more": 0})
+		tables.append(_grouped_table("Not checked in", cols, [(r, row_of(r, st)) for r, st in missing]))
 	if late:
-		tables.append({"title": "Late", "columns": cols, "rows": [row_of(r, st) for r, st in late], "more": 0})
+		tables.append(_grouped_table("Late", cols, [(r, row_of(r, st)) for r, st in late]))
 	if off:
-		tables.append({"title": "Off", "columns": [("Date", "left"), ("Guard", "left"), ("Farm", "left"), ("Cover", "left")],
-			"rows": [[o["date"], o["guard_name"], o.get("farm") or "", o.get("covered_by") or "No cover"] for o in off], "more": 0})
+		tables.append(_grouped_table("Off", [("Date", "left"), ("Guard", "left"), ("Cover", "left")],
+			[(o, [o["date"], o["guard_name"], o.get("covered_by") or "No cover"]) for o in off]))
 	return {
 		"title": SECTION_LABELS["shifts"],
 		"kpis": [
@@ -533,10 +573,10 @@ def doctype_problem(dt, user=None):
 	"""Why dt cannot be a report section (for this user), or None."""
 	if dt in EXCLUDED_DOCTYPES:
 		return _("{0} cannot be sent in a report.").format(dt)
-	row = frappe.db.get_value("DocType", dt, ["istable", "issingle"], as_dict=True)
+	row = frappe.db.get_value("DocType", dt, ["istable", "issingle", "is_virtual"], as_dict=True)
 	if not row:
 		return _("{0} is not a doctype on this site.").format(dt)
-	if row.istable or row.issingle:
+	if row.istable or row.issingle or row.is_virtual:
 		return _("{0} has no records of its own to list.").format(dt)
 	if user and not frappe.has_permission(dt, "read", user=user):
 		return _("{0} cannot read {1}.").format(user, dt)
@@ -545,19 +585,25 @@ def doctype_problem(dt, user=None):
 
 @frappe.whitelist()
 def report_doctype_options():
-	"""For the Choose records to include picker: every Upande Security
-	doctype and any other doctype whose records carry a farm, minus the
-	excluded ones."""
+	"""For the Choose records to include picker: every doctype on the site
+	that can be a report section - not a child table, single or virtual
+	doctype, not excluded, readable by the person picking - with its module
+	and how a report narrows it to a company or farm (its Farm field, else
+	its Company field, else not at all). Upande Security's own come first."""
 	if not set(SEND_ROLES) & set(frappe.get_roles()):
 		return []
-	modules = frappe.get_all("Module Def", filters={"app_name": "upande_security"}, pluck="name")
-	names = set(frappe.get_all("DocType", filters={"module": ["in", modules], "istable": 0, "issingle": 0}, pluck="name"))
-	for table in ("DocField", "Custom Field"):
-		names |= set(frappe.get_all(table, filters={"fieldtype": "Link", "options": "Farm"}, pluck="parent" if table == "DocField" else "dt"))
+	own = set(frappe.get_all("Module Def", filters={"app_name": "upande_security"}, pluck="name"))
+	links = {"Farm": set(), "Company": set()}
+	for target in links:
+		links[target] |= set(frappe.get_all("DocField", filters={"fieldtype": "Link", "options": target, "parenttype": "DocType"}, pluck="parent"))
+		links[target] |= set(frappe.get_all("Custom Field", filters={"fieldtype": "Link", "options": target}, pluck="dt"))
 	out = []
-	for dt in sorted(names):
-		if not doctype_problem(dt):
-			out.append({"doctype": dt, "module": frappe.db.get_value("DocType", dt, "module")})
+	for d in frappe.get_all("DocType", filters={"istable": 0, "issingle": 0, "is_virtual": 0}, fields=["name", "module"]):
+		if d.name in EXCLUDED_DOCTYPES or not frappe.has_permission(d.name, "read"):
+			continue
+		scope = "farm" if d.name in links["Farm"] else ("company" if d.name in links["Company"] else None)
+		out.append({"doctype": d.name, "module": d.module, "scope": scope, "own": d.module in own})
+	out.sort(key=lambda o: (not o["own"], o["doctype"].lower()))
 	return out
 
 
@@ -616,6 +662,21 @@ def _doctype_section(dt, start, end, farm=None, company=None):
 	return section
 
 
+SUMMARY_DAYS = 7
+
+
+def _week_summary(last, farm=None, company=None):
+	"""The patrol summary at the top of the report: the last SUMMARY_DAYS
+	security days up to the report's last day, whole days whatever half the
+	report covers. Each farm's guards, distance, time, hectares (counted
+	once over the week) and incidents."""
+	first_w, last_w, start_w, end_w = resolve_window("custom", str(frappe.utils.add_days(last, 1 - SUMMARY_DAYS)), str(last))
+	ranking = _ranking("custom", str(first_w), str(last_w), farm, company)
+	incidents = dict(_incidents(start_w, end_w, farm, company)["by_farm"])
+	return {"from_date": str(first_w), "to_date": str(last_w), "start": str(start_w), "end": str(end_w),
+		"period_text": window_label(start_w, end_w), "farms": ranking.get("farms") or [], "incidents": incidents}
+
+
 def build_report(first, last, farm=None, company=None, sections=SECTIONS, half="all", doctypes=()):
 	"""Everything the report shows for the security days first to last
 	(each running from the day start, 06:00 unless changed, to the same time
@@ -666,6 +727,8 @@ def build_report(first, last, farm=None, company=None, sections=SECTIONS, half="
 			# The farms in scope that have a usable boundary.
 			farms_with_grid = list(ranking.get("covered_cells") or {})
 			report["coverage_maps"] = farm_coverage_maps(farms_with_grid, start, end, ranking.get("farms"))
+	if "patrols" in sections or "coverage" in sections:
+		report["week"] = _week_summary(last, farm, company)
 	if "incidents" in sections:
 		report["incidents"] = _incidents(start, end, farm, company)
 	if "watchlist" in sections:
@@ -771,6 +834,60 @@ def _theme(report, for_pdf=False):
 	)
 
 
+# Coverage status in the patrol summary, by the share of the farm patrolled.
+COVERAGE_STATUS = ((60, "High coverage", "#3b6d11"), (40, "Half covered", "#ba7517"), (0, "Needs attention", "#a32d2d"))
+
+
+def _coverage_status(pct):
+	if pct is None:
+		return None
+	for floor, label, colour in COVERAGE_STATUS:
+		if pct >= floor:
+			return frappe._dict(label=label, colour=colour)
+
+
+def _companies(r, farm_rows=None, incidents=None):
+	"""The report's farms grouped by company, companies in alphabetical
+	order: [{company, farms: [{farm, guards, distance_km, patrol_hours,
+	area_ha, covered_ha, coverage_pct, remaining_ha, status, map}]}]. A farm
+	is in it when it has patrols or a coverage map (a farm nobody patrolled
+	still has a map, at 0%). Feeds the patrol summary table and the
+	company-by-company details."""
+	ranking = r.get("ranking") or {}
+	if farm_rows is None:
+		farm_rows = ranking.get("farms") or []
+	else:
+		ranking = {"farms": farm_rows}
+	maps = {m.farm: m for m in r.get("coverage_maps") or []}
+	farms = {}
+	for f in farm_rows:
+		farms[f["farm"]] = frappe._dict(f)
+	for name, m in maps.items():
+		if name not in farms:
+			none = 0 if ranking else None  # without the Patrols section the guard figures are unknown
+			farms[name] = frappe._dict(farm=name, guards=none, distance_km=none, patrol_hours=none, patrols=none,
+				area_ha=m.area_ha, covered_ha=m.covered_ha, coverage_pct=m.coverage_pct)
+			if incidents is not None and m.covered_ha is not None:
+				# Not patrolled all week: nothing covered.
+				farms[name].update(covered_ha=0.0, coverage_pct=0.0)
+	groups = {}
+	for name, f in farms.items():
+		f.map = maps.get(name)
+		f.incidents = (incidents or {}).get(name, 0)
+		if incidents is not None and f.covered_ha is not None and not f.area_ha and f.map:
+			f.area_ha = f.map.area_ha
+		if f.covered_ha is None and f.map and f.map.covered_ha is not None and incidents is None:
+			f.area_ha, f.covered_ha, f.coverage_pct = f.map.area_ha, f.map.covered_ha, f.map.coverage_pct
+		f.remaining_ha = max(0, (f.area_ha or 0) - f.covered_ha) if f.covered_ha is not None else None
+		f.status = _coverage_status(f.coverage_pct if f.covered_ha is not None else None)
+		company = frappe.db.get_value("Farm", name, "company") or _("No company")
+		groups.setdefault(company, []).append(f)
+	return [
+		frappe._dict(company=c, farms=sorted(groups[c], key=lambda f: (-(f.coverage_pct or 0), f.farm)))
+		for c in sorted(groups)
+	]
+
+
 def render_html(report, note=None, with_watchlist=False, for_pdf=False):
 	"""The report through templates/security_report.html - the email body
 	and, through get_pdf, the PDF (for_pdf inlines the logo)."""
@@ -795,6 +912,15 @@ def render_html(report, note=None, with_watchlist=False, for_pdf=False):
 		r.watchlist = frappe._dict(r.watchlist)
 	if r.get("coverage_maps"):
 		r.coverage_maps = [frappe._dict(m) for m in r.coverage_maps]
+	r.companies = _companies(r)
+	if r.get("week"):
+		r.week = frappe._dict(r.week)
+		r.week_companies = _companies(r, r.week.farms, r.week.incidents)
+	# The at-a-glance hectares match the summary table: every measured farm,
+	# an unpatrolled one included.
+	measured = [f for c in r.companies for f in c.farms if f.covered_ha is not None]
+	if measured:
+		r.area_total = frappe._dict(covered=sum(f.covered_ha for f in measured), area=sum(f.area_ha or 0 for f in measured))
 	return frappe.render_template(
 		"upande_security/templates/security_report.html",
 		{
