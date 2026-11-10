@@ -171,7 +171,15 @@ function gridFieldFor(cdt) {
 });
 
 // Security Reports: "Choose records to include" ticks the doctypes whose
-// records each person's report lists, one section per doctype.
+// records each person's report lists, one section per doctype. Every
+// doctype on the site is offered, with a search box; Upande Security's own
+// come first, and each says how the report narrows it to a company or farm.
+const SCOPE_NOTE = {
+	farm: __("by farm"),
+	company: __("by company"),
+};
+const MAX_SHOWN = 200;
+
 frappe.ui.form.on("Security Report Subscription", {
 	choose_doctypes(frm, cdt, cdn) {
 		const row = locals[cdt][cdn];
@@ -184,12 +192,7 @@ frappe.ui.form.on("Security Report Subscription", {
 		frappe
 			.call("upande_security.api.security_report.report_doctype_options")
 			.then((r) => {
-				const options = (r.message || []).map((o) => ({
-					label: __(o.doctype),
-					value: o.doctype,
-					checked: picked.has(o.doctype),
-					description: o.module,
-				}));
+				const options = r.message || [];
 				if (!options.length) {
 					frappe.msgprint(__("No doctypes are available to add."));
 					return;
@@ -201,18 +204,50 @@ frappe.ui.form.on("Security Report Subscription", {
 						{
 							fieldtype: "HTML",
 							options: `<p class="text-muted small">${__(
-								"Each ticked doctype becomes a section of the report, listing its records created in the report's period for this row's company or farm."
+								"Each ticked doctype becomes a section of the report, listing its records created in the report's period for this row's company or farm. A doctype with no farm or company field is listed only in a report on every farm."
 							)}</p>`,
 						},
-						{ fieldname: "doctypes", fieldtype: "MultiCheck", columns: 2, options },
+						{ fieldname: "search", fieldtype: "Data", label: __("Search doctypes"), placeholder: __("Type part of a doctype or module name") },
+						{ fieldname: "list", fieldtype: "HTML" },
 					],
 					primary_action_label: __("Use these"),
-					primary_action(values) {
-						frappe.model.set_value(cdt, cdn, "doctypes", (values.doctypes || []).join("\n"));
+					primary_action() {
+						frappe.model.set_value(cdt, cdn, "doctypes", [...picked].join("\n"));
 						d.hide();
 					},
 				});
+				const $list = d.fields_dict.list.$wrapper;
+				const render = () => {
+					const q = (d.get_value("search") || "").trim().toLowerCase();
+					const hits = options.filter(
+						(o) => !q || o.doctype.toLowerCase().includes(q) || (o.module || "").toLowerCase().includes(q)
+					);
+					// Ticked ones always show, at the top.
+					const ticked = options.filter((o) => picked.has(o.doctype));
+					const rest = hits.filter((o) => !picked.has(o.doctype));
+					const shown = ticked.concat(rest.slice(0, MAX_SHOWN));
+					const item = (o) => `
+						<label style="display:flex;gap:8px;align-items:flex-start;padding:5px 2px;border-bottom:1px solid var(--border-color);margin:0;cursor:pointer">
+							<input type="checkbox" data-dt="${frappe.utils.escape_html(o.doctype)}" ${picked.has(o.doctype) ? "checked" : ""} style="margin-top:3px">
+							<span><b>${frappe.utils.escape_html(__(o.doctype))}</b>
+							<span class="text-muted small">· ${frappe.utils.escape_html(o.module || "")}
+							· ${o.scope ? SCOPE_NOTE[o.scope] : `<span class="text-warning">${__("no farm or company")}</span>`}</span></span>
+						</label>`;
+					$list.html(`
+						<div class="text-muted small" style="margin:4px 0">${__("{0} ticked · {1} matching", [picked.size, hits.length])}${
+							rest.length > MAX_SHOWN ? " · " + __("showing the first {0}, search to narrow", [MAX_SHOWN]) : ""
+						}</div>
+						<div style="max-height:55vh;overflow-y:auto">${shown.map(item).join("") || `<p class="text-muted">${__("No doctype matches.")}</p>`}</div>`);
+					$list.find("input[type=checkbox]").on("change", function () {
+						const dt = $(this).attr("data-dt");
+						this.checked ? picked.add(dt) : picked.delete(dt);
+						$list.find(".text-muted.small").first().text(__("{0} ticked · {1} matching", [picked.size, hits.length]));
+					});
+				};
+				d.fields_dict.search.$input.on("input", frappe.utils.debounce(render, 150));
+				render();
 				d.show();
+				setTimeout(() => d.fields_dict.search.$input.focus(), 200);
 			});
 	},
 });
