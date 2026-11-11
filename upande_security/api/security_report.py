@@ -47,8 +47,9 @@ SEND_ROLES = ("System Manager", "Security Head", "Security Manager")
 WATCHLIST_ROLES = ("System Manager", "Security Head")
 # In the order the report shows them. Each subscription (and each send from
 # the dashboard) picks which go out.
-SECTIONS = ("visitors", "contractors", "staff", "vehicles", "shifts", "patrols", "coverage", "incidents", "watchlist")
+SECTIONS = ("exceptions", "visitors", "contractors", "staff", "vehicles", "shifts", "patrols", "coverage", "incidents", "watchlist")
 SECTION_LABELS = {
+	"exceptions": "Outsourced guard exceptions",
 	"visitors": "Visitors",
 	"contractors": "Contractors",
 	"staff": "Staff movements",
@@ -476,10 +477,11 @@ def _guard_place(r, cache):
 	return cache[("farm", farm)] or _("No company"), farm or _("No farm")
 
 
-def _grouped_table(title, columns, items):
+def _grouped_table(title, columns, items, farm_headings=True):
 	"""A report table whose rows are grouped by company, then farm, each
 	group under a heading row ({"group": ..., "level": 1 | 2}). items are
-	(source row, cells)."""
+	(source row, cells). Without farm_headings only the companies get a
+	heading - for a table with a row per farm."""
 	cache = {}
 	placed = sorted(((_guard_place(src, cache), cells) for src, cells in items),
 		key=lambda x: (x[0][0], x[0][1], [str(c) for c in x[1]]))
@@ -488,15 +490,111 @@ def _grouped_table(title, columns, items):
 		if company != last_company:
 			rows.append({"group": company, "level": 1})
 			last_company, last_farm = company, None
-		if farm != last_farm:
+		if farm != last_farm and farm_headings:
 			rows.append({"group": farm, "level": 2})
 			last_farm = farm
 		rows.append(cells)
 	return {"title": title, "columns": columns, "rows": rows, "count": len(items), "more": 0}
 
 
+def _guard_exceptions(first, last, farm=None, company=None, window=None):
+	"""The daily exceptions report on outsourced (External) guards, from
+	the gate biometric punches the Shift Assignments tab reads: per farm,
+	shifts expected and how many were missed, late or left early, then who.
+	Only shifts that have started count; left early only once a shift has
+	ended (send a daily report an hour or two after the night shift ends,
+	so its last punches have synced)."""
+	from upande_security.api.security_dashboard import BIOMETRIC_GRACE_MIN, _fetch_shifts_tab
+
+	data = _fetch_shifts_tab(first, last, farm=farm, company=company)
+	rows = [r for r in data.get("rows") or []
+		if r.get("status") != "Cancelled" and r.get("guard_type") == "External Guard" and r.get("start_date")]
+	if window:
+		a, b = window
+		rows = [r for r in rows if a <= frappe.utils.get_datetime(r["start_date"]) < b]
+	now = frappe.utils.now_datetime()
+	rows = [r for r in rows if frappe.utils.get_datetime(r["start_date"]) <= now]
+
+	def when(r):
+		return _hhmm(r["start_date"]) + "-" + _hhmm(r.get("end_date"))
+
+	absent, late, early, punch, no_bio = [], [], [], [], []
+	per_farm = {}
+	for r in rows:
+		bio = r.get("biometric")
+		f = per_farm.setdefault(r.get("farm") or "", {"src": r, "expected": 0, "in": 0, "absent": 0, "late": 0, "early": 0, "punch": 0})
+		f["expected"] += 1
+		if not bio:
+			no_bio.append(r)
+			continue
+		res = bio.get("result")
+		if res in ("On time", "Late", "No clock-in"):
+			f["in"] += 1
+		if res == "Absent":
+			absent.append(r)
+			f["absent"] += 1
+		if res == "Late":
+			late.append(r)
+			f["late"] += 1
+		if bio.get("departure") == "Left early":
+			early.append(r)
+			f["early"] += 1
+		if res == "No clock-in" or bio.get("departure") == "No clock-out":
+			punch.append(r)
+			f["punch"] += 1
+
+	tables = []
+	if per_farm:
+		tables.append(_grouped_table("Summary by farm", [("Farm", "left"), ("Shifts expected", "right"), ("Clocked in", "right"),
+			("Did not clock in", "right"), ("Late", "right"), ("Left early", "right"), ("Missed a punch", "right")],
+			[(f["src"], [name or _("No farm"), f["expected"], f["in"], f["absent"], f["late"], f["early"], f["punch"]])
+				for name, f in per_farm.items()], farm_headings=False))
+		tables[-1]["red_from"] = 3
+	if absent:
+		tables.append(_grouped_table("Expected but did not clock in", [("Guard", "left"), ("Shift", "left"), ("Time", "left")],
+			[(r, [r.get("guard_name") or "", r.get("shift_type") or "", when(r)]) for r in absent]))
+	if late:
+		tables.append(_grouped_table("Came late", [("Guard", "left"), ("Shift", "left"), ("Shift start", "left"),
+			("Clocked in", "left"), ("Minutes late", "right")],
+			[(r, [r.get("guard_name") or "", r.get("shift_type") or "", _hhmm(r["start_date"]),
+				_hhmm(r["biometric"].get("clock_in")), r["biometric"].get("late_min") or ""]) for r in late]))
+	if early:
+		tables.append(_grouped_table("Left early", [("Guard", "left"), ("Shift", "left"), ("Shift end", "left"),
+			("Clocked out", "left"), ("Minutes early", "right")],
+			[(r, [r.get("guard_name") or "", r.get("shift_type") or "", _hhmm(r.get("end_date")),
+				_hhmm(r["biometric"].get("clock_out")), r["biometric"].get("early_min") or ""]) for r in early]))
+	if punch:
+		tables.append(_grouped_table("Missed a punch", [("Guard", "left"), ("Shift", "left"), ("Time", "left"),
+			("Clocked in", "left"), ("Clocked out", "left")],
+			[(r, [r.get("guard_name") or "", r.get("shift_type") or "", when(r),
+				_hhmm(r["biometric"].get("clock_in")) or "not recorded", _hhmm(r["biometric"].get("clock_out")) or "not recorded"])
+				for r in punch]))
+	watch = []
+	if no_bio:
+		watch.append({"title": "No biometric record to check", "tone": "warning",
+			"rows": [{"label": r.get("guard_name") or "", "detail": f"{r.get('farm') or 'No farm'} · {r.get('shift_type') or ''} {when(r)}"} for r in no_bio]})
+	present = sum(f["in"] for f in per_farm.values())
+	return {
+		"title": SECTION_LABELS["exceptions"],
+		"subtitle": _("Outsourced guards' shifts that started in this period, checked against the gate biometric punches. "
+			"Late and left early allow {0} minutes.").format(BIOMETRIC_GRACE_MIN),
+		"kpis": [
+			("Shifts expected", len(rows), None),
+			("Did not clock in", len(absent), "#a32d2d" if absent else None),
+			("Came late", len(late), "#a32d2d" if late else None),
+			("Left early", len(early), "#a32d2d" if early else None),
+		],
+		"breakdown": [(_("Clocked in"), [(_("shifts"), f"{present} of {len(rows)}")])] if rows else [],
+		"tables": tables,
+		"watch": watch,
+		"empty": "No outsourced guard shifts in this period.",
+	}
+
+
 def _shift_attendance(first, last, farm=None, company=None, window=None):
-	"""Who was on duty: shifts starting in the security days first to last,
+	"""Every guard with a Security Guard Shift Assignment, internal and
+	outsourced (the exceptions section is the outsourced ones alone). Who
+	was on duty: shifts starting in the security days first to last,
 	checked in (HR biometric where the guard punches one, else the app's
 	shift check-in), late, not in, and who was off without cover. `window`
 	(start, end) keeps only shifts starting in it - a day or night report;
@@ -523,8 +621,10 @@ def _shift_attendance(first, last, farm=None, company=None, window=None):
 		return "Not checked in" if start and start <= now else "Upcoming"
 
 	states = [(r, state(r)) for r in rows]
-	present = [x for x in states if x[1] in ("On time", "Late", "Checked in")]
-	missing = [x for x in states if x[1] in ("Absent", "No clock-in", "Not checked in")]
+	# A guard who punched out but not in was there: present, as in the
+	# exceptions section (which lists them under missed a punch).
+	present = [x for x in states if x[1] in ("On time", "Late", "Checked in", "No clock-in")]
+	missing = [x for x in states if x[1] in ("Absent", "Not checked in")]
 	late = [x for x in states if x[1] == "Late"]
 	off = data.get("off_days") or []
 	uncovered = [o for o in off if not o.get("covered_by")]
@@ -693,12 +793,16 @@ def build_report(first, last, farm=None, company=None, sections=SECTIONS, half="
 	report = {"from_date": str(first), "to_date": str(last), "start": str(start), "end": str(end),
 		"period_text": window_label(start, end), "scope": _scope_label(farm, company), "half": half,
 		"doctypes": list(doctypes or []),
-		"sections": sections, "brand": _brand(farm, company), "farm": farm, "company": company}
+		"sections": sections, "brand": _brand(farm, company), "farm": farm, "company": company,
+		# A report of the exceptions alone is Robert's daily one: named for it.
+		"title": "Guard exceptions report" if sections == ["exceptions"] and not doctypes else "Security report"}
 	if half != "all":
 		report["period_text"] += " · " + ("day" if half == "day" else "night")
 	# The gate and shift sections share one shape (figures, tables, watch
 	# lists) and one template block.
 	gate = []
+	if "exceptions" in sections:
+		gate.append(_guard_exceptions(first, last, farm, company, window))
 	if "visitors" in sections:
 		gate.append(_visits(start, end, farm, company))
 	if "contractors" in sections:
@@ -1046,7 +1150,7 @@ def deliver(recipients, report, note=None):
 	groups = {True: [], False: []}
 	for e in recipients:
 		groups[with_wl and _may_see_watchlist(e)].append(e)
-	subject = f"Security report · {report['scope']} · {report.get('period_text') or _period_text(report['from_date'], report['to_date'])}"
+	subject = f"{report.get('title') or 'Security report'} · {report['scope']} · {report.get('period_text') or _period_text(report['from_date'], report['to_date'])}"
 	fname = _filename("security-report", report["from_date"], report["to_date"], report["scope"]) + ".pdf"
 	for show_wl, people in groups.items():
 		if not people:

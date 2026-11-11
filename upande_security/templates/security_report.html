@@ -60,7 +60,7 @@
     {%- endif %}
     <td style="padding:18px 22px">
       <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:{{ theme.on_accent_muted }}">{{ brand | e }}</div>
-      <div style="font-size:24px;font-weight:700;color:{{ theme.on_accent }};margin-top:4px">Security report</div>
+      <div style="font-size:24px;font-weight:700;color:{{ theme.on_accent }};margin-top:4px">{{ r.title or "Security report" }}</div>
       <div style="font-size:13px;color:{{ theme.on_accent }};margin-top:4px">{{ r.scope | e }} · {{ r.period_text | e }}</div>
     </td>
     <td style="padding:18px 22px;text-align:right;vertical-align:bottom">
@@ -74,6 +74,7 @@
   {%- endif %}
 
   {#- At a glance: one line per section -#}
+  {%- if r.ranking or r.incidents or (with_watchlist and r.watchlist) %}
   <table cellspacing="0" cellpadding="0" style="width:100%;margin-top:16px;border:1px solid {{ LINE }};border-top:3px solid {{ ACCENT }};border-radius:10px"><tr>
   {%- if r.ranking %}{% set farms = r.ranking.farms or [] %}
     <td style="padding:12px 14px;vertical-align:top;border-right:1px solid {{ LINE }}">
@@ -97,6 +98,7 @@
     </td>
   {%- endif %}
   </tr></table>
+  {%- endif %}
 
   {#- ── Patrol summary: the last 7 days, one row per farm, grouped by company ── -#}
   {%- if r.week_companies %}
@@ -135,7 +137,7 @@
 
   {#- ── Gate and shift sections (visitors, contractors, staff, vehicles, shifts) ── -#}
   {%- for g in r.gate_sections or [] %}
-  {{ section(g.title, ACCENT, None) }}
+  {{ section(g.title, ACCENT, g.subtitle) }}
   {{ kpis(g.kpis) }}
   {%- for title, pairs in g.breakdown or [] %}
   <div style="font-size:12px;margin:0 0 10px"><span style="color:{{ MUTED }}">{{ title }}:</span>
@@ -148,7 +150,7 @@
   </div>
   {%- endfor %}
   {%- if not g.tables or (g.tables | sum(attribute="rows", start=[]) | length) == 0 %}
-  <p style="font-size:13px;color:{{ MUTED }}">{{ g.empty }}</p>
+  {%- if g.empty %}<p style="font-size:13px;color:{{ MUTED }}">{{ g.empty }}</p>{% endif %}
   {%- endif %}
   {%- for t in g.tables or [] %}{% if t.rows %}
   <div style="font-size:13px;font-weight:700;margin:12px 0 6px">{{ t.title | e }} · {{ t.count if t.count is defined else (t.rows | length + t.more) }}</div>
@@ -162,7 +164,7 @@
     <tr style="page-break-after:avoid"><td colspan="{{ t.columns | length }}" style="padding:7px 8px 5px;font-size:12px;font-weight:700;background:{{ SOFT }};border-bottom:1px solid {{ LINE }}">{{ row.group | e }}</td></tr>
     {%- endif %}
     {%- else %}
-    <tr style="page-break-inside:avoid">{% for cell in row %}<td style="{{ TD }}text-align:{{ t.columns[loop.index0][1] }}{{ ';color:' ~ RED if cell in ('inside','still out','Not checked in','Absent','No clock-in','No cover','Rejected','not recorded') else '' }}">{{ cell | e }}</td>{% endfor %}</tr>
+    <tr style="page-break-inside:avoid">{% for cell in row %}<td style="{{ TD }}text-align:{{ t.columns[loop.index0][1] }}{{ ';color:' ~ RED if cell in ('inside','still out','Not checked in','Absent','No clock-in','No cover','Rejected','not recorded') else '' }}{{ ';color:' ~ RED ~ ';font-weight:700' if t.red_from is defined and loop.index0 >= t.red_from and cell is number and cell > 0 else '' }}">{{ cell | e }}</td>{% endfor %}</tr>
     {%- endif %}
     {%- endfor %}
   </table>
@@ -407,7 +409,7 @@
   {%- endif %}
 
   <table cellspacing="0" cellpadding="0" style="width:100%;margin-top:28px;border-top:1px solid {{ LINE }}"><tr>
-    <td style="padding-top:10px;font-size:10px;color:{{ HINT }}">{{ brand | e }} · Security report · {{ r.scope | e }} · {{ r.period_text | e }}</td>
+    <td style="padding-top:10px;font-size:10px;color:{{ HINT }}">{{ brand | e }} · {{ r.title or "Security report" }} · {{ r.scope | e }} · {{ r.period_text | e }}</td>
     <td style="padding-top:10px;font-size:10px;text-align:right"><a href="{{ dashboard_url }}" style="color:{{ BLUE }}">Open the Security Dashboard</a></td>
   </tr></table>
 </div>
