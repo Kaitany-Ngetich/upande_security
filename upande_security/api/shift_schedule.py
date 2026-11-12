@@ -279,6 +279,7 @@ def get_shift_schedule(year: str | int, month: str | int, farm: str | None = Non
 		SELECT name, external_guard, start_date, shift_type, covering_for
 		FROM `tabSecurity Guard Shift Assignment`
 		WHERE security_guard = 'External Guard'
+		  AND status != 'Cancelled'
 		  AND start_date BETWEEN %(start)s AND %(end)s
 		  AND (external_guard IN %(guard_ids)s OR covering_for IN %(guard_ids)s)
 		""",
@@ -435,9 +436,11 @@ def toggle_guard_day(
 	# Undo any reliever cover for this guard/day (see release_cover).
 	release_cover(guard, date_val, guard_doc.full_name)
 
+	# A Cancelled shift does not put the guard on; marking them on books a new one.
 	already_on = frappe.db.exists(
 		"Security Guard Shift Assignment",
-		{"security_guard": "External Guard", "external_guard": guard, "start_date": date_val, "covering_for": ["is", "not set"]},
+		{"security_guard": "External Guard", "external_guard": guard, "start_date": date_val,
+			"covering_for": ["is", "not set"], "status": ["!=", "Cancelled"]},
 	)
 	if not already_on and cint(create_shift):
 		shift_type = shift_type or _usual_shift_type(guard)

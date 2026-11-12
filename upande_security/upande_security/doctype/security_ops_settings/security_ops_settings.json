@@ -102,7 +102,14 @@
   "apk_install_window_start",
   "apk_install_window_end",
   "standard_shift_times_section",
-  "standard_shift_times"
+  "standard_shift_times",
+  "terminology_section",
+  "use_custom_words",
+  "site_label",
+  "site_label_plural",
+  "terminology_column",
+  "area_label",
+  "area_label_plural"
  ],
  "fields": [
   {
@@ -704,12 +711,67 @@
    "fieldtype": "Table",
    "label": "Standard Shift Times",
    "options": "Security Shift Time"
+  },
+  {
+   "fieldname": "terminology_section",
+   "fieldtype": "Section Break",
+   "label": "Words Used (Beta)",
+   "description": "Still being built. What this organisation calls its places, for clients that are not farms (a factory, office, hotel, estate). Off: everything says Farm and Block, as before.",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "use_custom_words",
+   "fieldtype": "Check",
+   "label": "Use Custom Words",
+   "default": "0",
+   "description": "On: the Security Dashboard and the Desk field labels use the words below. Turning it off puts Farm and Block back."
+  },
+  {
+   "fieldname": "site_label",
+   "fieldtype": "Data",
+   "label": "A Site Is Called",
+   "default": "Farm",
+   "description": "Singular, e.g. Farm, Site, Branch, Premises, Estate, Campus.",
+   "depends_on": "eval:doc.use_custom_words",
+   "mandatory_depends_on": "eval:doc.use_custom_words"
+  },
+  {
+   "fieldname": "site_label_plural",
+   "fieldtype": "Data",
+   "label": "Sites Are Called",
+   "default": "Farms",
+   "description": "Plural, e.g. Farms, Sites, Branches.",
+   "depends_on": "eval:doc.use_custom_words",
+   "mandatory_depends_on": "eval:doc.use_custom_words"
+  },
+  {
+   "fieldname": "terminology_column",
+   "fieldtype": "Column Break",
+   "depends_on": "eval:doc.use_custom_words"
+  },
+  {
+   "fieldname": "area_label",
+   "fieldtype": "Data",
+   "label": "An Area Is Called",
+   "default": "Block",
+   "description": "A part of a site (Security Block), e.g. Block, Zone, Wing, Floor.",
+   "depends_on": "eval:doc.use_custom_words",
+   "mandatory_depends_on": "eval:doc.use_custom_words"
+  },
+  {
+   "fieldname": "area_label_plural",
+   "fieldtype": "Data",
+   "label": "Areas Are Called",
+   "default": "Blocks",
+   "description": "Plural, e.g. Blocks, Zones, Wings.",
+   "depends_on": "eval:doc.use_custom_words",
+   "mandatory_depends_on": "eval:doc.use_custom_words"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-04 22:00:00.000000",
+ "modified": "2026-11-12 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",

@@ -1421,3 +1421,127 @@ def _send_to_subscribers(day):
 		except Exception:
 			frappe.db.rollback()
 			frappe.log_error(f"Security report for {_scope_label(farm, company)} failed")
+
+
+# --- dashboard schedule card -------------------------------------------------------
+# The Security Dashboard's "Schedule delivery" card used to keep its schedules in
+# the browser tab (setTimeout / setInterval): nothing went out unless that tab
+# stayed open, a refresh lost them all, and two tabs sent twice. It now reads and
+# writes Security Report Subscription rows on Security Ops Settings, the same rows
+# send_scheduled_reports (cron, every 15 min) already delivers - and the same
+# validation keeps each row inside its recipient's own farm / company access.
+
+SCHEDULE_FREQUENCIES = ("Daily", "Weekly", "Monthly")
+
+
+def _require_send_role():
+	if not set(SEND_ROLES) & set(frappe.get_roles()):
+		frappe.throw(_("Only a Security Head, Security Manager or System Manager can schedule reports."),
+			frappe.PermissionError)
+
+
+def _schedule_row(r):
+	return {
+		"name": r.name,
+		"email": r.email,
+		"recipient": frappe.utils.get_fullname(r.user) if r.user else r.email,
+		"frequency": r.frequency,
+		"send_on": r.send_on if r.frequency == "Weekly" else None,
+		"send_at": frappe.utils.get_time(r.send_at).strftime("%H:%M") if r.send_at else "",
+		"farm": r.farm,
+		"company": r.company,
+		"scope": _scope_label(r.farm, r.company),
+		"enabled": bool(r.enabled),
+		"last_sent_on": str(r.last_sent_on) if r.last_sent_on else None,
+	}
+
+
+@frappe.whitelist()
+def list_report_schedules():
+	"""Every scheduled security report (Security Ops Settings > Security Reports)."""
+	_require_send_role()
+	settings = frappe.get_single("Security Ops Settings")
+	return [_schedule_row(r) for r in settings.get("security_report_subscriptions") or []]
+
+
+@frappe.whitelist(methods=["POST"])
+def add_report_schedule(recipients, frequency, send_at, send_on=None, farm=None, company=None):
+	"""Schedule the report for each recipient email. A recipient who already has
+	the same frequency, weekday and scope keeps one row, with the new time."""
+	_require_send_role()
+	recipients = frappe.parse_json(recipients) if isinstance(recipients, str) else recipients
+	emails = []
+	for r in recipients or []:
+		email = (r.get("email") if isinstance(r, dict) else r) or ""
+		email = email.strip()
+		if email and email.lower() not in {e.lower() for e in emails}:
+			emails.append(email)
+	if not emails:
+		frappe.throw(_("Add at least one recipient."))
+	invalid = [e for e in emails if not frappe.utils.validate_email_address(e)]
+	if invalid:
+		frappe.throw(_("Not a valid email address: {0}").format(", ".join(invalid)))
+	if frequency not in SCHEDULE_FREQUENCIES:
+		frappe.throw(_("Frequency must be Daily, Weekly or Monthly."))
+	if frequency == "Weekly" and send_on not in WEEKDAYS:
+		frappe.throw(_("Pick the weekday a weekly report goes out on."))
+	try:
+		send_at = frappe.utils.get_time(send_at).strftime("%H:%M:00")
+	except Exception:
+		frappe.throw(_("Pick the time the report goes out."))
+	send_on = send_on if frequency == "Weekly" else None
+	farm = farm or None
+	company = None if farm else (company or None)
+
+	settings = frappe.get_single("Security Ops Settings")
+	for email in emails:
+		settings.append("security_report_subscriptions", {
+			"user": _user_of(email),
+			"email": email,
+			"enabled": 1,
+			"frequency": frequency,
+			"send_on": send_on or "Monday",
+			"send_at": send_at,
+			"farm": farm,
+			"company": company,
+		})
+	# The role check above stands in for write access on the settings single;
+	# validate() still refuses any row reaching past its recipient's access.
+	settings.save(ignore_permissions=True)
+
+	# Saving fills a blank scope (validate's default_scope, the site's default
+	# Company), so duplicates are judged on what was stored. The same person,
+	# frequency, weekday and scope keeps its original row - and with it
+	# last_sent_on, so today's report is not sent twice - at the new time.
+	def key(r):
+		return ((r.email or "").lower(), r.frequency, r.send_on if r.frequency == "Weekly" else None,
+			r.farm or None, None if r.farm else (r.company or None))
+
+	first = {}
+	keep = []
+	for r in settings.security_report_subscriptions:
+		k = key(r)
+		if k in first:
+			first[k].send_at = r.send_at
+			first[k].enabled = 1
+		else:
+			first[k] = r
+			keep.append(r)
+	if len(keep) != len(settings.security_report_subscriptions):
+		settings.set("security_report_subscriptions", keep)
+		settings.save(ignore_permissions=True)
+	return list_report_schedules()
+
+
+@frappe.whitelist(methods=["POST"])
+def remove_report_schedule(name):
+	"""Stop one scheduled report (deletes its Security Reports row)."""
+	_require_send_role()
+	settings = frappe.get_single("Security Ops Settings")
+	rows = settings.get("security_report_subscriptions") or []
+	keep = [r for r in rows if r.name != name]
+	if len(keep) == len(rows):
+		frappe.throw(_("That scheduled report no longer exists."))
+	settings.set("security_report_subscriptions", keep)
+	settings.save(ignore_permissions=True)
+	return list_report_schedules()

@@ -4252,9 +4252,11 @@ def create_staff_attendance(employee=None, vehicle_plate=None, entry_gate=None, 
 				"department",
 				"default_shift",
 				"custom_farm",
-				"employee_category",
 				"status",
-			],
+			]
+			# employee_category is a site-level custom field (no app ships it);
+			# a site without it must still be able to sign staff in.
+			+ (["employee_category"] if frappe.get_meta("Employee").has_field("employee_category") else []),
 			as_dict=True,
 		)
 		if not emp:
@@ -4349,7 +4351,7 @@ def create_staff_attendance(employee=None, vehicle_plate=None, entry_gate=None, 
 			doc.shift = emp.default_shift
 		if emp.custom_farm:
 			doc.custom_farm = emp.custom_farm
-		if emp.employee_category:
+		if emp.get("employee_category"):
 			doc.custom_employee_category = emp.employee_category
 		if vehicle_plate:
 			doc.custom_vehicle_number_plate = vehicle_plate

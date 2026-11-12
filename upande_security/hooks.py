@@ -14,7 +14,7 @@ app_license = "mit"
 # upande_kaitet is deliberately NOT listed: it provides Farm and Tractor Daily
 # Task here, but krv16 sources Farm from upande_core and has no Tractor Daily
 # Task at all, so requiring it would block a valid deployment.
-required_apps = ["erpnext", "hrms"]
+required_apps = ["erpnext", "hrms", "upande_core"]
 
 # Each item in the list will be shown as an app in the apps page.
 # Without this the Security workspace is still delivered in the desk boot, but
@@ -23,7 +23,7 @@ required_apps = ["erpnext", "hrms"]
 add_to_apps_screen = [
 	{
 		"name": "upande_security",
-		"logo": "/assets/upande_security/images/upande_logo.png",
+		"logo": "/assets/upande_security/images/security_logo.svg",
 		"title": "Security",
 		"route": "/app/security",
 	}
@@ -35,6 +35,7 @@ add_to_apps_screen = [
 # include js, css files in header of desk.html
 # app_include_css = "/assets/upande_security/css/upande_security.css"
 # app_include_js = "/assets/upande_security/js/upande_security.js"
+app_include_js = ["/assets/upande_security/js/security_logo_motion.js"]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/upande_security/css/upande_security.css"
@@ -597,7 +598,7 @@ fixtures = [
     {
         "dt": "Web Page",
         "filters": [
-            ["route", "in", ["security-dashboard", "patrol-map", "visitor-received", "supplier-badge", "request-sticker", "shift-schedule"]],
+            ["route", "in", ["security-dashboard", "patrol-map", "patrol-playback", "visitor-received", "supplier-badge", "request-sticker", "shift-schedule"]],
         ],
     },
     {

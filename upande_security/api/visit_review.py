@@ -37,6 +37,22 @@ def _own_employee_only(user):
 	return frappe.db.get_value("Employee", {"user_id": user}, "name") or ""
 
 
+def review_actions(name, me=None):
+	"""The workflow actions the current user may take on one visit. Both
+	approvals land on the same state, so only the one that fits who is
+	looking is offered - the host approves, anyone else approves on their
+	behalf. `me` is the current user's Employee (looked up when omitted)."""
+	if me is None:
+		me = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
+	doc = frappe.get_doc(DOCTYPE, name)
+	actions = list(dict.fromkeys(t.action for t in get_transitions(doc, raise_exception=True)))
+	if me and doc.custom_meet_with == me:
+		actions = [a for a in actions if a != "Approve on Behalf of Host"]
+	elif "Approve on Behalf of Host" in actions:
+		actions = [a for a in actions if a != "Approve Visit"]
+	return actions
+
+
 @frappe.whitelist()
 def review_queue():
 	"""Visits waiting for review that the current user can act on, newest
@@ -56,14 +72,7 @@ def review_queue():
 	me = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
 	queue = []
 	for row in rows:
-		doc = frappe.get_doc(DOCTYPE, row.name)
-		actions = list(dict.fromkeys(t.action for t in get_transitions(doc, raise_exception=True)))
-		# Both approvals land on the same state; offer the one that fits who
-		# is looking - the host approves, anyone else approves on their behalf.
-		if me and row.custom_meet_with == me:
-			actions = [a for a in actions if a != "Approve on Behalf of Host"]
-		elif "Approve on Behalf of Host" in actions:
-			actions = [a for a in actions if a != "Approve Visit"]
+		actions = review_actions(row.name, me)
 		if not actions:
 			continue
 		row.actions = actions

@@ -22,6 +22,26 @@ class SecurityOpsSettings(Document):
 		self.fill_appointment_recipient_contacts()
 		self.auto_mark_single_gate_farms_as_main()
 		self.validate_report_subscriptions()
+		self.validate_custom_words()
+
+	def validate_custom_words(self):
+		"""Use Custom Words on: all four words are needed."""
+		if not self.use_custom_words:
+			return
+		for key in ("site_label", "site_label_plural", "area_label", "area_label_plural"):
+			value = (self.get(key) or "").strip()
+			if not value:
+				frappe.throw(
+					"Fill in '{0}' or turn Use Custom Words off.".format(self.meta.get_label(key)),
+					frappe.MandatoryError,
+				)
+			self.set(key, value)
+
+	def on_update(self):
+		# Words Used changed: relabel the Farm / Block fields in Desk to match.
+		from upande_security.api.terms import on_settings_update
+
+		on_settings_update(self)
 
 	def validate_report_subscriptions(self):
 		"""Each security report row stays within its person's own access:
