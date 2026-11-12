@@ -31,7 +31,6 @@
   "company",
   "designation",
   "farm",
-  "location",
   "post",
   "reliever",
   "section_identification",
@@ -182,12 +181,6 @@
    "reqd": 1
   },
   {
-   "fieldname": "location",
-   "fieldtype": "Select",
-   "label": "Location",
-   "options": "\nRavine\nKaren\nKitale"
-  },
-  {
    "fieldname": "post",
    "fieldtype": "Data",
    "label": "Post"
@@ -282,7 +275,7 @@
    "link_fieldname": "security_guard"
   }
  ],
- "modified": "2026-11-03 20:22:34.156015",
+ "modified": "2026-11-11 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Guard",
