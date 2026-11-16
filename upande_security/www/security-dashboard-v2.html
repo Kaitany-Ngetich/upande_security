@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Upande Security</title>
+		<link rel="icon" type="image/png" href="/assets/upande_security/images/upande_logo.png" />
+		<link rel="apple-touch-icon" href="/assets/upande_security/images/upande_logo.png" />
+		<!-- Poppins is self-hosted via @font-face in the bundled security_css. -->
+		<link rel="stylesheet" href="{{ security_css }}" />
+
+		<style>
+			.navbar.navbar-light { display: none !important; }
+			.web-footer { display: none !important; }
+			html, body { height: 100%; margin: 0; padding: 0; background: #fbfaf6; }
+			body { overflow: hidden; }
+			#security-root { height: 100vh; width: 100%; overflow: auto;
+				font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+			.page-content, .container, main.container { max-width: none !important; padding: 0 !important; margin: 0 !important; }
+
+			/* The cover that holds the screen while the bundle loads.
+			   Inline, and before the stylesheet link resolves, because its whole
+			   job is to be on screen in the first frame — a splash that arrives
+			   with the CSS arrives after the thing it was meant to hide. */
+			.sec-splash {
+				position: fixed; inset: 0; z-index: 2147483000;
+				display: flex; align-items: center; justify-content: center;
+				/* White, like Frappe's own splash — the cover belongs to the
+				   crossing between the two apps, not to either one's paper. */
+				background: #ffffff;
+				transition: opacity 280ms ease;
+			}
+			/* The looping Security loader on nothing, no box. */
+			.sec-splash img { width: 106px; height: auto; display: block; }
+			.sec-splash.sec-leaving { opacity: 0; pointer-events: none; }
+		</style>
+	</head>
+	<body>
+		<div id="security-root"></div>
+		<div class="sec-splash" id="sec-splash">
+			<img src="/assets/upande_security/images/security_logo_loader.svg" alt="Upande Security" />
+		</div>
+
+		<script type="application/json" id="security-bootstrap">{{ bootstrap_json | safe }}</script>
+		<script>
+			(function () {
+				var bootEl = document.getElementById("security-bootstrap");
+				var boot = {};
+				try { boot = JSON.parse(bootEl.textContent || "{}"); } catch (_) {}
+				window.SECURITY = {
+					csrf_token: boot.csrf_token || window.csrf_token || "",
+					bootstrap: boot
+				};
+			})();
+		</script>
+		<script type="module" src="{{ security_js }}"></script>
+	</body>
+</html>

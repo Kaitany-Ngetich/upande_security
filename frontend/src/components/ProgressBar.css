@@ -1,0 +1,87 @@
+.scp-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.scp-progress__track {
+  position: relative;
+  height: 4px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  /* Faint guide only — the fill is the indicator, matching how the old orbit
+     kept its track at 6% opacity. */
+  background: color-mix(in srgb, var(--sd-line, currentColor) 60%, transparent);
+}
+
+.scp-progress__fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--sd-grad-ink, linear-gradient(135deg, #0a0a0a 0%, #3a3a34 100%));
+  /* Long-ish and eased-out: real progress arrives in steps (10, 25, 50 …), and a
+     linear tween would make each jump look like a stutter. */
+  transition: width 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Indeterminate: a travelling segment, left to right, same direction as a
+   filling bar so the two modes read as the same object. */
+.scp-progress__fill--indeterminate {
+  width: 40%;
+  animation: scp-progress-sweep 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  transition: none;
+}
+
+@keyframes scp-progress-sweep {
+  0% {
+    transform: translateX(-105%);
+  }
+  100% {
+    transform: translateX(255%);
+  }
+}
+
+.scp-progress__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  color: var(--sd-muted, currentColor);
+}
+
+.scp-progress__label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.scp-progress__figure {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.scp-progress__detail {
+  font-weight: 400;
+  opacity: 0.75;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scp-progress__fill {
+    transition: none;
+  }
+  .scp-progress__fill--indeterminate {
+    /* No sweep: hold a half-width segment so the bar still reads as busy. */
+    animation: none;
+    width: 50%;
+  }
+}

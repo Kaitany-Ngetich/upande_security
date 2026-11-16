@@ -1,13 +1,15 @@
 {
  "actions": [],
  "creation": "2026-11-02 12:00:00.000000",
- "description": "Standard times of one shift type (Security Ops Settings).",
+ "description": "Times of one shift type (Security Ops Settings). Farms blank = every farm; with farms picked, the row applies to those farms only.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "shift_type",
   "start_time",
-  "end_time"
+  "end_time",
+  "farms",
+  "select_farms"
  ],
  "fields": [
   {
@@ -31,11 +33,24 @@
    "in_list_view": 1,
    "label": "Ends",
    "reqd": 1
+  },
+  {
+   "description": "Leave blank for every farm. Pick farms to give them their own times for this shift - a picked farm uses this row instead of the blank one.",
+   "fieldname": "farms",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Farms",
+   "read_only": 1
+  },
+  {
+   "fieldname": "select_farms",
+   "fieldtype": "Button",
+   "label": "Select Farms"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-11-03 07:52:06.854886",
+ "modified": "2026-11-16 21:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Shift Time",

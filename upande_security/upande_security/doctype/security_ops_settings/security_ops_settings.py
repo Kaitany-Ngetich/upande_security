@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
 
 
@@ -22,6 +23,65 @@ class SecurityOpsSettings(Document):
 		self.fill_appointment_recipient_contacts()
 		self.auto_mark_single_gate_farms_as_main()
 		self.validate_report_subscriptions()
+		self.validate_custom_words()
+		self.validate_shift_times()
+
+	def validate_shift_times(self):
+		"""Standard Shift Times: one row per shift for every farm (Farms
+		blank), and any farm picked at most once per shift - otherwise which
+		times a farm gets would depend on row order."""
+		from upande_security.api.shift_times import parse_farms
+
+		blank, picked = set(), {}
+		for row in self.standard_shift_times:
+			farms = parse_farms(row.farms)
+			if not farms:
+				if row.shift_type in blank:
+					frappe.throw(
+						_("Standard Shift Times: the {0} shift has more than one row for every farm (Farms blank).").format(
+							frappe.bold(row.shift_type)
+						),
+						title=_("Duplicate Shift"),
+					)
+				blank.add(row.shift_type)
+				continue
+			unknown = [f for f in farms if not frappe.db.exists("Farm", f)]
+			if unknown:
+				frappe.throw(
+					_("Standard Shift Times row {0}: farm not found: {1}").format(row.idx, ", ".join(unknown)),
+					title=_("Unknown Farm"),
+				)
+			for farm in farms:
+				key = (row.shift_type, farm)
+				if key in picked:
+					frappe.throw(
+						_("Standard Shift Times: {0} is picked for the {1} shift in rows {2} and {3}.").format(
+							frappe.bold(farm), frappe.bold(row.shift_type), picked[key], row.idx
+						),
+						title=_("Farm Picked Twice"),
+					)
+				picked[key] = row.idx
+			# Stored one per line, de-duplicated, so the list view reads cleanly.
+			row.farms = "\n".join(dict.fromkeys(farms))
+
+	def validate_custom_words(self):
+		"""Use Custom Words on: all four words are needed."""
+		if not self.use_custom_words:
+			return
+		for key in ("site_label", "site_label_plural", "area_label", "area_label_plural"):
+			value = (self.get(key) or "").strip()
+			if not value:
+				frappe.throw(
+					"Fill in '{0}' or turn Use Custom Words off.".format(self.meta.get_label(key)),
+					frappe.MandatoryError,
+				)
+			self.set(key, value)
+
+	def on_update(self):
+		# Words Used changed: relabel the Farm / Block fields in Desk to match.
+		from upande_security.api.terms import on_settings_update
+
+		on_settings_update(self)
 
 	def validate_report_subscriptions(self):
 		"""Each security report row stays within its person's own access:
