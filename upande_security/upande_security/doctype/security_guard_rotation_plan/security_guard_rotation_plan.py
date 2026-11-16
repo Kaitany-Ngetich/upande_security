@@ -6,7 +6,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import add_days, cint, get_time, getdate
 
-from upande_security.api.shift_times import standard_times
+from upande_security.api.shift_times import farm_times, standard_times
 from upande_security.utils.holidays import is_guard_off
 
 
@@ -42,8 +42,14 @@ class SecurityGuardRotationPlan(Document):
 					_("Change Shift Every (Days) must be a positive number of days."), title=_("Invalid Shift Change")
 				)
 			self.shift_type = cycle[0]
-		if self.shift_type and (not self.start_time or not self.end_time or self.has_value_changed("shift_type")):
-			start, end = standard_times(self.shift_type)
+		first_farm = next((row.farm for row in self.rotation_farms if row.farm), None)
+		if self.shift_type and (
+			not self.start_time
+			or not self.end_time
+			or self.has_value_changed("shift_type")
+			or self.is_new()
+		):
+			start, end = standard_times(self.shift_type, first_farm)
 			if start and end:
 				self.start_time, self.end_time = start, end
 
@@ -148,10 +154,14 @@ class SecurityGuardRotationPlan(Document):
 			row.block = block
 			if rotating:
 				row.shift_type = cycle[(day_index // shift_every) % len(cycle)]
-				row.start_time, row.end_time = standard_times(row.shift_type)
+				row.start_time, row.end_time = standard_times(row.shift_type, farm)
 			else:
 				row.shift_type = self.shift_type
-				row.start_time, row.end_time = self.start_time, self.end_time
+				# The plan's own times, unless this day's farm runs its own
+				# (Standard Shift Times row picking it) - a guard rotating onto such a farm
+				# works that farm's hours.
+				start, end = farm_times(row.shift_type, farm)
+				row.start_time, row.end_time = (start, end) if start and end else (self.start_time, self.end_time)
 			row.is_off_day = 1 if off_day else 0
 			row.status = "Skipped" if off_day else "Pending"
 			if off_day:

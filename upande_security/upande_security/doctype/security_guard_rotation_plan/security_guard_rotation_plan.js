@@ -505,7 +505,11 @@ function follow_first_shift(frm) {
 function fill_standard_times(frm) {
 	if (!frm.doc.shift_type) return;
 	frappe
-		.call("upande_security.api.shift_times.get_standard_shift_times", { shift_type: frm.doc.shift_type })
+		.call("upande_security.api.shift_times.get_standard_shift_times", {
+			shift_type: frm.doc.shift_type,
+			// The first farm's times; each day's own farm is applied on save.
+			farm: ((frm.doc.rotation_farms || []).find((row) => row.farm) || {}).farm || null,
+		})
 		.then((r) => {
 			const t = r.message;
 			if (t && t.start_time && t.end_time) {

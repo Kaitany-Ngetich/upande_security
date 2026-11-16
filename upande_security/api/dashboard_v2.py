@@ -847,13 +847,21 @@ def _is_planner():
 @frappe.whitelist()
 def scheduling_options():
 	"""Shift types with their standard times, and whether the user plans."""
-	from upande_security.api.shift_times import standard_times
+	from upande_security.api.shift_times import all_farm_times, standard_times
 
 	times = {}
 	for t in SHIFT_TYPES:
 		start, end = standard_times(t)
 		times[t] = {"start_time": _hhmm(start), "end_time": _hhmm(end)}
-	return {"shift_types": list(SHIFT_TYPES), "times": times, "can_plan": _is_planner()}
+	# Farms with their own Standard Shift Times rows: only those shifts.
+	farm_times = {
+		farm: {
+			t: {"start_time": _hhmm(se[0]), "end_time": _hhmm(se[1])}
+			for t, se in shifts.items() if t in SHIFT_TYPES
+		}
+		for farm, shifts in all_farm_times().items()
+	}
+	return {"shift_types": list(SHIFT_TYPES), "times": times, "farm_times": farm_times, "can_plan": _is_planner()}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -868,7 +876,7 @@ def create_shift(external_guard, farm, shift_type, date, start_time=None, end_ti
 		return {"error": _("Pick a shift type.")}
 	if not frappe.db.exists("Security Guard", external_guard):
 		return {"error": _("Security Guard {0} not found.").format(external_guard)}
-	std_start, std_end = standard_times(shift_type)
+	std_start, std_end = standard_times(shift_type, farm)
 	start = frappe.utils.get_time(start_time or std_start)
 	end = frappe.utils.get_time(end_time or std_end)
 	day = frappe.utils.getdate(date)

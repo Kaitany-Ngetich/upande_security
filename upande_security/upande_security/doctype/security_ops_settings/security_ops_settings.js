@@ -251,3 +251,34 @@ frappe.ui.form.on("Security Report Subscription", {
 			});
 	},
 });
+
+// Standard Shift Times: a row with Farms picked gives those farms their own
+// times for that shift (e.g. First 06:00-13:00); Farms blank = every farm.
+frappe.ui.form.on("Security Shift Time", {
+	select_farms(frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		const current = (row.farms || "")
+			.split(/[\n,]/)
+			.map((f) => f.trim())
+			.filter(Boolean);
+		const d = new frappe.ui.Dialog({
+			title: __("Farms for the {0} shift", [row.shift_type || ""]),
+			fields: [
+				{
+					fieldname: "farms",
+					fieldtype: "MultiSelectPills",
+					label: __("Farms"),
+					description: __("Leave empty for every farm."),
+					get_data: (txt) => frappe.db.get_link_options("Farm", txt),
+				},
+			],
+			primary_action_label: __("Set"),
+			primary_action(values) {
+				frappe.model.set_value(cdt, cdn, "farms", (values.farms || []).join("\n"));
+				d.hide();
+			},
+		});
+		d.show();
+		d.set_value("farms", current);
+	},
+});

@@ -29,17 +29,17 @@ SHIFT_TYPE_MASTER = {
 }
 
 
-def _shift_hours(shift_type, start_time=None, end_time=None):
+def _shift_hours(shift_type, start_time=None, end_time=None, farm=None):
 	"""(start_time, end_time) for a shift: the given times if both are set
 	(a Rotation Plan preview row carries its own), else the standard times
-	in Security Ops Settings, else the HR Shift Type master. Throws a plain
+	(the farm's own row first), else the HR Shift Type master. Throws a plain
 	message instead of crashing when none of them has times."""
 	from frappe.utils import to_timedelta
 
 	from upande_security.api.shift_times import standard_times
 
 	if not (start_time and end_time):
-		start_time, end_time = standard_times(shift_type)
+		start_time, end_time = standard_times(shift_type, farm)
 	if not (start_time and end_time) and SHIFT_TYPE_MASTER.get(shift_type):
 		t = frappe.db.get_value(
 			"Shift Type", SHIFT_TYPE_MASTER[shift_type], ["start_time", "end_time"], as_dict=True
@@ -158,7 +158,8 @@ def assign_cover(guard, guard_doc, date_val, cover_guard=None, shift_type=None, 
 		return _covered(chosen)
 
 	shift_type = shift_type or _usual_shift_type(guard)
-	t = _shift_hours(shift_type, start_time, end_time)
+	# The cover works the covered guard's post, so that farm's hours.
+	t = _shift_hours(shift_type, start_time, end_time, guard_doc.farm)
 
 	if designated:
 		# "Busy" means already covering a *different* guard that day - not
@@ -444,7 +445,7 @@ def toggle_guard_day(
 	)
 	if not already_on and cint(create_shift):
 		shift_type = shift_type or _usual_shift_type(guard)
-		t = _shift_hours(shift_type, start_time, end_time)
+		t = _shift_hours(shift_type, start_time, end_time, guard_doc.farm)
 		doc = frappe.new_doc("Security Guard Shift Assignment")
 		doc.security_guard = "External Guard"
 		doc.external_guard = guard

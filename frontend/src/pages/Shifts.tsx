@@ -321,9 +321,11 @@ function BookShiftDialog({ open, opts, onClose, onDone }: { open: boolean; opts:
     setRemarks("");
   }, [open, scope.farm, farmsInScope]);
   useEffect(() => {
-    setStart(opts.times[type]?.start_time ?? "");
-    setEnd(opts.times[type]?.end_time ?? "");
-  }, [type, opts]);
+    // A farm with its own Standard Shift Times row runs those times.
+    const t = (farm && opts.farm_times?.[farm]?.[type]) || opts.times[type];
+    setStart(t?.start_time ?? "");
+    setEnd(t?.end_time ?? "");
+  }, [type, farm, opts]);
 
   const overnight = !!start && !!end && end <= start;
   const save = async () => {

@@ -5,6 +5,8 @@ const M = "upande_security.api.dashboard_v2";
 export interface SchedulingOptions {
   shift_types: string[];
   times: Record<string, { start_time: string; end_time: string }>;
+  /** Farms with their own Standard Shift Times rows: only those shifts. */
+  farm_times?: Record<string, Record<string, { start_time: string; end_time: string }>>;
   can_plan: boolean;
 }
 export const schedulingOptions = () => call<SchedulingOptions>(`${M}.scheduling_options`);
