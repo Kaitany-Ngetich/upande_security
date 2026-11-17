@@ -194,6 +194,12 @@ def crew_without_badges(appointment):
 	"""Names on a contractor visit's crew list with no badge yet - empty when
 	it is not a contractor visit or the company keeps no contractor badges
 	(nothing to enforce there)."""
+	from upande_security.api.feature_flags import is_feature_enabled
+
+	# Security Ops Settings > Contractor Badges Required at Check-in: off lets
+	# contractors in without badges (badges can still be issued by hand).
+	if not is_feature_enabled("feature_contractor_badges"):
+		return []
 	appt = _visit(appointment)
 	if appt.custom_visitor_type != "Contractor" or not has_badge_pool(_visit_company(appt)):
 		return []

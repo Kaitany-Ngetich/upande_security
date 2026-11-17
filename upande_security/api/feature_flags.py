@@ -23,6 +23,7 @@ import frappe
 FEATURE_FIELDS = [
 	"feature_visitor_approval_workflow",
 	"feature_contractor_checkin",
+	"feature_contractor_badges",
 	"feature_sos_alert",
 	"feature_patrol_geofence_alerts",
 	"feature_patrol_coverage_grid",
