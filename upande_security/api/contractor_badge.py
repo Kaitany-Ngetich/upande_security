@@ -169,6 +169,10 @@ def issue_badges_to_crew(appointment):
 	company = _visit_company(appt)
 	if not company:
 		frappe.throw(_("Could not tell which company's badges to use for this visit."))
+	return _issue_to_crew(appt, company)
+
+
+def _issue_to_crew(appt, company):
 	have = {(b.holder_name or "").casefold() for b in _issued_on(appt)}
 	need = [c for c in _crew(appt) if c.full_name.casefold() not in have]
 	free = frappe.get_all(
@@ -190,10 +194,44 @@ def has_badge_pool(company):
 	return bool(company) and bool(frappe.db.exists(BADGE, {"badge_type": TYPE, "company": company}))
 
 
+def badges_required():
+	"""Security Ops Settings > Contractor Badges Required at Check-in."""
+	from upande_security.api.feature_flags import is_feature_enabled
+
+	return is_feature_enabled("feature_contractor_badges")
+
+
+def badge_crew_at_check_in(appointment):
+	"""Called by every contractor check-in: hand each crew member without a
+	badge the next free one, instead of refusing the check-in. A check-in is
+	never blocked by badges - if the pool runs out, the names left without
+	one come back in `still_without` for the guard to sort out by hand.
+
+	{"badges": [{holder_name, badge_number}, ...] (all on the visit),
+	 "still_without": [names]} - both empty when badges do not apply."""
+	out = {"badges": [], "still_without": []}
+	if not badges_required():
+		return out
+	appt = _visit(appointment)
+	if appt.custom_visitor_type != "Contractor":
+		return out
+	company = _visit_company(appt)
+	if not has_badge_pool(company):
+		return out
+	_issue_to_crew(appt, company)
+	out["badges"] = [{"holder_name": b.holder_name, "badge_number": b.badge_number} for b in _issued_on(appt)]
+	out["still_without"] = crew_without_badges(appointment)
+	return out
+
+
 def crew_without_badges(appointment):
 	"""Names on a contractor visit's crew list with no badge yet - empty when
 	it is not a contractor visit or the company keeps no contractor badges
 	(nothing to enforce there)."""
+	# Security Ops Settings > Contractor Badges Required at Check-in: off lets
+	# contractors in without badges (badges can still be issued by hand).
+	if not badges_required():
+		return []
 	appt = _visit(appointment)
 	if appt.custom_visitor_type != "Contractor" or not has_badge_pool(_visit_company(appt)):
 		return []

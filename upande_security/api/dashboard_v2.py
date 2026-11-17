@@ -237,7 +237,11 @@ def check_in_visitor(name=None, entry_gate=None, transport=None, plate=None, col
 	if isinstance(result, dict) and result.get("error"):
 		return result
 	_keep_scope(name, before)
-	return {"ok": True, "name": name}
+	out = {"ok": True, "name": name}
+	for key in ("contractor_badges", "badge_warning"):
+		if isinstance(result, dict) and result.get(key):
+			out[key] = result[key]
+	return out
 
 
 @frappe.whitelist(methods=["POST"])

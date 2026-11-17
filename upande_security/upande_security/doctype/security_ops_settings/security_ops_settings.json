@@ -56,6 +56,7 @@
   "feature_visitor_approval_workflow",
   "feature_column_break_1",
   "feature_contractor_checkin",
+  "feature_contractor_badges",
   "feature_flags_section_2",
   "feature_sos_alert",
   "feature_patrol_geofence_alerts",
@@ -135,6 +136,15 @@
    "fieldname": "feature_contractor_checkin",
    "fieldtype": "Check",
    "label": "Contractor Gate Check-in",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.feature_contractor_checkin",
+   "description": "Off: contractor visits can be checked in without issuing contractor badges first, even where the company keeps a badge pool.",
+   "fieldname": "feature_contractor_badges",
+   "fieldtype": "Check",
+   "label": "Contractor Badges Required at Check-in",
    "permlevel": 1
   },
   {
@@ -771,7 +781,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-12 12:00:00.000000",
+ "modified": "2026-11-17 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",

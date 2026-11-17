@@ -1552,16 +1552,12 @@ def check_in_visitor(name=None, transport=None, plate=None, colour=None, organiz
 						 ". Visitor must be approved by host first."
 			}
 
-		# A contractor crew gets its badges before it goes in - each person
-		# then moves between the company's farms on their own badge.
+		# A contractor crew goes in on badges - each person then moves between
+		# the company's farms on their own badge. Badges are handed out here
+		# (next free numbers) rather than refusing the check-in: guards were
+		# not issuing them first, so contractor visits sat at "Approved by
+		# Host" and could not be checked in at all.
 		from upande_security.api import contractor_badge
-
-		unbadged = contractor_badge.crew_without_badges(name)
-		if unbadged:
-			return {
-				"error": "Give each person a contractor badge before checking in. No badge yet: "
-				+ ", ".join(unbadged)
-			}
 
 		now = frappe.utils.now_datetime()
 		updates = {
@@ -1596,6 +1592,7 @@ def check_in_visitor(name=None, transport=None, plate=None, colour=None, organiz
 			updates["custom_farmunit"] = resolved_farm
 
 		frappe.db.set_value("Appointment", name, updates)
+		crew_badges = contractor_badge.badge_crew_at_check_in(name)
 		frappe.db.commit()
 		watchlist.track("Appointment", name, "Visitor Check-in")
 
@@ -1632,11 +1629,19 @@ def check_in_visitor(name=None, transport=None, plate=None, colour=None, organiz
 		except Exception:
 			pass
 
-		return {
+		result = {
 			"name": name,
 			"custom_reporting_status": "Checked in",
 			"custom_check_in_time": str(now),
 		}
+		if crew_badges["badges"]:
+			result["contractor_badges"] = crew_badges["badges"]
+		if crew_badges["still_without"]:
+			result["badge_warning"] = (
+				"No contractor badge left for: " + ", ".join(crew_badges["still_without"])
+				+ ". Checked in anyway - return badges to the pool or issue one by hand."
+			)
+		return result
 	except Exception as e:
 		frappe.db.rollback()
 		frappe.log_error("check_in_visitor", str(e))
@@ -1692,6 +1697,11 @@ def check_out_visitor(name=None):
 				existing.custom_visitor_badge,
 				{"status": "Available", "current_appointment": None},
 			)
+		# A contractor visit checked out here (not via contractor_gate_checkout)
+		# must hand its contractor badges back too, or the pool drains.
+		from upande_security.api.contractor_badge import release_badges_for_visit
+
+		release_badges_for_visit(name)
 		frappe.db.commit()
 		watchlist.track("Appointment", name, "Visitor Check-out")
 
@@ -2837,7 +2847,15 @@ def check_out_contractor_visit(appt_name):
 	frappe.db.set_value(
 		"Appointment",
 		appt_name,
-		{"custom_check_out_time": now_str, "custom_reporting_status": "Checked out"},
+		# workflow_state/status set directly, like check_out_visitor (no
+		# apply_workflow, see above) - otherwise a contractor checked out at
+		# the gate still read "Approved by Host"/"Visitor Checked In".
+		{
+			"custom_check_out_time": now_str,
+			"custom_reporting_status": "Checked out",
+			"workflow_state": "Visitor Checked Out",
+			"status": "Closed",
+		},
 		update_modified=True,
 	)
 
@@ -2979,6 +2997,7 @@ def contractor_gate_checkin(
 			updates = {
 				'customer_details': detail_str,
 				'custom_visitor_type': 'Contractor',
+				'workflow_state': 'Visitor Checked In',
 				'custom_reporting_status': 'Checked in',
 				'custom_check_in_time': now_str,
 				'custom_mode_of_transport': transport,
@@ -3026,6 +3045,10 @@ def contractor_gate_checkin(
 
 			updates = {
 				'custom_visitor_type': 'Contractor',
+				# Set directly like check_in_visitor does (no apply_workflow, so
+				# no save() or on_update hooks) - without it the visit stayed
+				# "Approved by Host" after the contractor was in.
+				'workflow_state': 'Visitor Checked In',
 				'custom_check_in_time': now_str,
 				'custom_reporting_status': 'Checked in',
 				'custom_mode_of_transport': transport,
@@ -3045,14 +3068,25 @@ def contractor_gate_checkin(
 			if contractor_ref:
 				frappe.db.set_value('Appointment', appt_name, 'custom_contractor_ref', contractor_ref, update_modified=False)
 
+		from upande_security.api.contractor_badge import badge_crew_at_check_in
+
+		crew_badges = badge_crew_at_check_in(appt_name)
 		frappe.db.commit()
 		watchlist.track("Appointment", appt_name, "Visitor Check-in")
 
-		return {
+		result = {
 			'success': True,
 			'appointment_name': appt_name,
 			'check_in_time': now_str,
 		}
+		if crew_badges['badges']:
+			result['contractor_badges'] = crew_badges['badges']
+		if crew_badges['still_without']:
+			result['badge_warning'] = (
+				'No contractor badge left for: ' + ', '.join(crew_badges['still_without'])
+				+ '. Checked in anyway - return badges to the pool or issue one by hand.'
+			)
+		return result
 
 	except Exception as e:
 		frappe.log_error(
