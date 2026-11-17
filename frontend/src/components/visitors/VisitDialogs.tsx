@@ -101,7 +101,10 @@ export function CheckInDialog({ visit, onClose, onDone }: { visit: Visit | null;
     });
     setBusy(false);
     if (isError(r)) return void toast(r.error, "error");
-    toast(`${who(visit)} checked in.`, "ok", { hint: gate ? `at ${gate}` : undefined });
+    // Contractors get badges handed out at check-in: tell the guard which ones.
+    const badges = (r.contractor_badges || []).map((b) => `#${b.badge_number} ${b.holder_name}`).join(", ");
+    toast(`${who(visit)} checked in.`, "ok", { hint: badges ? `Badges: ${badges}` : gate ? `at ${gate}` : undefined });
+    if (r.badge_warning) toast(r.badge_warning, "warn");
     onClose();
     onDone();
   };

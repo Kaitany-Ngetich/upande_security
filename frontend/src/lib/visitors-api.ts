@@ -75,7 +75,11 @@ export function checkIn(args: {
   colour?: string;
   passengers?: number;
 }) {
-  return call<{ ok: true; name: string }>(`${M}.check_in_visitor`, args);
+  return call<{
+    ok: true; name: string;
+    contractor_badges?: { holder_name: string; badge_number: number }[];
+    badge_warning?: string;
+  }>(`${M}.check_in_visitor`, args);
 }
 
 export function checkOut(args: { name: string; exit_gate?: string }) {
