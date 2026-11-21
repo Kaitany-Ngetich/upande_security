@@ -25,6 +25,28 @@ recorders (Hikvision / Dahua / ONVIF) ──► agent ──HTTPS out──► E
   unexpired token from ERPNext for that exact path is let in.
 - **Health**: recorder reachability and clock drift, reported to ERPNext.
 
+## Site survey (do this first)
+Before installing anything, find out what a site's recorders are and how they fit:
+
+```
+pip install .            # or use the Docker image
+python -m cctv_agent.survey --scan                                   # ONVIF devices on this network
+python -m cctv_agent.survey --brand Hikvision --host 192.168.1.64 --user admin   # asks for the password
+```
+
+It writes `survey-<host>.html` (send it to the integration team) and `.json`
+(import it in ERPNext: CCTV Site Survey list > *Import survey from laptop*).
+Once the agent runs, the same survey is the *Run site survey* button on the
+CCTV Server form.
+
+The report covers: device model, firmware, serial, CPU/memory/uptime; every
+camera (model, IP, online, main/sub codec, resolution, fps, recording mode,
+events); disks and their health; the events Upande Security can use (plates,
+line crossing, intrusion, faces...); clock and NTP; the device's own exception
+log (disk errors, video loss, network drops, abnormal reboots, failed logins);
+every API call made and whether it answered; and a verdict - Ready, Ready
+with fixes, Not ready - with the fixes listed. Passwords never appear in it.
+
 ## Install on a site box
 1. In ERPNext: create the **CCTV Site Agent** (site, gateway URL, signing
    secret), an API user with **only** the *CCTV Agent* role, the **CCTV Server**

@@ -28,6 +28,15 @@ frappe.ui.form.on("CCTV Server", {
 				.then((r) => { frappe.msgprint(__("Reached: {0} {1}, clock offset {2}s", [r.result.model || "", r.result.firmware || "", r.result.time_offset_seconds ?? "?"])); frm.reload_doc(); })
 				.catch((e) => frappe.msgprint({ title: __("Could not reach the recorder"), message: String(e), indicator: "red" })),
 			__("Setup"));
+		frm.add_custom_button(__("Run site survey"), () =>
+			frappe.prompt([
+				{ fieldname: "days", fieldtype: "Int", label: __("Days of device log to read"), default: 7 },
+				{ fieldname: "streams", fieldtype: "Check", label: __("Open each stream to check codec / resolution"), default: 1 },
+			], (v) => frappe.xcall("upande_security.cctv.survey.request_survey", { server: frm.doc.name, ...v })
+				.then((r) => waitFor(r.command, __("Surveying {0}", [frm.doc.server_name])))
+				.then((r) => frappe.set_route("Form", "CCTV Site Survey", r.result.survey))
+				.catch((e) => frappe.msgprint({ title: __("Survey failed"), message: String(e), indicator: "red" })),
+			__("Site survey")), __("Setup"));
 		frm.add_custom_button(__("Discover cameras"), () =>
 			frappe.xcall(`${CMD}.discover`, { server: frm.doc.name })
 				.then((r) => waitFor(r.command, __("Discovering cameras")))

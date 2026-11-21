@@ -20,10 +20,21 @@
    "label": "Setup",
    "hidden": 0,
    "onboard": 0,
-   "link_count": 9,
+   "link_count": 10,
    "is_query_report": 0,
    "link_type": null,
    "link_to": null
+  },
+  {
+   "type": "Link",
+   "label": "Site Survey",
+   "link_type": "DocType",
+   "link_to": "CCTV Site Survey",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
   },
   {
    "type": "Link",

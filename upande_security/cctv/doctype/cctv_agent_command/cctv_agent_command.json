@@ -38,7 +38,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Command",
-   "options": "export_clip\nsnapshot\ndiscover_channels\ntest_connection\nenroll_face\ndelete_face\nsync_models",
+   "options": "export_clip\nsnapshot\ndiscover_channels\ntest_connection\nenroll_face\ndelete_face\nsync_models\nsurvey_server",
    "reqd": 1
   },
   {

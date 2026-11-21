@@ -7,6 +7,7 @@
 	enroll_face        fetch the person's images, embed, store locally (face store)
 	delete_face        remove the person from the local face store
 	sync_models        re-pull engine models
+	survey_server      full site survey of a recorder (see cctv_agent.survey)
 """
 
 import asyncio
@@ -131,6 +132,25 @@ class CommandRunner:
 		engine = self.agent.engine
 		n = engine.faces.delete(p["person_profile"]) if engine and engine.faces is not None else 0
 		return {"deleted": n}
+
+	async def survey_server(self, cid, p):
+		"""Full site survey of one recorder: report JSON back, HTML page attached."""
+		from cctv_agent.survey import run_survey
+		from cctv_agent.survey.render import html
+
+		server = next((s for s in (self.agent.site or {}).get("servers", []) if s["name"] == p["server"]), None)
+		if not server:
+			raise ValueError(f"recorder {p['server']} is not in this site's config yet (wait a minute and retry)")
+		rep = await run_survey(server, (self.agent.site or {}).get("site", "site"), probe_streams=p.get("streams", True),
+			log_days=int(p.get("days") or 7), site_timezone=self.agent.cfg.site_timezone)
+		fd, path = tempfile.mkstemp(suffix=".html")
+		with os.fdopen(fd, "w") as fh:
+			fh.write(html(rep))
+		try:
+			url = await self.agent.erp.upload_command_file(cid, path, f"survey-{server['host']}.html", "text/html")
+		finally:
+			os.remove(path)
+		return {"report": rep, "html_url": url}
 
 	async def sync_models(self, cid, p):
 		if not self.agent.engine:

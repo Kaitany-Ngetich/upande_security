@@ -1,0 +1,304 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-11-21 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "server",
+  "farm",
+  "verdict",
+  "surveyed_at",
+  "source",
+  "cb1",
+  "brand",
+  "host",
+  "model",
+  "firmware",
+  "serial_number",
+  "sb_fit",
+  "channels",
+  "channels_online",
+  "codecs",
+  "events_usable",
+  "cb2",
+  "anpr",
+  "face",
+  "playback",
+  "disks_ok",
+  "ntp",
+  "clock_offset_seconds",
+  "sb_health",
+  "log_issues",
+  "log_summary",
+  "cb3",
+  "api_answered",
+  "api_calls",
+  "sb_find",
+  "findings",
+  "report_file",
+  "report",
+  "command"
+ ],
+ "fields": [
+  {
+   "fieldname": "server",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Server",
+   "options": "CCTV Server"
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Site",
+   "options": "Farm"
+  },
+  {
+   "fieldname": "verdict",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Verdict",
+   "options": "Ready\nReady with fixes\nNot ready",
+   "read_only": 1
+  },
+  {
+   "fieldname": "surveyed_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Surveyed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "Site Agent\nImported",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "brand",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Brand",
+   "read_only": 1
+  },
+  {
+   "fieldname": "host",
+   "fieldtype": "Data",
+   "label": "Host",
+   "read_only": 1
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Data",
+   "label": "Model",
+   "read_only": 1
+  },
+  {
+   "fieldname": "firmware",
+   "fieldtype": "Data",
+   "label": "Firmware",
+   "read_only": 1
+  },
+  {
+   "fieldname": "serial_number",
+   "fieldtype": "Data",
+   "label": "Serial Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_fit",
+   "fieldtype": "Section Break",
+   "label": "Fit"
+  },
+  {
+   "fieldname": "channels",
+   "fieldtype": "Int",
+   "label": "Channels",
+   "read_only": 1
+  },
+  {
+   "fieldname": "channels_online",
+   "fieldtype": "Int",
+   "label": "Channels Online",
+   "read_only": 1
+  },
+  {
+   "fieldname": "codecs",
+   "fieldtype": "Data",
+   "label": "Codecs",
+   "read_only": 1
+  },
+  {
+   "fieldname": "events_usable",
+   "fieldtype": "Small Text",
+   "label": "Events Upande Security Can Use",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "anpr",
+   "fieldtype": "Check",
+   "label": "Plate Recognition (ANPR)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "face",
+   "fieldtype": "Check",
+   "label": "Face",
+   "read_only": 1
+  },
+  {
+   "fieldname": "playback",
+   "fieldtype": "Check",
+   "label": "Recorder Playback",
+   "read_only": 1
+  },
+  {
+   "fieldname": "disks_ok",
+   "fieldtype": "Check",
+   "label": "Disks Healthy",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ntp",
+   "fieldtype": "Check",
+   "label": "NTP On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "clock_offset_seconds",
+   "fieldtype": "Float",
+   "label": "Clock Offset Seconds",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_health",
+   "fieldtype": "Section Break",
+   "label": "Device Log and API"
+  },
+  {
+   "fieldname": "log_issues",
+   "fieldtype": "Int",
+   "label": "Logged Problems",
+   "read_only": 1
+  },
+  {
+   "fieldname": "log_summary",
+   "fieldtype": "Small Text",
+   "label": "Log Summary",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "api_answered",
+   "fieldtype": "Int",
+   "label": "Api Answered",
+   "read_only": 1
+  },
+  {
+   "fieldname": "api_calls",
+   "fieldtype": "Int",
+   "label": "Api Calls",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_find",
+   "fieldtype": "Section Break",
+   "label": "Findings"
+  },
+  {
+   "fieldname": "findings",
+   "fieldtype": "Long Text",
+   "label": "Findings",
+   "read_only": 1
+  },
+  {
+   "fieldname": "report_file",
+   "fieldtype": "Attach",
+   "label": "Full Report (HTML)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "report",
+   "fieldtype": "JSON",
+   "label": "Report",
+   "read_only": 1
+  },
+  {
+   "fieldname": "command",
+   "fieldtype": "Link",
+   "label": "Command",
+   "options": "CCTV Agent Command",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-21 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CCTV",
+ "name": "CCTV Site Survey",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Manager",
+   "share": 0,
+   "write": 0
+  }
+ ],
+ "sort_field": "surveyed_at",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "host",
+ "track_changes": 1
+}

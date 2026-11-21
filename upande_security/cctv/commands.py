@@ -25,7 +25,7 @@ from frappe.utils import add_to_date, get_datetime, now_datetime
 
 from upande_security.cctv.settings import get_settings, require
 
-COMMANDS = ("export_clip", "snapshot", "discover_channels", "test_connection", "enroll_face", "delete_face", "sync_models")
+COMMANDS = ("export_clip", "snapshot", "discover_channels", "test_connection", "enroll_face", "delete_face", "sync_models", "survey_server")
 
 
 def agent_for_camera(camera):
@@ -256,6 +256,12 @@ def _apply(doc, result):
 			"status": result.get("status"), "model": result.get("model"), "firmware": result.get("firmware"),
 			"time_offset_seconds": result.get("time_offset_seconds"), "last_seen": now_datetime(),
 		}.items() if v is not None})
+	elif doc.command == "survey_server":
+		from upande_security.cctv.survey import save_survey
+
+		survey = save_survey(result.get("report") or {}, server=(frappe.parse_json(doc.payload or "{}") or {}).get("server"),
+			report_file=result.get("html_url") or file_url, command=doc.name)
+		frappe.db.set_value("CCTV Agent Command", doc.name, "result", frappe.as_json({"survey": survey, "verdict": result.get("report", {}).get("verdict")}))
 	elif doc.command == "enroll_face" and ref_dt == "CCTV Person Profile":
 		from upande_security.cctv.presence import on_enrolled
 
