@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowLeftRight, Settings2, Backpack, IdCard, ShieldX, Smartphone, Users, CarFront, Eye, QrCode, CalendarDays, CalendarRange, Clock, ClipboardCheck, Footprints, HardHat, History, Map, PackageCheck, ShieldAlert, Trophy, Truck, UserCheck, Warehouse } from "lucide-react";
+import { Activity, Cctv, ScanLine, Siren, ArrowLeftRight, Settings2, Backpack, IdCard, ShieldX, Smartphone, Users, CarFront, Eye, QrCode, CalendarDays, CalendarRange, Clock, ClipboardCheck, Footprints, HardHat, History, Map, PackageCheck, ShieldAlert, Trophy, Truck, UserCheck, Warehouse } from "lucide-react";
 import type { View } from "@/lib/router";
 
 export interface NavItem {
@@ -11,7 +11,7 @@ export interface NavItem {
   /** A page outside v2 (still a v1 page): a plain link, a full page load. */
   href?: string;
   /** Listed (and reachable) only for users with this right, from the bootstrap. */
-  requires?: "watchlist" | "settings";
+  requires?: "watchlist" | "settings" | "cctv:live" | "cctv:alerts" | "cctv:vehicles" | "cctv:review" | "cctv:health";
 }
 
 export interface NavGroup {
@@ -48,6 +48,17 @@ export const NAV: NavGroup[] = [
       // The maps are still v1 pages; linked until they move in.
       { view: "patrols", label: "Patrol map", icon: Map, href: "/patrol-map" },
       { view: "patrols", label: "Patrol playback", icon: History, href: "/patrol-playback" },
+    ],
+  },
+  {
+    // Listed only while CCTV is switched on (CCTV Settings) and for the roles each page allows.
+    label: "CCTV",
+    items: [
+      { view: "cctv-alerts", label: "Alert console", icon: Siren, requires: "cctv:alerts" },
+      { view: "cctv-live", label: "Live view", icon: Cctv, requires: "cctv:live" },
+      { view: "cctv-vehicles", label: "Vehicles on site", icon: CarFront, requires: "cctv:vehicles" },
+      { view: "cctv-review", label: "Plate review", icon: ScanLine, requires: "cctv:review" },
+      { view: "cctv-health", label: "Camera health", icon: Activity, requires: "cctv:health" },
     ],
   },
   {

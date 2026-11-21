@@ -1595,6 +1595,9 @@ def check_in_visitor(name=None, transport=None, plate=None, colour=None, organiz
 		crew_badges = contractor_badge.badge_crew_at_check_in(name)
 		frappe.db.commit()
 		watchlist.track("Appointment", name, "Visitor Check-in")
+		# CCTV (switched off unless enabled): confirm the gate camera's vehicle visit.
+		from upande_security.cctv.vehicles import link_checkin
+		link_checkin(name)
 
 		try:
 			# Badge holders are now inside this farm: their next scan here is

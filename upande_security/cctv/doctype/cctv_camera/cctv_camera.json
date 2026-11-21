@@ -1,0 +1,368 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:{camera_name}-{server}",
+ "creation": "2026-11-21 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "camera_name",
+  "server",
+  "channel_no",
+  "enabled",
+  "cb1",
+  "farm",
+  "company",
+  "zone",
+  "gate",
+  "role",
+  "sb_stream",
+  "main_stream",
+  "sub_stream",
+  "cb2",
+  "codec",
+  "resolution",
+  "fps",
+  "sb_cap",
+  "cap_live",
+  "cap_playback",
+  "cap_motion",
+  "cap_line_crossing",
+  "cb3",
+  "cap_intrusion",
+  "cap_anpr",
+  "cap_face",
+  "cap_ptz",
+  "sb_ai",
+  "analytics_provider",
+  "analytics_enabled",
+  "direction_in",
+  "cb4",
+  "analytics_config",
+  "sb_health",
+  "status",
+  "last_frame_time",
+  "cb5",
+  "latitude",
+  "longitude"
+ ],
+ "fields": [
+  {
+   "fieldname": "camera_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Camera Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "server",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Server",
+   "options": "CCTV Server",
+   "reqd": 1
+  },
+  {
+   "fieldname": "channel_no",
+   "fieldtype": "Int",
+   "label": "Channel No",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "server.farm",
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Site",
+   "options": "Farm",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "server.company",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "zone",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Zone",
+   "options": "Security Zone"
+  },
+  {
+   "description": "Gate name from Security Ops Settings > Gates, for gate cameras.",
+   "fieldname": "gate",
+   "fieldtype": "Data",
+   "label": "Gate"
+  },
+  {
+   "default": "Overview",
+   "fieldname": "role",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Role",
+   "options": "Overview\nGate\nEntry\nExit\nParking\nDock\nDoor\nCorridor\nPerimeter\nCold Room\nOther"
+  },
+  {
+   "fieldname": "sb_stream",
+   "fieldtype": "Section Break",
+   "label": "Streams"
+  },
+  {
+   "description": "Profile id (e.g. 101), never a URL with credentials.",
+   "fieldname": "main_stream",
+   "fieldtype": "Data",
+   "label": "Main Stream Profile"
+  },
+  {
+   "fieldname": "sub_stream",
+   "fieldtype": "Data",
+   "label": "Sub Stream Profile"
+  },
+  {
+   "fieldname": "cb2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "codec",
+   "fieldtype": "Select",
+   "label": "Codec",
+   "options": "\nH.264\nH.265\nMJPEG\nOther"
+  },
+  {
+   "fieldname": "resolution",
+   "fieldtype": "Data",
+   "label": "Resolution"
+  },
+  {
+   "fieldname": "fps",
+   "fieldtype": "Int",
+   "label": "Fps"
+  },
+  {
+   "fieldname": "sb_cap",
+   "fieldtype": "Section Break",
+   "label": "Capabilities"
+  },
+  {
+   "default": "1",
+   "fieldname": "cap_live",
+   "fieldtype": "Check",
+   "label": "Live"
+  },
+  {
+   "default": "1",
+   "fieldname": "cap_playback",
+   "fieldtype": "Check",
+   "label": "Playback"
+  },
+  {
+   "fieldname": "cap_motion",
+   "fieldtype": "Check",
+   "label": "Motion"
+  },
+  {
+   "fieldname": "cap_line_crossing",
+   "fieldtype": "Check",
+   "label": "Line Crossing"
+  },
+  {
+   "fieldname": "cb3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cap_intrusion",
+   "fieldtype": "Check",
+   "label": "Intrusion"
+  },
+  {
+   "fieldname": "cap_anpr",
+   "fieldtype": "Check",
+   "label": "Plate Reading (ANPR)"
+  },
+  {
+   "fieldname": "cap_face",
+   "fieldtype": "Check",
+   "label": "Face"
+  },
+  {
+   "fieldname": "cap_ptz",
+   "fieldtype": "Check",
+   "label": "PTZ"
+  },
+  {
+   "fieldname": "sb_ai",
+   "fieldtype": "Section Break",
+   "label": "Analytics"
+  },
+  {
+   "default": "None",
+   "fieldname": "analytics_provider",
+   "fieldtype": "Select",
+   "label": "Analytics Provider",
+   "options": "None\nCamera Native\nOwn Engine\nThird Party"
+  },
+  {
+   "fieldname": "analytics_enabled",
+   "fieldtype": "Check",
+   "label": "Analytics Enabled"
+  },
+  {
+   "fieldname": "direction_in",
+   "fieldtype": "Select",
+   "label": "Direction Counted as IN",
+   "options": "\nTowards Camera\nAway From Camera\nLeft to Right\nRight to Left"
+  },
+  {
+   "fieldname": "cb4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Regions, virtual lines and direction mapping for the engine.",
+   "fieldname": "analytics_config",
+   "fieldtype": "JSON",
+   "label": "Analytics Config"
+  },
+  {
+   "fieldname": "sb_health",
+   "fieldtype": "Section Break",
+   "label": "Health and Location"
+  },
+  {
+   "default": "Unknown",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Unknown\nOnline\nOffline",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_frame_time",
+   "fieldtype": "Datetime",
+   "label": "Last Frame Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "latitude",
+   "fieldtype": "Float",
+   "label": "Latitude",
+   "precision": "7"
+  },
+  {
+   "fieldname": "longitude",
+   "fieldtype": "Float",
+   "label": "Longitude",
+   "precision": "7"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-21 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CCTV",
+ "name": "CCTV Camera",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Manager",
+   "share": 0,
+   "write": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "CCTV Operator",
+   "share": 0,
+   "write": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Gate Guard",
+   "share": 0,
+   "write": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 0,
+   "role": "CCTV Agent",
+   "share": 0,
+   "write": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "camera_name",
+ "track_changes": 1
+}

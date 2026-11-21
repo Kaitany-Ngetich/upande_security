@@ -1,0 +1,208 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-11-21 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "display_plate",
+  "plate_normalized",
+  "category",
+  "status",
+  "cb1",
+  "owner_doctype",
+  "owner_name",
+  "owner_label",
+  "company",
+  "sb2",
+  "vehicle_class",
+  "make",
+  "model",
+  "colour",
+  "cb2",
+  "erpnext_vehicle",
+  "valid_from",
+  "valid_to",
+  "allowed_sites"
+ ],
+ "fields": [
+  {
+   "fieldname": "display_plate",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Display Plate",
+   "reqd": 1
+  },
+  {
+   "fieldname": "plate_normalized",
+   "fieldtype": "Data",
+   "label": "Plate Normalized",
+   "read_only": 1,
+   "search_index": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Category",
+   "options": "Fleet\nContractor\nSupplier\nCustomer\nStaff\nOther",
+   "reqd": 1
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Active\nSuspended\nExpired"
+  },
+  {
+   "fieldname": "cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "owner_doctype",
+   "fieldtype": "Link",
+   "label": "Owner Type",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "owner_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Owner",
+   "options": "owner_doctype"
+  },
+  {
+   "fieldname": "owner_label",
+   "fieldtype": "Data",
+   "label": "Name Shown on the Board"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "sb2",
+   "fieldtype": "Section Break",
+   "label": "Vehicle"
+  },
+  {
+   "default": "Car",
+   "fieldname": "vehicle_class",
+   "fieldtype": "Select",
+   "label": "Vehicle Class",
+   "options": "Car\nMotorcycle\nTruck\nBus\nTrailer\nOther"
+  },
+  {
+   "fieldname": "make",
+   "fieldtype": "Data",
+   "label": "Make"
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Data",
+   "label": "Model"
+  },
+  {
+   "fieldname": "colour",
+   "fieldtype": "Data",
+   "label": "Colour"
+  },
+  {
+   "fieldname": "cb2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "erpnext_vehicle",
+   "fieldtype": "Link",
+   "label": "ERPNext Vehicle",
+   "options": "Vehicle"
+  },
+  {
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "label": "Valid From"
+  },
+  {
+   "fieldname": "valid_to",
+   "fieldtype": "Date",
+   "label": "Valid To"
+  },
+  {
+   "description": "One site per line. Blank: every site of the company.",
+   "fieldname": "allowed_sites",
+   "fieldtype": "Small Text",
+   "label": "Allowed Sites"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-21 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CCTV",
+ "name": "CCTV Known Vehicle",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Gate Guard",
+   "share": 0,
+   "write": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "display_plate",
+ "track_changes": 1
+}

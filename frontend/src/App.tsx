@@ -35,6 +35,11 @@ const Badges = lazy(() => import("@/pages/Badges").then((m) => ({ default: m.Bad
 const Guards = lazy(() => import("@/pages/Guards").then((m) => ({ default: m.Guards })));
 const Devices = lazy(() => import("@/pages/Devices").then((m) => ({ default: m.Devices })));
 const Settings = lazy(() => import("@/pages/Settings").then((m) => ({ default: m.Settings })));
+const CctvLive = lazy(() => import("@/pages/Cctv").then((m) => ({ default: m.CctvLive })));
+const CctvAlerts = lazy(() => import("@/pages/Cctv").then((m) => ({ default: m.CctvAlerts })));
+const CctvVehicles = lazy(() => import("@/pages/Cctv").then((m) => ({ default: m.CctvVehicles })));
+const CctvReview = lazy(() => import("@/pages/Cctv").then((m) => ({ default: m.CctvReview })));
+const CctvHealth = lazy(() => import("@/pages/Cctv").then((m) => ({ default: m.CctvHealth })));
 
 const PAGES: Partial<Record<View, React.ComponentType>> = {
   visitors: Visitors,
@@ -59,6 +64,11 @@ const PAGES: Partial<Record<View, React.ComponentType>> = {
   guards: Guards,
   devices: Devices,
   settings: Settings,
+  "cctv-live": CctvLive,
+  "cctv-alerts": CctvAlerts,
+  "cctv-vehicles": CctvVehicles,
+  "cctv-review": CctvReview,
+  "cctv-health": CctvHealth,
 };
 
 /** Says why the workspace is empty, and what to do, in place of a blank page. */
@@ -77,8 +87,16 @@ export function App() {
   const state = useBoot();
   const [view, navigate] = useRoute();
   const item = navItem(view);
-  const may = (it: NavItem) =>
-    state.status === "ready" && (it.requires === "watchlist" ? state.boot.can_watchlist : it.requires === "settings" ? state.boot.can_settings : true);
+  const may = (it: NavItem) => {
+    if (state.status !== "ready") return false;
+    const r = it.requires;
+    if (!r) return true;
+    if (r === "watchlist") return state.boot.can_watchlist;
+    if (r === "settings") return state.boot.can_settings;
+    const caps = state.boot.cctv;
+    const key = r.slice("cctv:".length) as keyof NonNullable<typeof caps>;
+    return !!caps?.enabled && !!caps[key];
+  };
   const allowed = !item?.requires || may(item);
   // A restricted page asked for by URL shows the default page, not a notice
   // that would say it exists.

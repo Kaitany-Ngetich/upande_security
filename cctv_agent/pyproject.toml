@@ -1,0 +1,27 @@
+[project]
+name = "upande-cctv-agent"
+version = "0.1.0"
+description = "Upande Security CCTV site agent: recorder adapters, event forwarding, MediaMTX auth"
+requires-python = ">=3.11"
+dependencies = [
+	"httpx>=0.27",
+	"aiohttp>=3.9",
+	"PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+cctv-agent = "cctv_agent.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["cctv_agent*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

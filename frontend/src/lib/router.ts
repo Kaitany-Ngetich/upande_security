@@ -26,6 +26,12 @@ export const VIEWS = [
   "checkpoints",
   "watchlist",
   "alerts",
+  // CCTV (shown only while the module is switched on)
+  "cctv-live",
+  "cctv-alerts",
+  "cctv-vehicles",
+  "cctv-review",
+  "cctv-health",
   // Scheduling
   "shifts",
   "schedule",
