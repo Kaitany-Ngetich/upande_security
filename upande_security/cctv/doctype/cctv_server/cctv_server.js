@@ -60,10 +60,11 @@ function pick(frm, channels) {
 				fields: [
 					{ fieldname: "add", fieldtype: "Check", label: __("Add"), in_list_view: 1, columns: 1 },
 					{ fieldname: "channel_no", fieldtype: "Int", label: __("Ch"), in_list_view: 1, read_only: 1, columns: 1 },
-					{ fieldname: "camera_name", fieldtype: "Data", label: __("Name"), in_list_view: 1, columns: 3 },
+					{ fieldname: "camera_code", fieldtype: "Data", label: __("Code (blank = auto)"), in_list_view: 1, columns: 2 },
+					{ fieldname: "camera_name", fieldtype: "Data", label: __("Name"), in_list_view: 1, columns: 2 },
 					{ fieldname: "role", fieldtype: "Select", options: roles.join("\n"), label: __("Role"), in_list_view: 1, columns: 2 },
 					{ fieldname: "zone", fieldtype: "Link", options: "Security Zone", label: __("Zone"), in_list_view: 1, columns: 2 },
-					{ fieldname: "resolution", fieldtype: "Data", label: __("Stream"), in_list_view: 1, read_only: 1, columns: 1 },
+					{ fieldname: "resolution", fieldtype: "Data", label: __("Stream"), read_only: 1 },
 					{ fieldname: "main_stream", fieldtype: "Data", hidden: 1 }, { fieldname: "sub_stream", fieldtype: "Data", hidden: 1 },
 					{ fieldname: "codec", fieldtype: "Data", hidden: 1 }, { fieldname: "anpr", fieldtype: "Check", hidden: 1 }, { fieldname: "face", fieldtype: "Check", hidden: 1 },
 				],

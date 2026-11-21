@@ -1,11 +1,11 @@
 {
  "actions": [],
  "allow_rename": 0,
- "autoname": "format:{camera_name}-{server}",
  "creation": "2026-11-21 12:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "camera_code",
   "camera_name",
   "server",
   "channel_no",
@@ -40,15 +40,32 @@
   "direction_in",
   "cb4",
   "analytics_config",
+  "sb_pos",
+  "location",
+  "cb_pos",
+  "latitude",
+  "longitude",
+  "bearing_deg",
+  "field_of_view_deg",
+  "view_range_m",
+  "mount_height_m",
+  "position_note",
   "sb_health",
   "status",
-  "last_frame_time",
-  "cb5",
-  "latitude",
-  "longitude"
+  "last_frame_time"
  ],
  "fields": [
   {
+   "bold": 1,
+   "description": "Short ID, e.g. KPK-GATE-01 (site - role - number). Leave blank: it is made from the site and role. Becomes the record name.",
+   "fieldname": "camera_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Camera Code",
+   "unique": 1
+  },
+  {
+   "description": "Name people read, e.g. Main gate - incoming lane. Filled from the recorder's channel title on discovery.",
    "fieldname": "camera_name",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -245,6 +262,65 @@
    "label": "Analytics Config"
   },
   {
+   "collapsible": 0,
+   "fieldname": "sb_pos",
+   "fieldtype": "Section Break",
+   "label": "Position and View"
+  },
+  {
+   "description": "Click the marker tool and place the camera on the map (or type latitude and longitude).",
+   "fieldname": "location",
+   "fieldtype": "Geolocation",
+   "label": "Location"
+  },
+  {
+   "fieldname": "cb_pos",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "latitude",
+   "fieldtype": "Float",
+   "label": "Latitude",
+   "precision": "7"
+  },
+  {
+   "fieldname": "longitude",
+   "fieldtype": "Float",
+   "label": "Longitude",
+   "precision": "7"
+  },
+  {
+   "description": "Direction the lens points: 0 north, 90 east, 180 south, 270 west.",
+   "fieldname": "bearing_deg",
+   "fieldtype": "Int",
+   "label": "Facing (degrees)"
+  },
+  {
+   "default": "90",
+   "fieldname": "field_of_view_deg",
+   "fieldtype": "Int",
+   "label": "Field of View (degrees)"
+  },
+  {
+   "default": "30",
+   "description": "How far it sees well enough to matter (plates: often under 15 m).",
+   "fieldname": "view_range_m",
+   "fieldtype": "Int",
+   "label": "Useful Range (m)"
+  },
+  {
+   "fieldname": "mount_height_m",
+   "fieldtype": "Float",
+   "label": "Mounting Height (m)",
+   "precision": "1"
+  },
+  {
+   "description": "e.g. on the gatehouse pole, facing the incoming lane",
+   "fieldname": "position_note",
+   "fieldtype": "Data",
+   "label": "Where Exactly"
+  },
+  {
    "fieldname": "sb_health",
    "fieldtype": "Section Break",
    "label": "Health and Location"
@@ -263,30 +339,15 @@
    "fieldtype": "Datetime",
    "label": "Last Frame Time",
    "read_only": 1
-  },
-  {
-   "fieldname": "cb5",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "latitude",
-   "fieldtype": "Float",
-   "label": "Latitude",
-   "precision": "7"
-  },
-  {
-   "fieldname": "longitude",
-   "fieldtype": "Float",
-   "label": "Longitude",
-   "precision": "7"
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-22 12:00:00.000000",
+ "modified": "2026-11-22 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "CCTV",
  "name": "CCTV Camera",
+ "naming_rule": "",
  "owner": "Administrator",
  "permissions": [
   {
@@ -368,6 +429,8 @@
    "write": 0
   }
  ],
+ "search_fields": "camera_name,camera_code,farm,zone",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

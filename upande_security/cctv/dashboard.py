@@ -272,7 +272,8 @@ def map_data(farm=None, company=None):
 
 	scope = _scope({}, company, farm)
 	cams = frappe.get_list("CCTV Camera", filters={**scope, "enabled": 1},
-		fields=["name", "camera_name", "farm", "zone", "role", "status", "latitude", "longitude", "gate"], limit_page_length=1000)
+		fields=["name", "camera_name", "farm", "zone", "role", "status", "latitude", "longitude", "gate", "bearing_deg",
+			"field_of_view_deg", "view_range_m", "position_note"], limit_page_length=1000)
 	placed = {c.name: c for c in cams if c.latitude and c.longitude}
 	zones = []
 	for z in frappe.get_all("Security Zone", filters={**scope, "active": 1}, fields=["name", "zone_name", "farm", "severity", "boundary_geojson"]):
@@ -299,5 +300,8 @@ def map_data(farm=None, company=None):
 			c = placed.get(t.last_camera)
 			if c:
 				tracks.append({**t, "latitude": c.latitude, "longitude": c.longitude})
+	links = frappe.get_all("CCTV Camera Link", filters={"from_camera": ["in", list(placed) or ["-"]]},
+		fields=["from_camera", "to_camera", "min_seconds", "max_seconds"]) if placed else []
+	can_place = bool(set(frappe.get_roles()) & {"System Manager", "Security Head", "Security Manager"})
 	return {"cameras": cams, "unplaced": len(cams) - len(placed), "zones": zones, "boundary": boundary,
-		"vehicles": vehicles, "tracks": tracks}
+		"vehicles": vehicles, "tracks": tracks, "links": links, "can_place": can_place}

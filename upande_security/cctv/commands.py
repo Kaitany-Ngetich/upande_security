@@ -130,7 +130,8 @@ def create_cameras(server, channels):
 		if frappe.db.exists("CCTV Camera", {"server": server, "channel_no": ch.get("channel_no")}):
 			continue
 		doc = frappe.get_doc({
-			"doctype": "CCTV Camera", "camera_name": ch.get("camera_name") or ch.get("name") or f"Channel {ch.get('channel_no')}",
+			"doctype": "CCTV Camera", "camera_code": (ch.get("camera_code") or "").strip() or None,
+			"camera_name": ch.get("camera_name") or ch.get("name") or f"Channel {ch.get('channel_no')}",
 			"server": server, "channel_no": ch.get("channel_no"), "role": ch.get("role") or "Overview",
 			"zone": ch.get("zone"), "gate": ch.get("gate"),
 			"main_stream": ch.get("main_stream"), "sub_stream": ch.get("sub_stream"), "codec": ch.get("codec") or "",

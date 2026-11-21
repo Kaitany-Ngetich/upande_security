@@ -1,1 +1,0 @@
-import{e as a}from"../security-v2-C7sX1kI0.js";const o="upande_security.api.dashboard_v2",p=r=>a(`${o}.patrol_board`,r),e=r=>a(`${o}.patrol_reports`,r),s=r=>a(`${o}.review_patrol_report`,r),n=r=>a("upande_security.api.patrol_ranking.get_guard_ranking",r);export{e as a,n as g,p,s as r};

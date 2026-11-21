@@ -142,7 +142,10 @@ export interface TimelineRow { name: string; sighting_time: string; camera: stri
 export const timeline = (args: { profile?: string; track?: string; date?: string }) => call<TimelineRow[]>(`${P}.person_timeline`, args);
 
 export interface MapData {
-  cameras: { name: string; camera_name: string; farm: string; zone: string | null; role: string; status: string; latitude: number | null; longitude: number | null }[];
+  cameras: { name: string; camera_name: string; farm: string; zone: string | null; role: string; status: string; latitude: number | null; longitude: number | null;
+    bearing_deg: number | null; field_of_view_deg: number | null; view_range_m: number | null; position_note: string | null }[];
+  links: { from_camera: string; to_camera: string; min_seconds: number; max_seconds: number }[];
+  can_place: boolean;
   unplaced: number;
   zones: { name: string; label: string; severity: string | null; ring: [number, number][] }[];
   boundary: [number, number][] | null;
@@ -150,3 +153,10 @@ export interface MapData {
   tracks: { name: string; label: string; latitude: number; longitude: number; last_seen: string; person_profile: string | null; confidence: number }[];
 }
 export const mapData = (args: { company?: string; farm?: string }) => call<MapData>(`${D}.map_data`, args);
+
+const POS = "upande_security.cctv.positions";
+export const setCameraPosition = (args: { camera: string; latitude: number; longitude: number; bearing?: number; field_of_view?: number; range_m?: number; note?: string }) =>
+  call<{ ok: true }>(`${POS}.set_camera_position`, args);
+export interface LinkSuggestion { from_camera: string; from_name: string; to_camera: string; to_name: string; distance_m: number; min_seconds: number; max_seconds: number; exists: boolean }
+export const suggestLinks = (farm: string, create = 0, max_distance_m = 200) =>
+  call<{ pairs: LinkSuggestion[]; created: number; unplaced: number }>(`${POS}.suggest_links`, { farm, create, max_distance_m });

@@ -1,1 +1,0 @@
-import{j as r,d as t}from"../security-v2-C7sX1kI0.js";function x({children:a,tall:s,className:o}){return r.jsx("div",{className:t("overflow-auto",s?"max-h-[min(68vh,620px)]":"max-h-[min(52vh,440px)]",o),children:a})}const i="sticky top-0 z-10 bg-[var(--sd-card)] shadow-[0_1px_0_0_var(--sd-line)]";export{x as S,i as a};

@@ -48,6 +48,7 @@ from upande_security.api import watchlist
 watchlist.clear_cache()
 
 try:
+	simulator.clear_demo()  # start clean: any demo already loaded would mix its alerts into these checks
 	demo = simulator.seed_demo(FARM)
 	cam = demo["cameras"]
 	print("demo", demo)

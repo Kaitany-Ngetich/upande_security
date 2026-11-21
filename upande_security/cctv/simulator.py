@@ -55,7 +55,8 @@ def seed_demo(farm):
 	):
 		existing = frappe.db.get_value("CCTV Camera", {"camera_name": f"{DEMO} {name}", "server": server})
 		if not existing:
-			existing = frappe.get_doc({"doctype": "CCTV Camera", "camera_name": f"{DEMO} {name}", "server": server, "channel_no": ch,
+			existing = frappe.get_doc({"doctype": "CCTV Camera", "camera_code": f"DEMO-{frappe.scrub(name).upper().replace('_', '-')}",
+				"camera_name": f"{DEMO} {name}", "server": server, "channel_no": ch,
 				"role": role, "gate": "Main Gate" if role in ("Entry", "Exit") else None, "status": "Online",
 				"analytics_provider": "Camera Native", "analytics_enabled": 1, **extra}).insert(ignore_permissions=True).name
 		cams[name] = existing

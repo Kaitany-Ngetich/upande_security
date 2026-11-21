@@ -1,1 +1,0 @@
-import{r}from"../security-v2-C7sX1kI0.js";function u(t,e=300){const[o,n]=r.useState(t.trim());return r.useEffect(()=>{const s=window.setTimeout(()=>n(t.trim()),e);return()=>window.clearTimeout(s)},[t,e]),o}export{u};
