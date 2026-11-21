@@ -15,6 +15,7 @@
   "company",
   "zone",
   "gate",
+  "checkpoint",
   "role",
   "sb_stream",
   "main_stream",
@@ -107,6 +108,13 @@
    "fieldname": "gate",
    "fieldtype": "Data",
    "label": "Gate"
+  },
+  {
+   "description": "A checkpoint in this camera's view: a guard scanning it is recognised on this camera.",
+   "fieldname": "checkpoint",
+   "fieldtype": "Link",
+   "label": "Patrol Checkpoint",
+   "options": "Security Checkpoint"
   },
   {
    "default": "Overview",
@@ -275,7 +283,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-21 12:00:00.000000",
+ "modified": "2026-11-22 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "CCTV",
  "name": "CCTV Camera",

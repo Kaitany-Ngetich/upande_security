@@ -84,6 +84,30 @@ def simulate(camera, event_type, at=None, confidence=None, **data):
 	return {"status": status, "event": ref, "result": result}
 
 
+DEMO_PLATE = "KDE 220M"
+
+
+def seed_demo_booking(farm, at=None):
+	"""A booked, host-approved visitor arriving by car today, so a gate read of
+	DEMO_PLATE matches an appointment. Written directly (db_insert): no SMS,
+	no email, no workflow notifications go out for it."""
+	name = f"APMT-DEMO-{frappe.scrub(farm)}"
+	if frappe.db.exists("Appointment", name):
+		return name
+	when = frappe.utils.get_datetime(at) if at else frappe.utils.now_datetime()
+	doc = frappe.get_doc({
+		"doctype": "Appointment", "name": name, "customer_name": "Demo Visitor", "customer_organization": "Demo Supplies Ltd",
+		"scheduled_time": when, "custom_expected_exit": frappe.utils.add_to_date(when, hours=2),
+		"custom_meet_with_farm": farm, "custom_farmunit": farm, "custom_meet_with_name": "Demo Host",
+		"custom_company": frappe.db.get_value("Farm", farm, "company"),
+		"custom_visitor_type": "Visitor", "custom_mode_of_transport": "Vehicle",
+		"custom_vehicles_number_plate": DEMO_PLATE, "custom_vehicles_colour": "White",
+		"custom_visit_purpose": "Demo - CCTV plate matching", "status": "Open", "workflow_state": "Approved by Host",
+	})
+	doc.db_insert()
+	return name
+
+
 @frappe.whitelist()
 def clear_demo(farm=None):
 	"""Delete everything the demo created or caused."""
@@ -106,5 +130,7 @@ def clear_demo(farm=None):
 			("CCTV Site Agent", {"agent_id": ["like", f"{DEMO}-%"]})):
 		for n in frappe.get_all(dt, filters=filters, pluck="name"):
 			frappe.delete_doc(dt, n, ignore_permissions=True, force=True, delete_permanently=True)
+	for name in frappe.get_all("Appointment", filters={"name": ["like", "APMT-DEMO-%"]}, pluck="name"):
+		frappe.db.delete("Appointment", {"name": name})
 	frappe.db.commit()
 	return True

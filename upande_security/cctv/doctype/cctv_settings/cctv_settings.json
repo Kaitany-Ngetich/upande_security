@@ -51,6 +51,12 @@
   "cb_cmd",
   "presence_stale_hours",
   "face_match_threshold",
+  "sb_patrol",
+  "patrol_link_enabled",
+  "guard_match_radius_m",
+  "cb_patrol",
+  "guard_match_window_seconds",
+  "guard_match_hold_seconds",
   "sb_lic",
   "enforce_entitlements",
   "entitlements"
@@ -324,6 +330,41 @@
    "permlevel": 1
   },
   {
+   "fieldname": "sb_patrol",
+   "fieldtype": "Section Break",
+   "label": "Guards on Patrol"
+  },
+  {
+   "default": "1",
+   "description": "A person seen where an on-duty guard was (GPS or checkpoint scan) is that guard: no alert if the zone allows them, and the pass is kept as patrol proof.",
+   "fieldname": "patrol_link_enabled",
+   "fieldtype": "Check",
+   "label": "Recognise Guards on Patrol"
+  },
+  {
+   "default": "40",
+   "fieldname": "guard_match_radius_m",
+   "fieldtype": "Int",
+   "label": "Guard Match Distance (m)"
+  },
+  {
+   "fieldname": "cb_patrol",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "90",
+   "fieldname": "guard_match_window_seconds",
+   "fieldtype": "Int",
+   "label": "Guard Match Time Window (s)"
+  },
+  {
+   "default": "60",
+   "description": "Wait this long for a late guard GPS point or checkpoint scan before notifying. 0 = notify at once.",
+   "fieldname": "guard_match_hold_seconds",
+   "fieldtype": "Int",
+   "label": "Hold Unidentified-Person Alerts (s)"
+  },
+  {
    "fieldname": "sb_lic",
    "fieldtype": "Section Break",
    "label": "Sites and Licences"
@@ -345,7 +386,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-22 09:00:00.000000",
+ "modified": "2026-11-22 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "CCTV",
  "name": "CCTV Settings",

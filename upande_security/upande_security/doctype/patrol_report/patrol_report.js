@@ -195,3 +195,25 @@ frappe.ui.form.on('Patrol Report', {
     }
 });
 
+
+// CCTV: cameras that saw this guard during the patrol (only while CCTV is on).
+frappe.ui.form.on("Patrol Report", {
+	refresh(frm) {
+		if (frm.is_new() || !frm.doc.patrol) return;
+		frappe.db.get_single_value("CCTV Settings", "enabled").then((on) => {
+			if (!on) return;
+			frm.add_custom_button(__("Camera sightings"), () =>
+				frappe.xcall("upande_security.cctv.guard_match.patrol_sightings", {
+					patrol: frm.doc.patrol,
+					guard: frm.doc.external_guard || frm.doc.internal_guard,
+					from_time: frm.doc.started_at, to_time: frm.doc.ended_at,
+				}).then((rows) => {
+					const body = rows.length
+						? `<table class="table table-sm"><tr><th>${__("Time")}</th><th>${__("Camera")}</th><th>${__("Zone")}</th><th>${__("By")}</th></tr>${rows
+							.map((r) => `<tr><td>${frappe.datetime.str_to_user(r.sighting_time)}</td><td>${frappe.utils.escape_html(r.camera_name || r.camera)}</td><td>${frappe.utils.escape_html(r.zone || "")}</td><td>${r.identified_by}${r.distance_m ? ` (${r.distance_m} m)` : ""}</td></tr>`).join("")}</table>`
+						: `<p class="text-muted">${__("No camera saw this guard during the patrol (cameras need a position or a linked checkpoint).")}</p>`;
+					frappe.msgprint({ title: __("Cameras that saw {0}", [frm.doc.external_guard || frm.doc.internal_guard || ""]), message: body, wide: true });
+				}));
+		});
+	},
+});

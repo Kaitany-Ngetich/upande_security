@@ -18,6 +18,12 @@
   "confidence",
   "snapshot",
   "event",
+  "identified_by",
+  "security_guard",
+  "employee",
+  "guard_name",
+  "distance_m",
+  "patrol",
   "track"
  ],
  "fields": [
@@ -104,6 +110,47 @@
    "read_only": 1
   },
   {
+   "fieldname": "identified_by",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Identified By",
+   "options": "\nFace\nGuard GPS\nCheckpoint Scan",
+   "read_only": 1
+  },
+  {
+   "fieldname": "security_guard",
+   "fieldtype": "Link",
+   "label": "Guard",
+   "options": "Security Guard",
+   "read_only": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Guard (Employee)",
+   "options": "Employee",
+   "read_only": 1
+  },
+  {
+   "fieldname": "guard_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Guard Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "distance_m",
+   "fieldtype": "Float",
+   "label": "Distance (m)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "patrol",
+   "fieldtype": "Data",
+   "label": "Patrol",
+   "read_only": 1
+  },
+  {
    "fieldname": "track",
    "fieldtype": "Link",
    "label": "Track",
@@ -113,7 +160,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-22 09:00:00.000000",
+ "modified": "2026-11-22 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "CCTV",
  "name": "CCTV Person Sighting",

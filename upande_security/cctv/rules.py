@@ -72,9 +72,23 @@ def handle_zone_event(ev):
 				person_name=name, person_profile=profile, snapshot=ev.snapshot,
 				summary=f"{name or 'A person'} has been in {cam.zone} for {int(float(data.dwell_seconds) // 60)} minutes.")
 
+	from upande_security.api.zones import is_allowed
+	from upande_security.cctv import guard_match
+
+	guard = None
+	if not (employee or profile) and et != "access_event" and guard_match.enabled():
+		guard = guard_match.find_guard(ev.camera, when)
+		if guard:
+			if not cam.zone or is_allowed(cam.zone, guard_match.person_for(guard), when):
+				guard_match.record_pass(ev, cam, guard, when)
+				return "guard on patrol"
+			raise_alert("Unauthorized Person", camera=ev.camera, zone=cam.zone, farm=cam.farm, event_time=when, source_event=ev.name,
+				person_name=guard.get("name"), guard=guard, snapshot=ev.snapshot, subject_key=guard.get("security_guard") or guard.get("employee"),
+				summary=f"Guard {guard.get('name')} seen in {cam.zone}, not cleared for it at this time ({guard['source']}).")
+			return "Unauthorized Person"
+
 	if not cam.zone:
 		return "no zone"
-	from upande_security.api.zones import is_allowed
 
 	if is_allowed(cam.zone, {"employee": employee} if employee else {}, when):
 		return "allowed"
@@ -87,9 +101,11 @@ def handle_zone_event(ev):
 	else:
 		trigger = "Entry in Forbidden Hours"
 		summary = ("Door opened" if et == "door_state" else "Person seen") + f" in {cam.zone} outside its allowed hours."
+	# Unidentified: hold briefly - a guard's GPS or checkpoint scan may still be on its way.
+	hold = get_settings().guard_match_hold_seconds if (not (employee or profile) and guard_match.enabled()) else 0
 	raise_alert(trigger, camera=ev.camera, zone=cam.zone, farm=cam.farm, event_time=when, source_event=ev.name,
 		person_name=name, person_profile=profile, confidence=ev.confidence, snapshot=ev.snapshot, summary=summary,
-		subject_key=employee or profile or "unknown")
+		subject_key=employee or profile or "unknown", hold_seconds=hold)
 	return trigger
 
 

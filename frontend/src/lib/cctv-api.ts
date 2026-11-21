@@ -43,6 +43,8 @@ export interface AlertRow {
   zone: string | null; camera: string | null; camera_name: string | null; event_time: string; plate: string | null;
   person_name: string | null; snapshot: string | null; acknowledged_by: string | null; escalation_level: number;
   repeat_count: number; vehicle_visit: string | null; incident: string | null;
+  /** Held back while the system checks whether an on-duty guard explains it. */
+  hold_until: string | null; guard_name: string | null;
 }
 export interface AlertBoard { counts: Record<AlertStatus, number>; total: number; start: number; rows: AlertRow[] }
 export interface AlertDetail extends AlertRow {

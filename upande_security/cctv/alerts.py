@@ -75,7 +75,7 @@ def find_rule(trigger_type, farm=None, zone=None, camera=None):
 
 def raise_alert(trigger_type, farm=None, camera=None, zone=None, event_time=None, source_event=None,
 		summary=None, severity=None, plate=None, vehicle_visit=None, appointment=None, person_name=None,
-		person_profile=None, confidence=None, snapshot=None, subject_key=None, force=False):
+		person_profile=None, confidence=None, snapshot=None, subject_key=None, force=False, hold_seconds=0, guard=None):
 	"""Create (or bump) one alert. Returns the CCTV Alert name, or None when
 	alerts are off, the rule is outside its active window, or nothing applies."""
 	if not (force or is_on("alerts_enabled")):
@@ -131,7 +131,11 @@ def raise_alert(trigger_type, farm=None, camera=None, zone=None, event_time=None
 		"person_profile": person_profile,
 		"confidence": confidence,
 		"debounce_key": key,
-		"next_escalation_at": add_to_date(now_datetime(), minutes=ack) if ack else None,
+		"hold_until": add_to_date(now_datetime(), seconds=hold_seconds) if hold_seconds else None,
+		"next_escalation_at": add_to_date(now_datetime(), seconds=(hold_seconds or 0) + ack * 60) if ack else None,
+		"security_guard": (guard or {}).get("security_guard"),
+		"guard_employee": (guard or {}).get("employee"),
+		"guard_name": (guard or {}).get("name"),
 	})
 	if zone:
 		for cam in frappe.get_all("CCTV Camera", filters={"zone": zone, "enabled": 1, "name": ["!=", camera or ""]}, pluck="name", limit=6):
@@ -139,7 +143,9 @@ def raise_alert(trigger_type, farm=None, camera=None, zone=None, event_time=None
 	doc.flags.ignore_permissions = True
 	doc.flags.ignore_links = True
 	doc.insert()
-	notify(doc, rule)
+	if not hold_seconds:
+		notify(doc, rule)
+	# else: guard_match.release_held notifies when the hold ends, unless a guard explains it first
 	return doc.name
 
 

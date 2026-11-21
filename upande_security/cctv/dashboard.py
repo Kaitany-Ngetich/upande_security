@@ -85,7 +85,7 @@ def alert_board(status=None, severity=None, alert_type=None, company=None, farm=
 		f = base
 	rows = frappe.get_list("CCTV Alert", filters=f, or_filters=or_filters,
 		fields=["name", "alert_type", "severity", "status", "summary", "farm", "zone", "camera", "event_time", "plate", "person_name",
-			"snapshot", "acknowledged_by", "escalation_level", "repeat_count", "vehicle_visit", "incident"],
+			"snapshot", "acknowledged_by", "escalation_level", "repeat_count", "vehicle_visit", "incident", "hold_until", "guard_name"],
 		order_by="event_time desc", start=int(start), page_length=int(page_length))
 	rank_status = {"Open": 0, "Escalated": 0, "Acknowledged": 1, "Resolved": 2, "False Alarm": 2}
 	rank_sev = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Info": 4}

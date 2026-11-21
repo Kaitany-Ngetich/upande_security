@@ -238,6 +238,8 @@ export function CctvAlerts() {
                       <SeverityTag severity={a.severity} />
                       {a.repeat_count > 0 && <span className="text-[11px] text-[var(--sd-quiet)]">×{a.repeat_count + 1}</span>}
                       {a.escalation_level > 0 && <span className="text-[11px] text-[var(--sd-sev-high)]">escalated {a.escalation_level}</span>}
+                      {a.hold_until && a.status === "Open" && <span className="text-[11px] text-[var(--sd-muted)]">checking for a guard on patrol…</span>}
+                      {a.guard_name && <span className="text-[11px] text-[var(--sd-muted)]">guard: {a.guard_name}</span>}
                     </div>
                   </td>
                   <td className={TD}>{[a.farm, a.zone, a.camera_name].filter(Boolean).join(" · ") || "—"}</td>
@@ -343,6 +345,8 @@ function AlertDialog({ name, onClose, onChanged }: { name: string | null; onClos
               {a.summary && <p>{a.summary}</p>}
               {a.plate && <p><span className="text-[var(--sd-muted)]">Plate</span> <b className="tracking-wide">{a.plate}</b></p>}
               {a.person_name && <p><span className="text-[var(--sd-muted)]">Person</span> {a.person_name}</p>}
+              {a.guard_name && <p><span className="text-[var(--sd-muted)]">Guard</span> {a.guard_name}</p>}
+              {a.status === "False Alarm" && a.resolution_notes?.startsWith("Guard ") && <p className="text-[12px] text-[var(--sd-muted)]">{a.resolution_notes}</p>}
               {a.visit && <p><span className="text-[var(--sd-muted)]">Vehicle</span> {a.visit.party_name} ({a.visit.status})</p>}
               {a.incident && <a className="underline" href={`/app/incident-report/${a.incident}`} target="_blank" rel="noreferrer">Incident {a.incident}</a>}
               {a.evidence_file && <a className="underline" href={a.evidence_file} target="_blank" rel="noreferrer">Evidence clip</a>}

@@ -262,6 +262,12 @@ doc_events = {
 	# be scoped by the standard Frappe Link + User Permission engine.
 	"Patrol GPS Log": {
 		"before_insert": "upande_security.api.scoping.stamp_patrol_gps_log_farm",
+		# CCTV: a guard's late GPS point clears a held "person seen" alert it explains.
+		"after_insert": "upande_security.cctv.guard_match.on_guard_position",
+	},
+	"Checkpoint Scan Log": {
+		# CCTV: same, for a scan of a checkpoint linked to a camera.
+		"after_insert": "upande_security.cctv.guard_match.on_guard_position",
 	},
 	"Incident Report": {
 		"before_insert": "upande_security.api.scoping.stamp_incident_report_farm",

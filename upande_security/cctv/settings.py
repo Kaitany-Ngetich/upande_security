@@ -37,6 +37,10 @@ DEFAULTS = {
 	"presence_stale_hours": 12,
 	"face_match_threshold": 60,
 	"enforce_entitlements": 0,
+	"patrol_link_enabled": 1,
+	"guard_match_radius_m": 40,
+	"guard_match_window_seconds": 90,
+	"guard_match_hold_seconds": 60,
 }
 
 

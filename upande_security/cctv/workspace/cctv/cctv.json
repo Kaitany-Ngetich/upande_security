@@ -335,10 +335,21 @@
    "label": "People and audit",
    "hidden": 0,
    "onboard": 0,
-   "link_count": 6,
+   "link_count": 7,
    "is_query_report": 0,
    "link_type": null,
    "link_to": null
+  },
+  {
+   "type": "Link",
+   "label": "Guard Patrol Verification",
+   "link_type": "Report",
+   "link_to": "CCTV Guard Patrol Verification",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
   },
   {
    "type": "Link",

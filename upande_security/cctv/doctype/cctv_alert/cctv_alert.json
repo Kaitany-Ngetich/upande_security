@@ -32,6 +32,10 @@
   "cb3",
   "person_name",
   "person_profile",
+  "security_guard",
+  "guard_employee",
+  "guard_name",
+  "hold_until",
   "confidence",
   "sb_handling",
   "assigned_to",
@@ -213,6 +217,33 @@
    "options": "CCTV Person Profile"
   },
   {
+   "fieldname": "security_guard",
+   "fieldtype": "Link",
+   "label": "Guard",
+   "options": "Security Guard",
+   "read_only": 1
+  },
+  {
+   "fieldname": "guard_employee",
+   "fieldtype": "Link",
+   "label": "Guard (Employee)",
+   "options": "Employee",
+   "read_only": 1
+  },
+  {
+   "fieldname": "guard_name",
+   "fieldtype": "Data",
+   "label": "Guard Name",
+   "read_only": 1
+  },
+  {
+   "description": "Not notified until then, in case the guard's GPS or checkpoint scan arrives late.",
+   "fieldname": "hold_until",
+   "fieldtype": "Datetime",
+   "label": "Held Until",
+   "read_only": 1
+  },
+  {
    "fieldname": "confidence",
    "fieldtype": "Percent",
    "label": "Confidence"
@@ -360,7 +391,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-22 09:00:00.000000",
+ "modified": "2026-11-22 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "CCTV",
  "name": "CCTV Alert",

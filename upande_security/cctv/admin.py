@@ -83,7 +83,11 @@ def load_demo(farm):
 	c = demo["cameras"]
 	now = frappe.utils.now_datetime()
 	at = lambda minutes: str(frappe.utils.add_to_date(now, minutes=minutes))  # noqa: E731
+	demo["booking"] = simulator.seed_demo_booking(farm, at(-35))
 	results = [
+		# the booked visitor: matched at the gate, then seen at the dock, still inside
+		simulator.simulate(c["Gate In"], "plate_read", at=at(-30), confidence=0.96, plate=simulator.DEMO_PLATE, direction="in", colour="white"),
+		simulator.simulate(c["Dock"], "plate_read", at=at(-12), confidence=0.9, plate=simulator.DEMO_PLATE),
 		simulator.simulate(c["Gate In"], "plate_read", at=at(-90), confidence=0.96, plate="KDM 401J", direction="in"),
 		simulator.simulate(c["Dock"], "plate_read", at=at(-60), confidence=0.91, plate="KDM 401J"),
 		simulator.simulate(c["Gate In"], "plate_read", at=at(-40), confidence=0.97, plate="KZZ 111Q", direction="in"),
