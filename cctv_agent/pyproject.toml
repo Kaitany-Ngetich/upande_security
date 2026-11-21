@@ -10,7 +10,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8", "pytest-asyncio>=0.23"]
+test = ["pytest>=8", "pytest-asyncio>=0.23", "numpy>=1.26", "Pillow>=10"]
+# Own analytics engine (cameras without built-in AI): plates, people, faces.
+engine = ["numpy>=1.26", "onnxruntime>=1.18", "Pillow>=10"]
 
 [project.scripts]
 cctv-agent = "cctv_agent.__main__:main"

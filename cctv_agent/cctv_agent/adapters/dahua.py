@@ -81,6 +81,17 @@ class DahuaAdapter(CameraAdapter):
 			log.warning("%s health check failed: %s", self.server.get("name"), e)
 			return {"status": "Offline"}
 
+	async def discover(self):
+		r = await self.http.get(f"{self.base}/cgi-bin/configManager.cgi?action=getConfig&name=ChannelTitle")
+		r.raise_for_status()
+		out = []
+		for line in r.text.splitlines():
+			m = re.match(r"table\.ChannelTitle\[(\d+)\]\.Name=(.*)", line.strip())
+			if m:
+				n = int(m.group(1)) + 1
+				out.append({"channel_no": n, "name": m.group(2).strip() or f"Channel {n}", "main_stream": "0", "sub_stream": "1"})
+		return out
+
 	async def subscribe_events(self, cameras, on_event):
 		url = f"{self.base}/cgi-bin/eventManager.cgi?action=attach&codes=[All]&heartbeat=5"
 		async with self.http.stream("GET", url) as resp:

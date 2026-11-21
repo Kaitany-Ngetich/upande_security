@@ -47,7 +47,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Channel",
-   "options": "On Screen\nEmail\nSMS\nWhatsApp\nPush"
+   "options": "On Screen\nEmail\nSMS\nWhatsApp\nTelegram\nPush"
   }
  ],
  "index_web_pages_for_search": 0,

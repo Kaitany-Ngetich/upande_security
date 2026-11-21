@@ -1,7 +1,7 @@
 {
  "app": "upande_security",
  "charts": [],
- "content": "[{\"id\": \"cctvHdr01\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>CCTV</b></span>\", \"col\": 12}}, {\"id\": \"cctvSc00\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Alert console\", \"col\": 4}}, {\"id\": \"cctvSc01\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Live view\", \"col\": 4}}, {\"id\": \"cctvSc02\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Vehicles on site\", \"col\": 4}}, {\"id\": \"cctvSc03\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Plate review\", \"col\": 4}}, {\"id\": \"cctvSc04\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Camera health\", \"col\": 4}}, {\"id\": \"cctvSc05\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Muster list\", \"col\": 4}}, {\"id\": \"cctvSp01\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"cctvHdr02\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Setup, records and reports</b></span>\", \"col\": 12}}, {\"id\": \"cctvCd00\", \"type\": \"card\", \"data\": {\"card_name\": \"Setup\", \"col\": 4}}, {\"id\": \"cctvCd01\", \"type\": \"card\", \"data\": {\"card_name\": \"Records\", \"col\": 4}}, {\"id\": \"cctvCd02\", \"type\": \"card\", \"data\": {\"card_name\": \"Vehicle reports\", \"col\": 4}}, {\"id\": \"cctvCd03\", \"type\": \"card\", \"data\": {\"card_name\": \"Alert reports\", \"col\": 4}}, {\"id\": \"cctvCd04\", \"type\": \"card\", \"data\": {\"card_name\": \"People and audit\", \"col\": 4}}]",
+ "content": "[{\"id\": \"cctvHdr01\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>CCTV</b></span>\", \"col\": 12}}, {\"id\": \"cctvSc00\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Alert console\", \"col\": 4}}, {\"id\": \"cctvSc01\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Live view\", \"col\": 4}}, {\"id\": \"cctvSc02\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Vehicles on site\", \"col\": 4}}, {\"id\": \"cctvSc03\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Plate review\", \"col\": 4}}, {\"id\": \"cctvSc04\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Camera health\", \"col\": 4}}, {\"id\": \"cctvSc05\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Muster list\", \"col\": 4}}, {\"id\": \"cctvScX0\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"People on site\", \"col\": 4}}, {\"id\": \"cctvScX1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Site map\", \"col\": 4}}, {\"id\": \"cctvSp01\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"cctvHdr02\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Setup, records and reports</b></span>\", \"col\": 12}}, {\"id\": \"cctvCd00\", \"type\": \"card\", \"data\": {\"card_name\": \"Setup\", \"col\": 4}}, {\"id\": \"cctvCd01\", \"type\": \"card\", \"data\": {\"card_name\": \"Records\", \"col\": 4}}, {\"id\": \"cctvCd02\", \"type\": \"card\", \"data\": {\"card_name\": \"Vehicle reports\", \"col\": 4}}, {\"id\": \"cctvCd03\", \"type\": \"card\", \"data\": {\"card_name\": \"Alert reports\", \"col\": 4}}, {\"id\": \"cctvCd04\", \"type\": \"card\", \"data\": {\"card_name\": \"People and audit\", \"col\": 4}}]",
  "creation": "2026-11-21 18:00:00.000000",
  "custom_blocks": [],
  "docstatus": 0,
@@ -20,7 +20,7 @@
    "label": "Setup",
    "hidden": 0,
    "onboard": 0,
-   "link_count": 6,
+   "link_count": 9,
    "is_query_report": 0,
    "link_type": null,
    "link_to": null
@@ -85,6 +85,39 @@
    "label": "Alert Rule",
    "link_type": "DocType",
    "link_to": "CCTV Alert Rule",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Camera Link",
+   "link_type": "DocType",
+   "link_to": "CCTV Camera Link",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Engine Model",
+   "link_type": "DocType",
+   "link_to": "CCTV Engine Model",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Agent Command",
+   "link_type": "DocType",
+   "link_to": "CCTV Agent Command",
    "hidden": 0,
    "onboard": 0,
    "link_count": 0,
@@ -172,7 +205,7 @@
    "label": "Vehicle reports",
    "hidden": 0,
    "onboard": 0,
-   "link_count": 5,
+   "link_count": 7,
    "is_query_report": 0,
    "link_type": null,
    "link_to": null
@@ -233,6 +266,28 @@
    "dependencies": ""
   },
   {
+   "type": "Link",
+   "label": "Parking Activity",
+   "link_type": "Report",
+   "link_to": "CCTV Parking Activity",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Dock Turnaround",
+   "link_type": "Report",
+   "link_to": "CCTV Dock Turnaround",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
    "type": "Card Break",
    "label": "Alert reports",
    "hidden": 0,
@@ -280,7 +335,7 @@
    "label": "People and audit",
    "hidden": 0,
    "onboard": 0,
-   "link_count": 5,
+   "link_count": 6,
    "is_query_report": 0,
    "link_type": null,
    "link_to": null
@@ -339,9 +394,20 @@
    "link_count": 0,
    "is_query_report": 0,
    "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Track",
+   "link_type": "DocType",
+   "link_to": "CCTV Track",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
   }
  ],
- "modified": "2026-11-21 18:00:00.000000",
+ "modified": "2026-11-22 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "CCTV",
  "name": "CCTV",
@@ -406,6 +472,20 @@
    "label": "Muster list",
    "link_to": "CCTV Muster List",
    "color": "Purple",
+   "doc_view": ""
+  },
+  {
+   "type": "URL",
+   "label": "People on site",
+   "url": "/security-dashboard-v2#/cctv-presence",
+   "color": "Cyan",
+   "doc_view": ""
+  },
+  {
+   "type": "URL",
+   "label": "Site map",
+   "url": "/security-dashboard-v2#/cctv-map",
+   "color": "Yellow",
    "doc_view": ""
   }
  ],

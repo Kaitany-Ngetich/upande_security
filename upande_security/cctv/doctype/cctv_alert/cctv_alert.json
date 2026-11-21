@@ -54,6 +54,7 @@
   "cb5",
   "evidence_exported",
   "evidence_file",
+  "evidence_command",
   "sb_notify",
   "notifications"
  ],
@@ -339,6 +340,13 @@
    "label": "Evidence File"
   },
   {
+   "fieldname": "evidence_command",
+   "fieldtype": "Link",
+   "label": "Evidence Request",
+   "options": "CCTV Agent Command",
+   "read_only": 1
+  },
+  {
    "fieldname": "sb_notify",
    "fieldtype": "Section Break",
    "label": "Notifications Sent"
@@ -352,7 +360,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-21 18:00:00.000000",
+ "modified": "2026-11-22 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "CCTV",
  "name": "CCTV Alert",

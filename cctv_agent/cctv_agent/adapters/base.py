@@ -70,6 +70,10 @@ class CameraAdapter:
 		"""{'status': Online|Offline|Degraded, 'model', 'firmware', 'time_offset_seconds', 'recording_mode'}"""
 		raise NotImplementedError
 
+	async def discover(self):
+		"""[{channel_no, name, main_stream, sub_stream, codec, resolution, anpr, face}] for the setup wizard."""
+		return []
+
 	# ---- events -------------------------------------------------------------------
 	async def subscribe_events(self, cameras, on_event):
 		"""Run until cancelled; call on_event(envelope) for each normalised event.

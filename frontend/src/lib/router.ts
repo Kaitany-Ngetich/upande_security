@@ -32,6 +32,8 @@ export const VIEWS = [
   "cctv-vehicles",
   "cctv-review",
   "cctv-health",
+  "cctv-presence",
+  "cctv-map",
   // Scheduling
   "shifts",
   "schedule",

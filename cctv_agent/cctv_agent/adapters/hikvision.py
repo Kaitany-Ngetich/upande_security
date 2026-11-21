@@ -101,6 +101,30 @@ class HikvisionAdapter(CameraAdapter):
 			log.warning("%s health check failed: %s", self.server.get("name"), e)
 			return {"status": "Offline"}
 
+	async def discover(self):
+		"""IP channels of an NVR (InputProxy), else the device's own video inputs."""
+		out = []
+		for path, tag in (("/ISAPI/ContentMgmt/InputProxy/channels", "InputProxyChannel"), ("/ISAPI/System/Video/inputs/channels", "VideoInputChannel")):
+			r = await self.http.get(self.base + path)
+			if r.status_code != 200:
+				continue
+			for ch in _strip_ns(ET.fromstring(r.content)).iter(tag):
+				cid = int(_t(ch, "id") or 0)
+				if not cid:
+					continue
+				info = {"channel_no": cid, "name": _t(ch, "name") or f"Camera {cid}", "main_stream": f"{cid}01", "sub_stream": f"{cid}02"}
+				s = await self.http.get(f"{self.base}/ISAPI/Streaming/channels/{cid}01")
+				if s.status_code == 200:
+					v = _strip_ns(ET.fromstring(s.content))
+					w, h = _t(v, ".//videoResolutionWidth"), _t(v, ".//videoResolutionHeight")
+					info["resolution"] = f"{w}x{h}" if w and h else None
+					codec = (_t(v, ".//videoCodecType") or "").upper()
+					info["codec"] = "H.265" if "265" in codec else "H.264" if "264" in codec else None
+				out.append(info)
+			if out:
+				break
+		return out
+
 	async def subscribe_events(self, cameras, on_event):
 		async with self.http.stream("GET", f"{self.base}/ISAPI/Event/notification/alertStream") as resp:
 			resp.raise_for_status()

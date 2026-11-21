@@ -14,7 +14,9 @@ def every_minute():
 		return
 	from upande_security.cctv import alerts, rules
 
-	for fn in (alerts.escalate_due, rules.check_states, _review_sla):
+	from upande_security.cctv import tracking
+
+	for fn in (alerts.escalate_due, rules.check_states, _review_sla, tracking.close_stale):
 		try:
 			fn()
 			frappe.db.commit()

@@ -74,8 +74,11 @@ def load_demo(farm):
 	frappe.only_for(("System Manager",))
 	from upande_security.cctv import simulator
 
-	if not frappe.db.get_single_value("CCTV Settings", "enabled"):
-		frappe.throw(_("Switch the CCTV module on first (and Alerts / Plate Recognition to see those)."))
+	from upande_security.cctv.settings import clear, is_on
+
+	clear()
+	if not is_on("enabled"):
+		frappe.throw(_("Switch CCTV on first: Security Ops Settings > CCTV Integration, then CCTV Settings > CCTV Module Enabled (and Alerts / Plate Recognition to see those)."))
 	demo = simulator.seed_demo(farm)
 	c = demo["cameras"]
 	now = frappe.utils.now_datetime()

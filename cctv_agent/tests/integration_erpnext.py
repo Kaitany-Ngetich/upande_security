@@ -52,12 +52,14 @@ def _always_off():
 		if frappe.db.exists("User", USER):
 			frappe.delete_doc("User", USER, ignore_permissions=True, force=True)
 		frappe.db.sql("update `tabSingles` set value='0' where doctype='CCTV Settings' and field in %s", (tuple(settings.SWITCHES),))
+		frappe.db.set_single_value("Security Ops Settings", "feature_cctv", 0)
 		frappe.db.commit()
 	except Exception as e:
 		print("cleanup:", e)
 
 
 orig = {k: frappe.db.get_single_value("CCTV Settings", k) for k in settings.SWITCHES}
+frappe.db.set_single_value("Security Ops Settings", "feature_cctv", 1)
 frappe.db.set_single_value("CCTV Settings", "enabled", 1)
 frappe.db.set_single_value("CCTV Settings", "anpr_enabled", 1)
 demo = simulator.seed_demo(FARM)

@@ -192,30 +192,14 @@ def _message(doc):
 
 
 def notify(doc, rule=None, level=0):
+	from upande_security.cctv.channels import deliver
+
 	subject, body, link = _message(doc)
+	sent_group = set()
 	for user, channel in _recipients(rule, level):
-		status, error = "Sent", None
-		try:
-			if channel in ("On Screen", "Push"):
-				note = frappe.new_doc("Notification Log")
-				note.for_user = user
-				note.type = "Alert"
-				note.subject = subject
-				note.email_content = body
-				note.document_type = "CCTV Alert"
-				note.document_name = doc.name
-				note.insert(ignore_permissions=True)
-			elif channel == "Email":
-				email = frappe.db.get_value("User", user, "email")
-				frappe.sendmail(recipients=[email], subject=subject, message=body, reference_doctype="CCTV Alert", reference_name=doc.name)
-				status = "Queued"
-			else:
-				# SMS / WhatsApp: hand to the app's messaging layer once a provider is chosen.
-				status, error = "Failed", f"{channel} provider not configured"
-		except Exception as e:
-			status, error = "Failed", str(e)[:200]
-		doc.append("notifications", {"channel": channel, "recipient": user, "sent_at": now_datetime(),
-			"delivery_status": status, "error": error})
+		status, error, fell_back = deliver(channel, user, subject, body, doc.name, link, sent_group)
+		doc.append("notifications", {"channel": channel + (" -> On Screen" if fell_back else ""), "recipient": user,
+			"sent_at": now_datetime(), "delivery_status": status, "error": error})
 		frappe.publish_realtime("cctv_alert", {"name": doc.name, "alert_type": doc.alert_type, "severity": doc.severity,
 			"subject": subject, "link": link}, user=user, after_commit=True)
 	doc.flags.ignore_permissions = True

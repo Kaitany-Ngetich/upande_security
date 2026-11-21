@@ -20,7 +20,9 @@
   "consent_document",
   "cb2",
   "face_enrolled",
-  "embedding_ref"
+  "embedding_ref",
+  "face_images",
+  "enrolled_sites"
  ],
  "fields": [
   {
@@ -116,11 +118,25 @@
    "label": "Embedding Ref",
    "permlevel": 1,
    "read_only": 1
+  },
+  {
+   "fieldname": "face_images",
+   "fieldtype": "Table",
+   "label": "Face Images (3-5 clear, frontal)",
+   "options": "CCTV Face Image",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "enrolled_sites",
+   "fieldtype": "Small Text",
+   "label": "Enrolled At Sites",
+   "permlevel": 1,
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-21 12:00:00.000000",
+ "modified": "2026-11-22 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "CCTV",
  "name": "CCTV Person Profile",

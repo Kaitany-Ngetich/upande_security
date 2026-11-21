@@ -12,6 +12,16 @@ frappe.ui.form.on("CCTV Alert", {
 		if (frm.is_new()) return;
 		frm.add_custom_button(__("Play footage"), () =>
 			window.open(`/security-dashboard-v2#/cctv-alerts?alert=${encodeURIComponent(frm.doc.name)}`, "_blank"));
+		if (!frm.doc.evidence_exported && frappe.user.has_role(["System Manager", "Security Head", "Security Manager", "CCTV Operator"])) {
+			frm.add_custom_button(__("Export evidence clip"), () =>
+				frappe.prompt([
+					{ fieldname: "minutes_before", fieldtype: "Float", label: __("Minutes before the event"), default: 1 },
+					{ fieldname: "minutes_after", fieldtype: "Float", label: __("Minutes after"), default: 2 },
+				], (v) => frappe.xcall("upande_security.cctv.commands.request_evidence", { alert: frm.doc.name, ...v }).then(() => {
+					frappe.msgprint(__("Requested from the recorder. The clip is attached to this alert when the site agent has it (usually under a minute)."));
+					frm.reload_doc();
+				}), __("Keep the recorder's clip as evidence")));
+		}
 		const open = ["Open", "Escalated", "Acknowledged"].includes(frm.doc.status);
 		if (!open || !frm.perm[0]?.write) return;
 		const run = (method, args, msg) =>

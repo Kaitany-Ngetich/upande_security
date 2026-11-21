@@ -17,7 +17,8 @@
   "source",
   "confidence",
   "snapshot",
-  "event"
+  "event",
+  "track"
  ],
  "fields": [
   {
@@ -101,11 +102,18 @@
    "label": "Event",
    "options": "CCTV Event",
    "read_only": 1
+  },
+  {
+   "fieldname": "track",
+   "fieldtype": "Link",
+   "label": "Track",
+   "options": "CCTV Track",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-21 12:00:00.000000",
+ "modified": "2026-11-22 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "CCTV",
  "name": "CCTV Person Sighting",

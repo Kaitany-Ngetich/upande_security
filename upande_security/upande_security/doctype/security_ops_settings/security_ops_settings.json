@@ -4,6 +4,47 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "feature_flags_section",
+  "feature_visitor_approval_workflow",
+  "feature_column_break_1",
+  "feature_contractor_checkin",
+  "feature_contractor_badges",
+  "feature_flags_section_2",
+  "feature_sos_alert",
+  "feature_patrol_geofence_alerts",
+  "feature_on_duty_tracking",
+  "feature_patrol_coverage_grid",
+  "feature_patrol_boundary_filter",
+  "feature_patrol_playback",
+  "feature_checkpoint_scanning",
+  "feature_security_alerts",
+  "feature_column_break_2",
+  "feature_watchlist",
+  "feature_asset_scanning",
+  "feature_flags_section_3",
+  "feature_gate_dispatch",
+  "feature_gate_receiving",
+  "feature_column_break_3",
+  "feature_vehicle_stickers",
+  "feature_visitor_badges",
+  "feature_supplier_badges",
+  "feature_flags_section_4",
+  "feature_command_center",
+  "feature_visitor_sms_otp",
+  "feature_appointment_extra_recipients",
+  "feature_flags_section_5",
+  "feature_staff_checkin",
+  "feature_biometric_shift_checkin",
+  "feature_vehicle_gate_tracking",
+  "feature_taxi_driver_checkout",
+  "feature_passenger_names",
+  "feature_column_break_5",
+  "feature_gate_temp_exit",
+  "feature_host_receipt_confirmation",
+  "feature_cctv",
+  "staff_gate_mode_section",
+  "staff_gate_modes",
+  "feature_carried_items",
   "emergency_contacts_section",
   "emergency_contacts_link",
   "badge_emergency_section",
@@ -52,46 +93,6 @@
   "vehicle_task_sources",
   "command_center_section",
   "command_center_extra_users",
-  "feature_flags_section",
-  "feature_visitor_approval_workflow",
-  "feature_column_break_1",
-  "feature_contractor_checkin",
-  "feature_contractor_badges",
-  "feature_flags_section_2",
-  "feature_sos_alert",
-  "feature_patrol_geofence_alerts",
-  "feature_on_duty_tracking",
-  "feature_patrol_coverage_grid",
-  "feature_patrol_boundary_filter",
-  "feature_patrol_playback",
-  "feature_checkpoint_scanning",
-  "feature_security_alerts",
-  "feature_column_break_2",
-  "feature_watchlist",
-  "feature_asset_scanning",
-  "feature_flags_section_3",
-  "feature_gate_dispatch",
-  "feature_gate_receiving",
-  "feature_column_break_3",
-  "feature_vehicle_stickers",
-  "feature_visitor_badges",
-  "feature_supplier_badges",
-  "feature_flags_section_4",
-  "feature_command_center",
-  "feature_visitor_sms_otp",
-  "feature_appointment_extra_recipients",
-  "feature_flags_section_5",
-  "feature_staff_checkin",
-  "feature_biometric_shift_checkin",
-  "feature_vehicle_gate_tracking",
-  "feature_taxi_driver_checkout",
-  "feature_passenger_names",
-  "feature_column_break_5",
-  "feature_gate_temp_exit",
-  "feature_host_receipt_confirmation",
-  "staff_gate_mode_section",
-  "staff_gate_modes",
-  "feature_carried_items",
   "feature_zone_breach_alerts",
   "zone_breach_grace_minutes",
   "apk_release_section",
@@ -116,7 +117,7 @@
   {
    "fieldname": "feature_flags_section",
    "fieldtype": "Section Break",
-   "label": "Feature Flags — Visitor Workflow",
+   "label": "Feature Flags \u2014 Visitor Workflow",
    "permlevel": 1
   },
   {
@@ -150,7 +151,7 @@
   {
    "fieldname": "feature_flags_section_2",
    "fieldtype": "Section Break",
-   "label": "Feature Flags — Alerts",
+   "label": "Feature Flags \u2014 Alerts",
    "permlevel": 1
   },
   {
@@ -229,7 +230,7 @@
   {
    "fieldname": "feature_flags_section_3",
    "fieldtype": "Section Break",
-   "label": "Feature Flags — Gate Verification",
+   "label": "Feature Flags \u2014 Gate Verification",
    "permlevel": 1
   },
   {
@@ -275,7 +276,7 @@
   {
    "fieldname": "feature_flags_section_4",
    "fieldtype": "Section Break",
-   "label": "Feature Flags — Admin",
+   "label": "Feature Flags \u2014 Admin",
    "permlevel": 1
   },
   {
@@ -302,7 +303,7 @@
   {
    "fieldname": "feature_flags_section_5",
    "fieldtype": "Section Break",
-   "label": "Feature Flags — Gate Modules",
+   "label": "Feature Flags \u2014 Gate Modules",
    "permlevel": 1
   },
   {
@@ -357,6 +358,14 @@
    "fieldname": "feature_host_receipt_confirmation",
    "fieldtype": "Check",
    "label": "Host Receipt Confirmation (badge scan)",
+   "permlevel": 1
+  },
+  {
+   "default": "0",
+   "description": "Master switch for the CCTV module. Off by default and stays off until the legal review is done. When on, CCTV Settings decides which parts run.",
+   "fieldname": "feature_cctv",
+   "fieldtype": "Check",
+   "label": "CCTV Integration (cameras, alerts, plate recognition)",
    "permlevel": 1
   },
   {
@@ -536,16 +545,16 @@
    "non_negative": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "security_report_section",
    "fieldtype": "Section Break",
-   "label": "Security Reports",
-   "collapsible": 1
+   "label": "Security Reports"
   },
   {
+   "default": "06:00:00",
    "fieldname": "security_day_starts_at",
    "fieldtype": "Time",
-   "label": "Security Day Starts At",
-   "default": "06:00:00"
+   "label": "Security Day Starts At"
   },
   {
    "fieldname": "security_report_subscriptions",
@@ -554,10 +563,10 @@
    "options": "Security Report Subscription"
   },
   {
+   "default": "SOS",
    "fieldname": "hidden_incident_types",
    "fieldtype": "Small Text",
-   "label": "Incident Types Left Out",
-   "default": "SOS"
+   "label": "Incident Types Left Out"
   },
   {
    "fieldname": "notification_recipients_section",
@@ -723,65 +732,65 @@
    "options": "Security Shift Time"
   },
   {
+   "collapsible": 1,
+   "description": "Still being built. What this organisation calls its places, for clients that are not farms (a factory, office, hotel, estate). Off: everything says Farm and Block, as before.",
    "fieldname": "terminology_section",
    "fieldtype": "Section Break",
-   "label": "Words Used (Beta)",
-   "description": "Still being built. What this organisation calls its places, for clients that are not farms (a factory, office, hotel, estate). Off: everything says Farm and Block, as before.",
-   "collapsible": 1
+   "label": "Words Used (Beta)"
   },
   {
+   "default": "0",
+   "description": "On: the Security Dashboard and the Desk field labels use the words below. Turning it off puts Farm and Block back.",
    "fieldname": "use_custom_words",
    "fieldtype": "Check",
-   "label": "Use Custom Words",
-   "default": "0",
-   "description": "On: the Security Dashboard and the Desk field labels use the words below. Turning it off puts Farm and Block back."
+   "label": "Use Custom Words"
   },
   {
+   "default": "Farm",
+   "depends_on": "eval:doc.use_custom_words",
+   "description": "Singular, e.g. Farm, Site, Branch, Premises, Estate, Campus.",
    "fieldname": "site_label",
    "fieldtype": "Data",
    "label": "A Site Is Called",
-   "default": "Farm",
-   "description": "Singular, e.g. Farm, Site, Branch, Premises, Estate, Campus.",
-   "depends_on": "eval:doc.use_custom_words",
    "mandatory_depends_on": "eval:doc.use_custom_words"
   },
   {
+   "default": "Farms",
+   "depends_on": "eval:doc.use_custom_words",
+   "description": "Plural, e.g. Farms, Sites, Branches.",
    "fieldname": "site_label_plural",
    "fieldtype": "Data",
    "label": "Sites Are Called",
-   "default": "Farms",
-   "description": "Plural, e.g. Farms, Sites, Branches.",
-   "depends_on": "eval:doc.use_custom_words",
    "mandatory_depends_on": "eval:doc.use_custom_words"
   },
   {
+   "depends_on": "eval:doc.use_custom_words",
    "fieldname": "terminology_column",
-   "fieldtype": "Column Break",
-   "depends_on": "eval:doc.use_custom_words"
+   "fieldtype": "Column Break"
   },
   {
+   "default": "Block",
+   "depends_on": "eval:doc.use_custom_words",
+   "description": "A part of a site (Security Block), e.g. Block, Zone, Wing, Floor.",
    "fieldname": "area_label",
    "fieldtype": "Data",
    "label": "An Area Is Called",
-   "default": "Block",
-   "description": "A part of a site (Security Block), e.g. Block, Zone, Wing, Floor.",
-   "depends_on": "eval:doc.use_custom_words",
    "mandatory_depends_on": "eval:doc.use_custom_words"
   },
   {
+   "default": "Blocks",
+   "depends_on": "eval:doc.use_custom_words",
+   "description": "Plural, e.g. Blocks, Zones, Wings.",
    "fieldname": "area_label_plural",
    "fieldtype": "Data",
    "label": "Areas Are Called",
-   "default": "Blocks",
-   "description": "Plural, e.g. Blocks, Zones, Wings.",
-   "depends_on": "eval:doc.use_custom_words",
    "mandatory_depends_on": "eval:doc.use_custom_words"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-17 13:00:00.000000",
+ "modified": "2026-11-22 09:30:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",

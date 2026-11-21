@@ -171,6 +171,11 @@ class OnvifAdapter(CameraAdapter):
 			log.warning("%s health check failed: %s", self.server.get("name"), e)
 			return {"status": "Offline"}
 
+	async def discover(self):
+		await self.connect()
+		return [{"channel_no": i + 1, "name": f"Video source {i + 1}", "main_stream": tokens[0], "sub_stream": tokens[1] if len(tokens) > 1 else tokens[0]}
+			for i, tokens in enumerate(self.sources)]
+
 	async def subscribe_events(self, cameras, on_event):
 		if not self.events_url:
 			await self.connect()

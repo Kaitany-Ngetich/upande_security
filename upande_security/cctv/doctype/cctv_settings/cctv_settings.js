@@ -2,7 +2,11 @@ const SETUP_API = "upande_security.cctv.admin";
 
 frappe.ui.form.on("CCTV Settings", {
 	refresh(frm) {
-		frm.set_intro(frm.doc.enabled ? "" : __("CCTV is switched off: no events are accepted and no CCTV pages show. Switch on only after the legal review."), "orange");
+		frappe.db.get_single_value("Security Ops Settings", "feature_cctv").then((flag) => {
+			const off = !flag ? __("CCTV Integration is off in Security Ops Settings, so nothing here runs.")
+				: !frm.doc.enabled ? __("CCTV is switched off: no events are accepted and no CCTV pages show.") : "";
+			frm.set_intro(off ? off + " " + __("Switch on only after the legal review.") : "", "orange");
+		});
 		if (!frappe.user.has_role("System Manager")) return;
 		frm.add_custom_button(__("New gateway token secret"), () =>
 			frappe.confirm(__("Replace the secret the media gateways check viewing tokens with? Agents pick it up within a minute."), () =>

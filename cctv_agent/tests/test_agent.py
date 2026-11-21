@@ -206,3 +206,20 @@ def test_playback_path_and_cmd():
 		parse_path("live/x/sub")
 	cmd = ffmpeg_cmd("rtsp://nvr/x", "rtsp://127.0.0.1:8554/pb/x")
 	assert cmd[-1] == "rtsp://127.0.0.1:8554/pb/x" and "copy" in cmd
+
+
+# ---------------------------------------------------------------- commands
+def test_discover_marks_known_channels():
+	import asyncio as aio
+	from cctv_agent.commands import CommandRunner
+
+	class FakeAdapter:
+		async def discover(self):
+			return [{"channel_no": 1, "name": "Gate"}, {"channel_no": 2, "name": "Dock"}]
+
+	class FakeAgent:
+		site = {"cameras": [{"name": "Gate-NVR", "server": "NVR-1", "channel_no": 1}]}
+		adapters = {"NVR-1": FakeAdapter()}
+
+	out = aio.run(CommandRunner(FakeAgent()).discover_channels("c1", {"server": "NVR-1"}))
+	assert [c["already"] for c in out["channels"]] == [True, False]

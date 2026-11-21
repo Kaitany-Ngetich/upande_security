@@ -60,9 +60,54 @@ class ERP:
 		return resp.json()["message"]
 
 	async def upload_snapshot(self, jpeg, filename="snapshot.jpg"):
-		resp = await self._send("POST", "upload_snapshot", files={"file": (filename, jpeg, "image/jpeg")})
+		# Raw body (not multipart) so the signature covers exactly the bytes sent.
+		resp = await self._send("POST", "upload_snapshot", params={"filename": filename}, content=jpeg,
+			headers={"Content-Type": "application/octet-stream"})
 		resp.raise_for_status()
 		return resp.json()["message"]["snapshot_ref"]
+
+	# ---- commands (ERPNext -> agent, polled) ------------------------------------
+	C = "/api/method/upande_security.cctv.commands."
+
+	async def _cmd(self, method, name, **kw):
+		req = self._sign(self.client.build_request(method, self.url + self.C + name, **kw))
+		resp = await self.client.send(req)
+		if resp.status_code in (401, 403):
+			raise AuthError(f"{resp.status_code}: {resp.text[:200]}")
+		resp.raise_for_status()
+		return resp.json()["message"]
+
+	async def poll_commands(self):
+		return (await self._cmd("GET", "poll_commands"))["commands"]
+
+	async def command_result(self, command, status, result=None, error=None):
+		return await self._cmd("POST", "command_result", json={"command": command, "status": status, "result": result or {}, "error": error})
+
+	async def upload_command_file(self, command, path, filename, mime):
+		with open(path, "rb") as fh:
+			data = fh.read()
+		return (await self._cmd("POST", "upload_command_file", params={"command": command, "filename": filename},
+			content=data, headers={"Content-Type": "application/octet-stream"}))["file_url"]
+
+	async def fetch_face_image(self, command, index):
+		import base64
+
+		r = await self._cmd("GET", "fetch_face_image", params={"command": command, "index": index})
+		return base64.b64decode(r["content"])
+
+	async def engine_models(self):
+		resp = await self._send("GET", "engine_models")
+		resp.raise_for_status()
+		return resp.json()["message"]["models"]
+
+	async def download_model(self, name, dest):
+		req = self._sign(self.client.build_request("GET", self.url + M + "download_model", params={"name": name}))
+		async with self.client.stream(req.method, req.url, headers=req.headers) as resp:
+			resp.raise_for_status()
+			with open(dest, "wb") as fh:
+				async for chunk in resp.aiter_bytes():
+					fh.write(chunk)
+		return dest
 
 	async def ingest(self, events):
 		"""Send one batch. Returns (done_ids, retry_after_seconds or None).

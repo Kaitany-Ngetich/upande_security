@@ -345,6 +345,7 @@ function AlertDialog({ name, onClose, onChanged }: { name: string | null; onClos
               {a.person_name && <p><span className="text-[var(--sd-muted)]">Person</span> {a.person_name}</p>}
               {a.visit && <p><span className="text-[var(--sd-muted)]">Vehicle</span> {a.visit.party_name} ({a.visit.status})</p>}
               {a.incident && <a className="underline" href={`/app/incident-report/${a.incident}`} target="_blank" rel="noreferrer">Incident {a.incident}</a>}
+              {a.evidence_file && <a className="underline" href={a.evidence_file} target="_blank" rel="noreferrer">Evidence clip</a>}
               {a.acknowledged_by && <p className="text-[12px] text-[var(--sd-muted)]">Acknowledged by {a.acknowledged_by} {when(a.acknowledged_at)}</p>}
               {a.can_act && !["Resolved", "False Alarm"].includes(a.status) && (
                 <div className="flex flex-col gap-2 border-t border-[var(--sd-line-soft)] pt-3">
@@ -371,6 +372,11 @@ function AlertDialog({ name, onClose, onChanged }: { name: string | null; onClos
                       </Button>
                     )}
                   </div>
+                  {!a.evidence_exported && (
+                    <Button variant="outline" size="sm" disabled={busy} onClick={() => act(() => api.requestEvidence(a.name), "Clip requested from the recorder - it is attached here when the site sends it.")}>
+                      Keep clip as evidence
+                    </Button>
+                  )}
                 </div>
               )}
               {a.notifications.length > 0 && (

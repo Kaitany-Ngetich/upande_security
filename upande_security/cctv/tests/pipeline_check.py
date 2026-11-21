@@ -33,6 +33,7 @@ check("similarity different", plates.similarity("KDA 123A", "KCC 789C") == 0)
 
 # ---- switch on locally for the test
 orig = {k: frappe.db.get_single_value("CCTV Settings", k) for k in settings.SWITCHES}
+frappe.db.set_single_value("Security Ops Settings", "feature_cctv", 1)
 for k in ("enabled", "live_view_enabled", "alerts_enabled", "anpr_enabled"):
 	frappe.db.set_single_value("CCTV Settings", k, 1)
 doc = frappe.get_single("CCTV Settings")
@@ -151,5 +152,6 @@ finally:
 	for k, v in orig.items():
 		frappe.db.set_single_value("CCTV Settings", k, 0)  # tests always leave the module OFF
 	frappe.db.set_single_value("CCTV Settings", "gateway_jwt_secret", None)
+	frappe.db.set_single_value("Security Ops Settings", "feature_cctv", 0)
 	frappe.db.commit()
 	print(f"\n{ok} passed, {fail} failed. Demo data removed, switches restored.")

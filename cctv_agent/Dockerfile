@@ -10,7 +10,9 @@ RUN apt-get update \
 WORKDIR /app
 COPY pyproject.toml ./
 COPY cctv_agent ./cctv_agent
-RUN pip install --no-cache-dir .
+# EXTRAS=engine adds the own analytics engine (onnxruntime, ~ +200 MB); EXTRAS= for camera-native only.
+ARG EXTRAS=engine
+RUN pip install --no-cache-dir ".[${EXTRAS}]"
 
 USER agent
 VOLUME ["/data"]

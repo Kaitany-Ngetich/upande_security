@@ -21,7 +21,7 @@ from frappe.utils import add_to_date, get_datetime, now_datetime, time_diff_in_s
 
 from upande_security.cctv import matching, plates
 from upande_security.cctv.alerts import find_rule, raise_alert
-from upande_security.cctv.settings import get_settings, is_on
+from upande_security.cctv.settings import get_settings, is_on, site_allows
 
 OPEN_STATES = ("On Premises", "Overstayed", "Expected")
 ENTRY_ROLES = ("Gate", "Entry")
@@ -75,6 +75,8 @@ def handle_plate_read(ev):
 	data = frappe._dict(ev.get("payload_dict") or {})
 	cam = _camera(ev.camera)
 	farm = ev.farm or cam.farm
+	if not site_allows(farm, "vehicles"):
+		return "site not licensed for vehicles"
 	when = get_datetime(ev.event_time)
 	raw = data.get("plate") or data.get("plate_normalized") or ""
 	norm, swaps = plates.repair(raw, s.plate_formats or None)

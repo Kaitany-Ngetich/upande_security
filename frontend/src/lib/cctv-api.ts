@@ -13,6 +13,8 @@ export interface CctvCaps {
   vehicles?: boolean;
   review?: boolean;
   health?: boolean;
+  presence?: boolean;
+  map?: boolean;
   manage?: boolean;
 }
 
@@ -48,7 +50,7 @@ export interface AlertDetail extends AlertRow {
   first_viewed_by: string | null; acknowledged_at: string | null; confidence: number | null; appointment: string | null;
   related: { camera: string; camera_name: string | null; reason: string | null }[];
   notifications: { channel: string; recipient: string; sent_at: string; delivery_status: string; error: string | null }[];
-  can_act: boolean; false_alarm_reasons: string[];
+  can_act: boolean; false_alarm_reasons: string[]; evidence_exported: number; evidence_file: string | null;
   visit?: { name: string; plate: string; party_name: string; party_type: string; entry_time: string | null; exit_time: string | null; status: string };
 }
 export const alertBoard = (args: { status?: string; severity?: string; company?: string; farm?: string; from_date?: string; to_date?: string; search?: string; start?: number }) =>
@@ -116,3 +118,33 @@ export interface HealthBoard {
   summary: { agents_online: number; agents: number; cameras_online: number; cameras: number; drifting: number; unprocessed_24h: number; failed_24h: number };
 }
 export const healthBoard = (args: { company?: string; farm?: string }) => call<HealthBoard>(`${D}.health_board`, args);
+
+// --- evidence, presence, map -------------------------------------------------------------
+
+const C = "upande_security.cctv.commands";
+const P = "upande_security.cctv.presence";
+export const requestEvidence = (alert: string, minutes_before = 1, minutes_after = 2) =>
+  call<{ ok: true; command: string }>(`${C}.request_evidence`, { alert, minutes_before, minutes_after });
+export const commandStatus = (name: string) =>
+  call<{ status: "Queued" | "Sent" | "Done" | "Failed" | "Expired"; file: string | null; error: string | null }>(`${C}.command_status`, { name });
+
+export interface PresencePerson {
+  person_profile: string; full_name: string; person_type: string; farm: string; zone: string | null; camera: string;
+  sighting_time: string; minutes_ago: number; confidence: number;
+}
+export interface PresenceTrack { name: string; label: string; farm: string; last_zone: string | null; last_seen: string; sighting_count: number; confidence: number }
+export const presence = (args: { company?: string; farm?: string }) =>
+  call<{ people: PresencePerson[]; by_zone: Record<string, number>; anonymous_tracks: PresenceTrack[]; window_hours: number }>(`${P}.get_presence`, args);
+export interface TimelineRow { name: string; sighting_time: string; camera: string; camera_name: string | null; zone: string | null; direction: string | null; confidence: number; snapshot: string | null }
+/** person_timeline answers with a bare list. */
+export const timeline = (args: { profile?: string; track?: string; date?: string }) => call<TimelineRow[]>(`${P}.person_timeline`, args);
+
+export interface MapData {
+  cameras: { name: string; camera_name: string; farm: string; zone: string | null; role: string; status: string; latitude: number | null; longitude: number | null }[];
+  unplaced: number;
+  zones: { name: string; label: string; severity: string | null; ring: [number, number][] }[];
+  boundary: [number, number][] | null;
+  vehicles: { name: string; plate: string; party_name: string; party_type: string; latitude: number; longitude: number; last_seen_time: string; status: string }[];
+  tracks: { name: string; label: string; latitude: number; longitude: number; last_seen: string; person_profile: string | null; confidence: number }[];
+}
+export const mapData = (args: { company?: string; farm?: string }) => call<MapData>(`${D}.map_data`, args);

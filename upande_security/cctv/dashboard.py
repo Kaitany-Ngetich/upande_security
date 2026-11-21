@@ -24,6 +24,7 @@ def capabilities():
 	roles = set(frappe.get_roles())
 	ops = bool(roles & OPS_ROLES)
 	gate = bool(roles & GATE_ROLES)
+	s = frappe._dict(s, enabled=s.enabled and s.ops_flag)
 	return {
 		"enabled": s.enabled,
 		"live": s.enabled and s.live_view_enabled and gate,
@@ -31,6 +32,8 @@ def capabilities():
 		"vehicles": s.enabled and s.anpr_enabled and gate,
 		"review": s.enabled and s.anpr_enabled and gate,
 		"health": s.enabled and ops,
+		"presence": s.enabled and s.presence_enabled and ops,
+		"map": s.enabled and gate,
 		"manage": bool(roles & {"System Manager", "Security Head"}),
 	}
 
@@ -252,3 +255,49 @@ def health_board(company=None, farm=None):
 			"unprocessed_24h": backlog, "failed_24h": errors,
 		},
 	}
+
+
+# ------------------------------------------------------------------ site map
+
+@frappe.whitelist()
+def map_data(farm=None, company=None):
+	"""Cameras (with status), zone outlines, the site boundary, vehicles at their
+	last-seen camera and active person tracks - for the site map page."""
+	require("enabled")
+	if not set(frappe.get_roles()) & GATE_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+	from upande_security.api.farm_geo import farm_ring
+	from upande_security.api.zones import _read_attachment, _ring_from_geojson
+	from upande_security.cctv.settings import is_on
+
+	scope = _scope({}, company, farm)
+	cams = frappe.get_list("CCTV Camera", filters={**scope, "enabled": 1},
+		fields=["name", "camera_name", "farm", "zone", "role", "status", "latitude", "longitude", "gate"], limit_page_length=1000)
+	placed = {c.name: c for c in cams if c.latitude and c.longitude}
+	zones = []
+	for z in frappe.get_all("Security Zone", filters={**scope, "active": 1}, fields=["name", "zone_name", "farm", "severity", "boundary_geojson"]):
+		ring = _ring_from_geojson(_read_attachment(z.boundary_geojson))
+		if ring:
+			zones.append({"name": z.name, "label": z.zone_name, "severity": z.severity, "ring": ring})
+	boundary = None
+	if farm:
+		try:
+			boundary = farm_ring(farm)
+		except Exception:
+			boundary = None
+	vehicles = []
+	if is_on("anpr_enabled"):
+		for v in frappe.get_list("CCTV Vehicle Visit", filters={**scope, "status": ["in", ["On Premises", "Overstayed"]]},
+				fields=["name", "plate", "party_name", "party_type", "last_seen_camera", "last_seen_time", "status"], limit_page_length=500):
+			c = placed.get(v.last_seen_camera)
+			if c:
+				vehicles.append({**v, "latitude": c.latitude, "longitude": c.longitude})
+	tracks = []
+	if is_on("presence_enabled") and set(frappe.get_roles()) & OPS_ROLES:
+		for t in frappe.get_all("CCTV Track", filters={**scope, "status": "Active"},
+				fields=["name", "label", "kind", "last_camera", "last_seen", "person_profile", "confidence"], limit=500):
+			c = placed.get(t.last_camera)
+			if c:
+				tracks.append({**t, "latitude": c.latitude, "longitude": c.longitude})
+	return {"cameras": cams, "unplaced": len(cams) - len(placed), "zones": zones, "boundary": boundary,
+		"vehicles": vehicles, "tracks": tracks}

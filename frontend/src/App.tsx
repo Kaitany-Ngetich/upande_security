@@ -40,6 +40,8 @@ const CctvAlerts = lazy(() => import("@/pages/Cctv").then((m) => ({ default: m.C
 const CctvVehicles = lazy(() => import("@/pages/Cctv").then((m) => ({ default: m.CctvVehicles })));
 const CctvReview = lazy(() => import("@/pages/Cctv").then((m) => ({ default: m.CctvReview })));
 const CctvHealth = lazy(() => import("@/pages/Cctv").then((m) => ({ default: m.CctvHealth })));
+const CctvPresence = lazy(() => import("@/pages/CctvMore").then((m) => ({ default: m.CctvPresence })));
+const CctvMap = lazy(() => import("@/pages/CctvMore").then((m) => ({ default: m.CctvMap })));
 
 const PAGES: Partial<Record<View, React.ComponentType>> = {
   visitors: Visitors,
@@ -69,6 +71,8 @@ const PAGES: Partial<Record<View, React.ComponentType>> = {
   "cctv-vehicles": CctvVehicles,
   "cctv-review": CctvReview,
   "cctv-health": CctvHealth,
+  "cctv-presence": CctvPresence,
+  "cctv-map": CctvMap,
 };
 
 /** Says why the workspace is empty, and what to do, in place of a blank page. */

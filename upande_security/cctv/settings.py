@@ -32,6 +32,11 @@ DEFAULTS = {
 	"retention_sightings_days": 60,
 	"retention_snapshots_days": 60,
 	"retention_audit_days": 365,
+	"command_ttl_minutes": 30,
+	"evidence_max_minutes": 10,
+	"presence_stale_hours": 12,
+	"face_match_threshold": 60,
+	"enforce_entitlements": 0,
 }
 
 
@@ -46,6 +51,8 @@ def get_settings():
 	raw = {r.field: r.value for r in rows}
 	for key in SWITCHES:
 		values[key] = bool(int(raw.get(key) or 0))
+	# The feature flag in Security Ops Settings; unset counts as OFF.
+	values.ops_flag = bool(int(frappe.db.get_single_value("Security Ops Settings", "feature_cctv") or 0))
 	for key, default in DEFAULTS.items():
 		value = raw.get(key)
 		values[key] = default if value in (None, "") else type(default)(float(value))
@@ -63,9 +70,10 @@ def get_settings():
 
 
 def is_on(switch="enabled"):
-	"""True only when the module AND the given capability are both switched on."""
+	"""True only when Security Ops Settings > CCTV Integration, the module switch
+	(CCTV Settings) AND the given capability are all on."""
 	s = get_settings()
-	if not s.enabled:
+	if not (s.ops_flag and s.enabled):
 		return False
 	return switch == "enabled" or bool(s.get(switch))
 
@@ -76,5 +84,38 @@ def require(switch="enabled"):
 
 
 def clear():
-	if hasattr(frappe.local, "cctv_settings"):
-		del frappe.local.cctv_settings
+	for key in ("cctv_settings", "cctv_entitlements"):
+		if hasattr(frappe.local, key):
+			delattr(frappe.local, key)
+
+
+def site_allows(farm, feature="core"):
+	"""Per-site licence (CCTV Settings > Site Entitlements), when enforced.
+	feature: core | vehicles | presence | ai_engine."""
+	s = get_settings()
+	if not s.enforce_entitlements:
+		return True
+	if not farm:
+		return False
+	key = f"cctv_ent:{farm}"
+	cache = getattr(frappe.local, "cctv_entitlements", None)
+	if cache is None:
+		cache = {}
+		frappe.local.cctv_entitlements = cache
+	row = cache.get(key)
+	if row is None:
+		row = frappe.db.get_value("CCTV Site Entitlement", {"parent": "CCTV Settings", "farm": farm},
+			["core", "vehicles", "presence", "ai_engine", "max_cameras", "valid_to"], as_dict=True) or False
+		cache[key] = row
+	if not row:
+		return False
+	if row.valid_to and frappe.utils.getdate(row.valid_to) < frappe.utils.getdate():
+		return False
+	return bool(row.get(feature)) and bool(row.core)
+
+
+def max_cameras(farm):
+	s = get_settings()
+	if not s.enforce_entitlements:
+		return None
+	return frappe.db.get_value("CCTV Site Entitlement", {"parent": "CCTV Settings", "farm": farm}, "max_cameras") or None

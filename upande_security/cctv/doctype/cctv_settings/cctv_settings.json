@@ -39,7 +39,21 @@
   "retention_sightings_days",
   "cb_retention",
   "retention_snapshots_days",
-  "retention_audit_days"
+  "retention_audit_days",
+  "sb_channels",
+  "telegram_bot_token",
+  "telegram_chat_id",
+  "cb_channels",
+  "whatsapp_note",
+  "sb_cmd",
+  "command_ttl_minutes",
+  "evidence_max_minutes",
+  "cb_cmd",
+  "presence_stale_hours",
+  "face_match_threshold",
+  "sb_lic",
+  "enforce_entitlements",
+  "entitlements"
  ],
  "fields": [
   {
@@ -249,12 +263,89 @@
    "fieldname": "retention_audit_days",
    "fieldtype": "Int",
    "label": "Audit Logs"
+  },
+  {
+   "fieldname": "sb_channels",
+   "fieldtype": "Section Break",
+   "label": "Notification Channels"
+  },
+  {
+   "fieldname": "telegram_bot_token",
+   "fieldtype": "Password",
+   "label": "Telegram Bot Token"
+  },
+  {
+   "description": "Group or channel that receives Telegram alerts.",
+   "fieldname": "telegram_chat_id",
+   "fieldtype": "Data",
+   "label": "Telegram Chat ID"
+  },
+  {
+   "fieldname": "cb_channels",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "whatsapp_note",
+   "fieldtype": "HTML",
+   "options": "<p class='text-muted small'>SMS uses SMS Settings. WhatsApp uses the frappe_whatsapp app when installed. Push uses the guards' Security app.</p>"
+  },
+  {
+   "fieldname": "sb_cmd",
+   "fieldtype": "Section Break",
+   "label": "Site Agent Commands and Presence"
+  },
+  {
+   "default": "30",
+   "fieldname": "command_ttl_minutes",
+   "fieldtype": "Int",
+   "label": "Command Expires After (minutes)"
+  },
+  {
+   "default": "10",
+   "fieldname": "evidence_max_minutes",
+   "fieldtype": "Int",
+   "label": "Longest Evidence Clip (minutes)"
+  },
+  {
+   "fieldname": "cb_cmd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "12",
+   "fieldname": "presence_stale_hours",
+   "fieldtype": "Int",
+   "label": "Presence: Forget After (hours)"
+  },
+  {
+   "default": "60",
+   "fieldname": "face_match_threshold",
+   "fieldtype": "Percent",
+   "label": "Face Match Threshold",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "sb_lic",
+   "fieldtype": "Section Break",
+   "label": "Sites and Licences"
+  },
+  {
+   "default": "0",
+   "description": "On: a site gets only the features ticked for it below.",
+   "fieldname": "enforce_entitlements",
+   "fieldtype": "Check",
+   "label": "Limit Features per Site"
+  },
+  {
+   "fieldname": "entitlements",
+   "fieldtype": "Table",
+   "label": "Site Entitlements",
+   "options": "CCTV Site Entitlement"
   }
  ],
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-21 12:00:00.000000",
+ "modified": "2026-11-22 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "CCTV",
  "name": "CCTV Settings",

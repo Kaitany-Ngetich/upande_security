@@ -39,7 +39,7 @@ from frappe.utils import get_datetime, now_datetime
 from frappe.utils.data import convert_utc_to_system_timezone
 
 from upande_security.cctv import plates
-from upande_security.cctv.settings import get_settings, is_on
+from upande_security.cctv.settings import get_settings, is_on, site_allows
 
 MAX_BATCH = 100
 
@@ -90,6 +90,10 @@ def store_event(ev, farm=None, agent=None):
 		return "rejected", "unknown camera"
 	if farm and cam_farm != farm:
 		return "rejected", "camera belongs to another site"
+	if not site_allows(cam_farm, "core"):
+		return "rejected", "site not licensed for CCTV"
+	if (ev.get("source") or {}).get("provider") == "own_engine" and not site_allows(cam_farm, "ai_engine"):
+		return "rejected", "site not licensed for the AI engine"
 	etype = ev["event_type"] if ev["event_type"] in _known_types() else "other"
 	data = ev.get("data") or {}
 	source = ev.get("source") or {}
@@ -150,13 +154,13 @@ def ingest_events(events):
 
 
 @frappe.whitelist(methods=["POST"])
-def upload_snapshot():
-	"""Multipart image from the agent -> private File; returns its reference."""
+def upload_snapshot(filename=None):
+	"""Image bytes from the agent (raw body, signed) -> private File; returns its reference."""
 	agent = _agent()
-	f = frappe.request.files.get("file")
-	if not f:
+	content = frappe.request.get_data()
+	if not content:
 		frappe.throw(_("No file."))
-	doc = frappe.get_doc({"doctype": "File", "file_name": f.filename or "snapshot.jpg", "content": f.stream.read(),
+	doc = frappe.get_doc({"doctype": "File", "file_name": filename or "snapshot.jpg", "content": content,
 		"is_private": 1, "folder": "Home/Attachments"})
 	doc.flags.ignore_permissions = True
 	doc.insert()
@@ -215,6 +219,36 @@ def get_site_config():
 		"agent": agent.name, "site": agent.farm, "config_version": _config_version(agent.farm),
 		"servers": servers, "cameras": cameras,
 		"gateway": {"token_secret": frappe.get_single("CCTV Settings").get_password("gateway_jwt_secret", raise_exception=False)},
-		"analytics": {"anpr": s.anpr_enabled, "faces": s.face_recognition_enabled, "plate_formats": s.plate_formats,
-			"duplicate_window_seconds": s.duplicate_window_seconds},
+		"analytics": {"anpr": s.anpr_enabled and site_allows(agent.farm, "vehicles"),
+			"faces": s.face_recognition_enabled and site_allows(agent.farm, "presence"),
+			"presence": s.presence_enabled and site_allows(agent.farm, "presence"),
+			"engine": site_allows(agent.farm, "ai_engine"),
+			"face_match_threshold": s.face_match_threshold / 100,
+			"plate_formats": s.plate_formats, "duplicate_window_seconds": s.duplicate_window_seconds},
 	}
+
+
+@frappe.whitelist()
+def engine_models():
+	"""Agent: the engine models it should run (enabled, licence-cleared), with checksums."""
+	agent = _agent()
+	if not site_allows(agent.farm, "ai_engine"):
+		return {"models": []}
+	return {"models": frappe.get_all("CCTV Engine Model", filters={"enabled": 1, "model_file": ["is", "set"]},
+		fields=["name", "task", "version", "sha256", "shadow_mode", "input_size", "labels"])}
+
+
+@frappe.whitelist()
+def download_model(name):
+	"""Agent: one model file (raw download)."""
+	agent = _agent()
+	if not site_allows(agent.farm, "ai_engine"):
+		frappe.throw(_("Site not licensed for the AI engine."), frappe.PermissionError)
+	m = frappe.get_doc("CCTV Engine Model", name)
+	if not m.enabled or not m.model_file:
+		frappe.throw(_("Model not available."))
+	f = frappe.get_doc("File", {"file_url": m.model_file})
+	frappe.local.response.filename = f"{m.name}-{m.version}.onnx"
+	with open(f.get_full_path(), "rb") as fh:
+		frappe.local.response.filecontent = fh.read()
+	frappe.local.response.type = "download"

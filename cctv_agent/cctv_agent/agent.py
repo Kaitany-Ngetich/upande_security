@@ -39,6 +39,15 @@ class Agent:
 		self.server_health = {}
 		self.paths = PathSync(cfg.mediamtx_api, cfg.transcode_h265, cfg.rtsp_port)
 		self.tz = zoneinfo.ZoneInfo(cfg.site_timezone)
+		self.engine = None
+		try:
+			import numpy  # noqa: F401  (the engine extra is installed)
+
+			from cctv_agent.engine.runner import Engine
+
+			self.engine = Engine(self, os.path.dirname(os.path.abspath(cfg.buffer_path)))
+		except ImportError:
+			log.info("engine extra not installed - camera-native analytics only")
 
 	# ---- site config ------------------------------------------------------------------
 	def _load_cache(self):
@@ -74,6 +83,8 @@ class Agent:
 			log.info("MediaMTX: %s live paths", n)
 		except Exception as e:
 			log.warning("MediaMTX path sync failed: %s", e)
+		if self.engine:
+			await self.engine.apply(site)
 
 	async def config_loop(self):
 		attempt = 0
@@ -176,4 +187,6 @@ class Agent:
 
 	async def run(self):
 		await AuthServer(self.token_secret, self.cfg.auth_listen).start()
-		await asyncio.gather(self.config_loop(), self.uploader(), self.health_loop(), self.heartbeat_loop())
+		from cctv_agent.commands import CommandRunner
+
+		await asyncio.gather(self.config_loop(), self.uploader(), self.health_loop(), self.heartbeat_loop(), CommandRunner(self).loop())

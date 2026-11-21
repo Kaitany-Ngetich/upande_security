@@ -20,7 +20,7 @@ import frappe
 from frappe.utils import add_to_date, get_datetime, now_datetime
 
 from upande_security.cctv.alerts import find_rule, raise_alert
-from upande_security.cctv.settings import get_settings, is_on
+from upande_security.cctv.settings import get_settings, is_on, site_allows
 
 ENTRY_EVENTS = {"person_detected", "line_crossing", "zone_intrusion", "face_match", "face_unknown", "access_event", "door_state"}
 
@@ -34,8 +34,11 @@ def _identity(ev, data):
 	profile = None
 	employee = data.get("employee")
 	name = data.get("person_name")
-	if ev.event_type == "face_match" and data.get("person_ref"):
-		profile = data.get("person_ref") if frappe.db.exists("CCTV Person Profile", data.get("person_ref")) else None
+	if ev.event_type == "face_match" and data.get("person_ref") and is_on("face_recognition_enabled"):
+		# Below the face match threshold the person counts as unknown.
+		similarity = float(data.get("similarity") or (ev.confidence or 0) / 100)
+		ok = similarity * 100 >= get_settings().face_match_threshold
+		profile = data.get("person_ref") if ok and frappe.db.get_value("CCTV Person Profile", data.get("person_ref"), "status") == "Active" else None
 		if profile:
 			employee, name = frappe.db.get_value("CCTV Person Profile", profile, ["employee", "full_name"]) or (None, None)
 	if employee and not name:
@@ -59,7 +62,7 @@ def handle_zone_event(ev):
 		return "access denied"
 
 	employee, profile, name = _identity(ev, data)
-	if profile and is_on("presence_enabled"):
+	if et in ("person_detected", "face_match", "face_unknown") and is_on("presence_enabled") and site_allows(cam.farm, "presence"):
 		_person_sighting(ev, cam, profile, data, when)
 
 	if et == "zone_intrusion" and data.get("dwell_seconds"):
@@ -98,6 +101,12 @@ def _person_sighting(ev, cam, profile, data, when):
 	doc.flags.ignore_permissions = True
 	doc.flags.ignore_links = True
 	doc.insert()
+	try:
+		from upande_security.cctv.tracking import attach
+
+		attach(doc)
+	except Exception:
+		frappe.log_error(title="CCTV tracking failed")
 
 
 def handle_device_event(ev):
