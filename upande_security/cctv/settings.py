@@ -11,7 +11,7 @@ must not do anything until it has been legally cleared and switched on.
 
 import frappe
 
-SWITCHES = ("enabled", "live_view_enabled", "alerts_enabled", "anpr_enabled", "presence_enabled", "face_recognition_enabled")
+SWITCHES = ("enabled", "live_view_enabled", "alerts_enabled", "anpr_enabled", "presence_enabled", "face_recognition_enabled", "push_enabled")
 
 DEFAULTS = {
 	"pre_roll_seconds": 15,
@@ -41,6 +41,8 @@ DEFAULTS = {
 	"guard_match_radius_m": 40,
 	"guard_match_window_seconds": 90,
 	"guard_match_hold_seconds": 60,
+	"push_rate_limit_per_minute": 600,
+	"push_max_body_mb": 8,
 }
 
 

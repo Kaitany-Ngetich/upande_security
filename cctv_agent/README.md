@@ -61,6 +61,17 @@ with fixes, Not ready - with the fixes listed. Passwords never appear in it.
    HTTPS tunnel / VPN (e.g. Cloudflare Tunnel or WireGuard) and put that URL in
    *CCTV Site Agent > Media Gateway URL*. Never port-forward the recorders.
 
+## No box yet? Direct Push (fallback)
+
+A Hikvision or Dahua recorder can send its own alarms straight to ERPNext:
+set the CCTV Server's Connection to Direct Push, tick CCTV Settings > Accept
+Direct Push from Recorders, then CCTV Server > Direct Push > Generate push
+link and enter it in the recorder's HTTP listening / event push settings.
+Alerts, plate reads, guard checks and reports work; live view, playback, the
+AI engine, the survey and the offline buffer need this agent. The same brand
+parsers are used (ERPNext imports cctv_agent/adapters), so moving a recorder
+from Direct Push to the agent later changes nothing downstream.
+
 ## Verify on real hardware before trusting
 The adapter paths and event formats follow the vendors' published APIs, but
 firmware varies. For each recorder model: live main/sub, playback of a known

@@ -20,8 +20,16 @@ function waitFor(name, label) {
 }
 
 frappe.ui.form.on("CCTV Server", {
+	connection(frm) {
+		frm.trigger("refresh");
+	},
 	refresh(frm) {
+		pushHelp(frm);
 		if (frm.is_new() || !frappe.user.has_role(["System Manager", "Security Head"])) return;
+		if (frm.doc.connection === "Direct Push") {
+			frm.add_custom_button(__("Generate push link"), () => pushLink(frm), __("Direct Push")).addClass("btn-primary");
+			return; // test / survey / discover need the site agent
+		}
 		frm.add_custom_button(__("Test connection"), () =>
 			frappe.xcall(`${CMD}.test_connection`, { server: frm.doc.name })
 				.then((r) => waitFor(r.command, __("Testing {0}", [frm.doc.server_name])))
@@ -81,4 +89,46 @@ function pick(frm, channels) {
 		},
 	});
 	d.show();
+}
+
+// ---- Direct Push (fallback for a recorder with no site agent) ----------------
+function pushHelp(frm) {
+	const f = frm.get_field("push_help");
+	if (!f || frm.doc.connection !== "Direct Push") return;
+	f.$wrapper.html(`<div class="text-muted small" style="line-height:1.6">
+		<p><b>${__("Fallback mode.")}</b> ${__("The recorder sends its own alarms to ERPNext: alerts, plate reads, guard checks and reports work. Live view, playback, the AI engine, the site survey and the offline buffer need the site agent.")}</p>
+		<ol style="padding-left:18px;margin:0">
+			<li>${__("CCTV Settings: tick Accept Direct Push from Recorders.")}</li>
+			<li>${__("Add this recorder's cameras (CCTV Camera, Server = this recorder) with their channel numbers.")}</li>
+			<li>${__("Generate push link (above) and enter it in the recorder.")}</li>
+			<li>${__("Trigger an event (walk past, drive a car through). Last Push Received updates here.")}</li>
+		</ol></div>`);
+}
+
+function pushLink(frm) {
+	const go = () =>
+		frappe.xcall("upande_security.cctv.push.generate_push_link", { server: frm.doc.name }).then((r) => {
+			const esc = frappe.utils.escape_html;
+			const d = new frappe.ui.Dialog({
+				title: __("Push link for {0}", [frm.doc.server_name]),
+				size: "large",
+				fields: [{ fieldtype: "HTML", options: `
+					<p>${__("Shown once. Copy it now: only the last 4 characters are kept.")}</p>
+					<pre style="white-space:pre-wrap;word-break:break-all">${esc(r.url)}</pre>
+					<table class="table table-bordered small"><tbody>
+						<tr><th>${__("Host")}</th><td>${esc(r.where.host)}</td></tr>
+						<tr><th>${__("Port")}</th><td>${esc(String(r.where.port))}</td></tr>
+						<tr><th>${__("Protocol")}</th><td>${esc(r.where.protocol)}</td></tr>
+						<tr><th>${__("URL / Path")}</th><td style="word-break:break-all">${esc(r.where.path)}</td></tr>
+					</tbody></table>
+					<ol class="small">${r.steps.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>` }],
+				primary_action_label: __("Copy link"),
+				primary_action() { frappe.utils.copy_to_clipboard(r.url); },
+			});
+			d.show();
+			frm.reload_doc();
+		});
+	if (frm.doc.push_token_hint) {
+		frappe.confirm(__("A new link replaces the current one: the recorder stops reporting until it gets the new link. Continue?"), go);
+	} else go();
 }

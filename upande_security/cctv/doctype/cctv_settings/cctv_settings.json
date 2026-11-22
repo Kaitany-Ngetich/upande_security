@@ -23,6 +23,11 @@
   "gateway_jwt_secret",
   "require_agent_signature",
   "max_clock_skew_seconds",
+  "sb_push",
+  "push_enabled",
+  "cb_push",
+  "push_rate_limit_per_minute",
+  "push_max_body_mb",
   "sb_plates",
   "match_tolerance_minutes",
   "auto_match_confidence",
@@ -381,6 +386,34 @@
    "fieldtype": "Table",
    "label": "Site Entitlements",
    "options": "CCTV Site Entitlement"
+  },
+  {
+   "fieldname": "sb_push",
+   "fieldtype": "Section Break",
+   "label": "Direct Push (recorders without a site agent)"
+  },
+  {
+   "fieldname": "push_enabled",
+   "fieldtype": "Check",
+   "label": "Accept Direct Push from Recorders",
+   "default": "0",
+   "description": "Fallback for sites without a site agent: recorders set to Direct Push may send their alarms straight to ERPNext. The site agent remains the full-featured path."
+  },
+  {
+   "fieldname": "cb_push",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "push_rate_limit_per_minute",
+   "fieldtype": "Int",
+   "label": "Push Requests per Minute (per recorder)",
+   "default": "600"
+  },
+  {
+   "fieldname": "push_max_body_mb",
+   "fieldtype": "Int",
+   "label": "Max Push Size (MB)",
+   "default": "8"
   }
  ],
  "index_web_pages_for_search": 0,

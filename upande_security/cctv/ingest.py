@@ -208,10 +208,11 @@ def get_site_config():
 	agent = _agent()
 	s = get_settings()
 	servers = []
-	for sv in frappe.get_all("CCTV Server", filters={"farm": agent.farm}, fields=["name", "brand", "kind", "host", "port", "use_tls", "verify_tls", "username", "time_offset_seconds"]):
+	# Direct Push recorders report on their own (cctv/push.py); the agent leaves them alone.
+	for sv in frappe.get_all("CCTV Server", filters={"farm": agent.farm, "connection": ["!=", "Direct Push"]}, fields=["name", "brand", "kind", "host", "port", "use_tls", "verify_tls", "username", "time_offset_seconds"]):
 		sv.password = frappe.get_doc("CCTV Server", sv.name).get_password("password", raise_exception=False)
 		servers.append(sv)
-	cameras = frappe.get_all("CCTV Camera", filters={"farm": agent.farm, "enabled": 1},
+	cameras = frappe.get_all("CCTV Camera", filters={"farm": agent.farm, "enabled": 1, "server": ["in", [sv.name for sv in servers] or ["-"]]},
 		fields=["name", "camera_name", "server", "channel_no", "role", "zone", "gate", "main_stream", "sub_stream", "codec",
 			"cap_anpr", "cap_face", "cap_motion", "cap_line_crossing", "cap_intrusion", "analytics_provider", "analytics_enabled",
 			"direction_in", "analytics_config"])

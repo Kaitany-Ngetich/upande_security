@@ -10,6 +10,7 @@
   "farm",
   "company",
   "agent",
+  "connection",
   "brand",
   "kind",
   "cb1",
@@ -19,6 +20,13 @@
   "verify_tls",
   "username",
   "password",
+  "sb_push",
+  "push_help",
+  "cb_push",
+  "push_token_hint",
+  "push_token_hash",
+  "last_push_at",
+  "last_push_note",
   "sb_rec",
   "recording_mode",
   "observed_retention_days",
@@ -57,7 +65,8 @@
    "fieldname": "agent",
    "fieldtype": "Link",
    "label": "Agent",
-   "options": "CCTV Site Agent"
+   "options": "CCTV Site Agent",
+   "depends_on": "eval:doc.connection!='Direct Push'"
   },
   {
    "fieldname": "brand",
@@ -82,7 +91,7 @@
    "fieldname": "host",
    "fieldtype": "Data",
    "label": "Host",
-   "reqd": 1
+   "mandatory_depends_on": "eval:doc.connection!='Direct Push'"
   },
   {
    "default": "80",
@@ -162,6 +171,61 @@
    "fieldtype": "Datetime",
    "label": "Last Seen",
    "read_only": 1
+  },
+  {
+   "fieldname": "connection",
+   "fieldtype": "Select",
+   "label": "Connection",
+   "options": "Site Agent\nDirect Push",
+   "default": "Site Agent",
+   "in_list_view": 1,
+   "description": "Site Agent (recommended): the box on site reads the recorder - alerts, plates, live view, playback, AI engine, survey, offline buffer. Direct Push: the recorder sends its own alarms to ERPNext over the internet - alerts and plates only, no live view or playback in the dashboard."
+  },
+  {
+   "fieldname": "sb_push",
+   "fieldtype": "Section Break",
+   "label": "Direct Push",
+   "depends_on": "eval:doc.connection=='Direct Push'",
+   "collapsible": 0
+  },
+  {
+   "fieldname": "push_help",
+   "fieldtype": "HTML",
+   "label": "Push Help"
+  },
+  {
+   "fieldname": "cb_push",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "push_token_hint",
+   "fieldtype": "Data",
+   "label": "Push Link",
+   "read_only": 1,
+   "description": "Only the end of the secret is kept here. Use Direct Push > Generate push link to get a new link (the old one stops working)."
+  },
+  {
+   "fieldname": "push_token_hash",
+   "fieldtype": "Data",
+   "label": "Push Token Hash",
+   "hidden": 1,
+   "read_only": 1,
+   "search_index": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "last_push_at",
+   "fieldtype": "Datetime",
+   "label": "Last Push Received",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "last_push_note",
+   "fieldtype": "Small Text",
+   "label": "Last Push Result",
+   "read_only": 1,
+   "no_copy": 1
   }
  ],
  "index_web_pages_for_search": 0,
