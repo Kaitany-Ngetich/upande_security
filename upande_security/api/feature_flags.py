@@ -50,7 +50,12 @@ FEATURE_FIELDS = [
 	"feature_host_receipt_confirmation",
 	"feature_passenger_names",
 	"feature_carried_items",
+	"feature_cctv",
 ]
+
+# Flags that are OFF until someone switches them on. Every other flag counts as
+# on while unset (sites that predate a flag keep the behaviour they had).
+DEFAULT_OFF = {"feature_cctv"}
 
 
 def get_enabled_features():
@@ -69,7 +74,7 @@ def get_enabled_features():
 			or {}
 		)
 		frappe.local.security_feature_flags = {
-			field: bool(values.get(field) if values.get(field) is not None else 1)
+			field: bool(values.get(field) if values.get(field) is not None else (0 if field in DEFAULT_OFF else 1))
 			for field in FEATURE_FIELDS
 		}
 	return frappe.local.security_feature_flags

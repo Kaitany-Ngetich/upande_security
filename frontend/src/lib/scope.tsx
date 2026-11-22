@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { call, isError } from "@/lib/frappe";
+import type { CctvCaps } from "@/lib/cctv-api";
 
 /** What api.dashboard_v2.bootstrap says about the signed-in user. */
 export interface Boot {
@@ -17,6 +18,8 @@ export interface Boot {
   /** What this organisation calls a site and an area (Security Ops Settings > Words Used). */
   terms: { site_label: string; site_label_plural: string; area_label: string; area_label_plural: string };
   can_settings: boolean;
+  /** CCTV pages this user gets; all false while CCTV is switched off. */
+  cctv?: CctvCaps;
 }
 
 /** The company / farm every page is looking at. Blank = everything the user may see. */

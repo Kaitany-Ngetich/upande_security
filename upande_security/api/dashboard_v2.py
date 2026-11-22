@@ -98,7 +98,17 @@ def bootstrap():
 		# What this organisation calls a site and an area (Security Ops Settings > Words Used).
 		"terms": get_terms(),
 		"can_settings": frappe.has_permission("Security Ops Settings", "read"),
+		# CCTV pages this user gets (all false while the module is switched off).
+		"cctv": _cctv_capabilities(),
 	}
+
+
+def _cctv_capabilities():
+	try:
+		from upande_security.cctv.dashboard import capabilities
+		return capabilities()
+	except Exception:
+		return {"enabled": False}
 
 
 @frappe.whitelist()

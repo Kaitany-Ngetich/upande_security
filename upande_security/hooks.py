@@ -170,6 +170,8 @@ after_migrate = [
 	"upande_security.optional_fixtures.sync",
 	# Secretary / Visit Approver rights, added next to the standard ones.
 	"upande_security.role_permissions.apply",
+	# CCTV Settings defaults (every switch OFF) and the default plate formats.
+	"upande_security.cctv.setup.after_migrate",
 ]
 
 doc_events = {
@@ -240,6 +242,8 @@ doc_events = {
 			# Desk-path check-in/out for the covert watchlist; the mobile
 			# endpoints call watchlist.track() themselves (they never save).
 			"upande_security.api.watchlist.on_doc_event",
+			# CCTV: a Desk check-in confirms the camera's vehicle visit.
+			"upande_security.cctv.vehicles.on_appointment_update",
 		],
 	},
 	# Auto-provision the Company/Farm User Permission rows the hierarchical
@@ -258,6 +262,12 @@ doc_events = {
 	# be scoped by the standard Frappe Link + User Permission engine.
 	"Patrol GPS Log": {
 		"before_insert": "upande_security.api.scoping.stamp_patrol_gps_log_farm",
+		# CCTV: a guard's late GPS point clears a held "person seen" alert it explains.
+		"after_insert": "upande_security.cctv.guard_match.on_guard_position",
+	},
+	"Checkpoint Scan Log": {
+		# CCTV: same, for a scan of a checkpoint linked to a camera.
+		"after_insert": "upande_security.cctv.guard_match.on_guard_position",
 	},
 	"Incident Report": {
 		"before_insert": "upande_security.api.scoping.stamp_incident_report_farm",
@@ -309,6 +319,21 @@ scheduler_events = {
             # goes out at its own Send At time.
             "upande_security.api.security_report.send_scheduled_reports",
         ],
+        # CCTV (upande_security/cctv). Every job returns at once while the
+        # module is switched off in CCTV Settings.
+        "* * * * *": [
+            # Escalate unacknowledged alerts, doors left open, cameras and
+            # site agents gone quiet, late review items.
+            "upande_security.cctv.tasks.every_minute",
+        ],
+        "*/5 * * * *": [
+            # Vehicles past their expected exit.
+            "upande_security.cctv.tasks.every_five_minutes",
+        ],
+        "55 23 * * *": [
+            # Visits with no exit read leave "on premises" for the guards' list.
+            "upande_security.cctv.tasks.end_of_day",
+        ],
     },
     "hourly": [
         # A shift that merely elapses is never saved again, so its status has to
@@ -319,6 +344,8 @@ scheduler_events = {
         "upande_security.api.gate_receiving.match_pending_receipts",
     ],
     "daily": [
+        # CCTV retention (CCTV Settings > Retention).
+        "upande_security.cctv.tasks.purge_old_records",
         # Pulls today's on-duty guards from HR's own roster (Shift Type +
         # Shift Assignment) into Security Guard Shift Assignment, so
         # Security never re-plans what HR already scheduled and never
@@ -788,7 +815,7 @@ fixtures = [
         # would ship every role on the site, including ones owned by HR/ERPNext.
         "dt": "Role",
         "filters": [
-            ["name", "in", ["Visit Approver", "Secretary"]],
+            ["name", "in", ["Visit Approver", "Secretary", "CCTV Operator", "CCTV Agent"]],
         ],
     },
     {

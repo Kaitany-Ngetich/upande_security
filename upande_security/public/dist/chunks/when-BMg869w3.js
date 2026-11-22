@@ -1,1 +1,0 @@
-import{t as r}from"../security-v2-BJpuBMrf.js";function o(t){if(!t)return"—";const e=new Date(String(t).replace(" ","T"));if(Number.isNaN(e.getTime()))return String(t);const i=e.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});return String(t).slice(0,10)===r()?i:`${e.toLocaleDateString("en-GB",{day:"numeric",month:"short"})}, ${i}`}export{o as w};

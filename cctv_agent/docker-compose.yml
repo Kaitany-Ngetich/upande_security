@@ -1,0 +1,35 @@
+# One per site, on a box inside the site network that can reach the recorders.
+#   docker compose up -d
+# Only MediaMTX's viewer ports are published, and only to the tunnel/VPN that
+# fronts gateway_url (see README). Recorders are never exposed.
+services:
+  agent:
+    build: .
+    image: upande/cctv-agent:0.1.0
+    restart: unless-stopped
+    network_mode: host          # reach recorders on the LAN; MediaMTX API/auth on 127.0.0.1
+    volumes:
+      - ./agent.yml:/config/agent.yml:ro
+      - ./secrets:/run/secrets:ro
+      - agent-data:/data
+    environment:
+      TZ: Africa/Nairobi
+
+  mediamtx:
+    # MediaMTX runs the playback runner (python -m cctv_agent.playback), so it
+    # uses the agent image with the MediaMTX binary added on top.
+    build:
+      context: .
+      dockerfile: Dockerfile.mediamtx
+    image: upande/cctv-mediamtx:0.1.0
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+      - ./agent.yml:/config/agent.yml:ro
+      - agent-data:/data:ro
+    environment:
+      TZ: Africa/Nairobi
+
+volumes:
+  agent-data:

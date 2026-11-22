@@ -1,0 +1,39 @@
+# MediaMTX for one site. Live paths (live/<camera>/<sub|main>) are added and
+# removed by the agent through the API below; this file only holds the fixed
+# parts. Check key names against the MediaMTX version you pin.
+
+logLevel: info
+
+# Every read/publish is approved by the agent (token from ERPNext).
+authMethod: http
+authHTTPAddress: http://127.0.0.1:8765/auth
+authHTTPExclude: []
+
+# Control API - local only (the agent manages paths through it).
+api: yes
+apiAddress: 127.0.0.1:9997
+
+# RTSP: used locally by the playback/transcode runners to publish.
+rtsp: yes
+rtspAddress: 127.0.0.1:8554
+rtspTransports: [tcp]
+
+# Viewer protocols - put these behind the tunnel/reverse proxy that serves
+# CCTV Site Agent > Media Gateway URL over HTTPS.
+webrtc: yes
+webrtcAddress: :8889
+webrtcLocalUDPAddress: :8189
+hls: yes
+hlsAddress: :8888
+hlsVariant: lowLatency
+
+# Nothing is ever recorded here - footage stays on the recorders.
+record: no
+
+paths:
+  # Recorder playback for one time range, started when a viewer opens it.
+  "~^pb/":
+    runOnDemand: python -m cctv_agent.playback --config /config/agent.yml
+    runOnDemandRestart: no
+    runOnDemandStartTimeout: 20s
+    runOnDemandCloseAfter: 15s
