@@ -31,8 +31,10 @@ check("repair O->0", plates.repair("KDA 12OA")[0] == "KDA120A", plates.repair("K
 check("similarity lookalike", plates.similarity("KDB O76A", "KDB 076A") >= 0.9)
 check("similarity different", plates.similarity("KDA 123A", "KCC 789C") == 0)
 
-# ---- switch on locally for the test
-orig = {k: frappe.db.get_single_value("CCTV Settings", k) for k in settings.SWITCHES}
+# ---- switch on locally for the test (local_state puts the developer's set-up back afterwards)
+from upande_security.cctv.tests import local_state  # noqa: E402
+
+before = local_state.snapshot()
 frappe.db.set_single_value("Security Ops Settings", "feature_cctv", 1)
 for k in ("enabled", "live_view_enabled", "alerts_enabled", "anpr_enabled"):
 	frappe.db.set_single_value("CCTV Settings", k, 1)
@@ -150,9 +152,7 @@ finally:
 	frappe.delete_doc("Security Watchlist", wl.name, force=True, ignore_permissions=True)
 	for n in frappe.get_all("Notification Log", filters={"document_type": ["in", ["CCTV Alert", "CCTV Review Item"]]}, pluck="name"):
 		frappe.delete_doc("Notification Log", n, force=True, ignore_permissions=True)
-	for k, v in orig.items():
-		frappe.db.set_single_value("CCTV Settings", k, 0)  # tests always leave the module OFF
 	frappe.db.set_single_value("CCTV Settings", "gateway_jwt_secret", None)
-	frappe.db.set_single_value("Security Ops Settings", "feature_cctv", 0)
 	frappe.db.commit()
-	print(f"\n{ok} passed, {fail} failed. Demo data removed, switches restored.")
+	local_state.restore(before)
+	print(f"\n{ok} passed, {fail} failed. Test data removed, switches and demo as they were.")

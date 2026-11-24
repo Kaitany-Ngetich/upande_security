@@ -38,7 +38,10 @@ def connect():
 connect()
 from upande_security.cctv import alerts, commands, dashboard, presence, settings, simulator, tracking  # noqa: E402
 
-SWITCHES = ("enabled", "live_view_enabled", "alerts_enabled", "anpr_enabled", "presence_enabled", "face_recognition_enabled")
+SWITCHES = settings.SWITCHES
+from upande_security.cctv.tests import local_state  # noqa: E402
+
+before = local_state.snapshot()
 
 
 @atexit.register
@@ -67,10 +70,9 @@ def cleanup():
 		s.legal_approval_reference = None
 		s.flags.ignore_permissions = True
 		s.save()
-		frappe.db.sql("update `tabSingles` set value='0' where doctype='CCTV Settings' and field in %s", (SWITCHES,))
-		frappe.db.set_single_value("Security Ops Settings", "feature_cctv", 0)
 		frappe.db.commit()
-		print(f"\n{ok} passed, {fail} failed. Cleaned up, CCTV switched off.")
+		local_state.restore(before)
+		print(f"\n{ok} passed, {fail} failed. Cleaned up; switches and demo as they were.")
 	except Exception as e:
 		print("cleanup failed:", e)
 
