@@ -1355,8 +1355,12 @@ def search_visitor_appointment(query=None):
 @frappe.whitelist()
 def approved_appointments():
 	"""Visitors cleared to enter or already inside, for the gate's main list.
-	Cleared means approved by the host or by a secretary on the host's behalf -
-	check_in_visitor accepts both.
+	Cleared means approved by the host or by a secretary on the host's behalf,
+	or BOOKED for today: a visit booked ahead stays "Open" (the workflow only
+	moves it on at the gate), and check_in_visitor accepts Open, so it must be
+	on this list or the guard has nothing to tap. Only today's Open bookings -
+	older, never-used Open records stay off the list. Such rows carry
+	booked=True.
 
 	Ordering matters to the guard: anyone already Checked In sorts above
 	those merely Approved, then most recent first within each group. The
@@ -1381,7 +1385,8 @@ def approved_appointments():
 			FROM `tabAppointment` a
 			LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with
 			LEFT JOIN `tabGate Badge` b ON b.name = a.custom_visitor_badge
-			WHERE a.workflow_state IN ('Approved by Host', 'Approved by Secretary', 'Visitor Checked In')
+			WHERE (a.workflow_state IN ('Approved by Host', 'Approved by Secretary', 'Visitor Checked In')
+			       OR (a.workflow_state = 'Open' AND DATE(a.scheduled_time) = %s))
 			"""
 			+ scope_sql
 			+ """
@@ -1394,7 +1399,7 @@ def approved_appointments():
 			  a.scheduled_time DESC
 			LIMIT 100
 			""",
-			tuple(scope_params),
+			tuple([frappe.utils.today()] + scope_params),
 			as_dict=True,
 		)
 		result = []
@@ -1440,6 +1445,8 @@ def approved_appointments():
 					else "",
 					# Prefills the gate's visit-details step at check-in.
 					"organization": r.customer_organization or "",
+					# Booked for today, not yet through host review (state "Open").
+					"booked": r.workflow_state == "Open",
 				}
 			)
 		return result
