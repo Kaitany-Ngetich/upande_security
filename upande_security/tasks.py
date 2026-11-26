@@ -197,28 +197,13 @@ def _point_in_polygon(lat, lng, ring):
 
 
 def _farm_boundary_ring(farm):
-	"""Pull the outer ring (list of (lng, lat) pairs) out of a Farm's own
-	boundary_geojson, or None if this farm has no boundary on record yet.
-	Farm.boundary_geojson is the single source of truth for farm boundaries
-	now — the old Geo Data doctype is retired."""
-	boundary_json = frappe.db.get_value("Farm", farm, "boundary_geojson")
-	if not boundary_json:
-		return None
-	try:
-		parsed = json.loads(boundary_json)
-	except Exception:
-		return None
-	features = parsed.get("features") or []
-	if not features:
-		return None
-	geometry = features[0].get("geometry") or {}
-	coordinates = geometry.get("coordinates") or []
-	geom_type = geometry.get("type")
-	if geom_type == "Polygon" and coordinates:
-		return coordinates[0]
-	if geom_type == "MultiPolygon" and coordinates:
-		return coordinates[0][0]
-	return None
+	"""The farm's outer boundary as [(lng, lat), ...], or None if it has none
+	on record. Read through farm_geo.farm_ring: Farm.location ("Farm
+	Boundary") on sites without the older boundary_geojson field - on those
+	this used to find no boundary, so the geofence check never fired."""
+	from upande_security.api.farm_geo import farm_ring
+
+	return farm_ring(farm)
 
 
 def _recent_alert_exists(shift_name, alert_kind, within_minutes=55):
@@ -240,59 +225,14 @@ def _recent_alert_exists(shift_name, alert_kind, within_minutes=55):
 
 
 def _resolve_security_head_phone(company, farm):
-	"""Same farm-then-company-then-org-fallback resolution as the
-	get_security_head_contact Server Script — duplicated here rather than
-	imported because Server Scripts aren't importable Python modules. Kept
-	deliberately small and in lockstep with that script; if the routing
-	logic ever changes there, mirror the change here too."""
-	contact_name = ""
-	phone = ""
-	if farm:
-		rows = frappe.db.sql(
-			"SELECT u.full_name, u.mobile_no, u.phone "
-			"FROM `tabUser Permission` up "
-			"JOIN `tabHas Role` hr ON hr.parent = up.user AND hr.role = 'Security Head' "
-			"JOIN `tabUser` u ON u.name = up.user "
-			"WHERE up.allow = 'Farm' AND up.for_value = %s LIMIT 1",
-			(farm,),
-			as_dict=True,
-		)
-		if rows:
-			contact_name = rows[0].full_name or ""
-			phone = rows[0].mobile_no or rows[0].phone or ""
-	if not phone and company:
-		rows = frappe.db.sql(
-			"SELECT u.full_name, u.mobile_no, u.phone "
-			"FROM `tabUser Permission` up "
-			"JOIN `tabHas Role` hr ON hr.parent = up.user AND hr.role = 'Security Head' "
-			"JOIN `tabUser` u ON u.name = up.user "
-			"WHERE up.allow = 'Company' AND up.for_value = %s LIMIT 1",
-			(company,),
-			as_dict=True,
-		)
-		if rows:
-			contact_name = rows[0].full_name or ""
-			phone = rows[0].mobile_no or rows[0].phone or ""
-	if not phone and company:
-		# A company's own configured fallback - lets each company (Kaitet
-		# Ltd., Karen Roses, Westwood Dairies, ...) have its own number
-		# without needing a real Security Head assignment just to get one.
-		# The single org-wide fallback (Security Ops Settings'
-		# fallback_contact_name/phone/description) was removed once every
-		# company got its own row here - a company with neither a Security
-		# Head nor a row here now returns no phone at all, a real gap to
-		# fix by adding one, not something to paper over with a stale
-		# org-wide number.
-		row = frappe.db.get_value(
-			"Security Fallback Contact",
-			{"parent": "Security Ops Settings", "company": company},
-			["contact_name", "contact_phone"],
-			as_dict=True,
-		)
-		if row and row.contact_phone:
-			contact_name = row.contact_name or "Security Operations"
-			phone = row.contact_phone
-	return contact_name, phone
+	"""(name, phone) to escalate to for this farm - the same answer the
+	guard app's emergency call gets (api/emergency_contacts.py): the farm's
+	Emergency Contact, a farm Security Head, a company Security Head, then
+	the company-wide Emergency Contact. ("", "") when nothing is set."""
+	from upande_security.api.emergency_contacts import emergency_contact
+
+	found = emergency_contact(company, farm)
+	return (found.name, found.phone) if found else ("", "")
 
 
 def _resolve_security_head_users(company, farm):
@@ -568,6 +508,10 @@ def check_unscanned_checkpoints():
 
 	settings = frappe.get_single("Security Ops Settings")
 	missed_checkin_minutes = settings.missed_checkin_minutes or 30
+	# With checkpoint scanning on, a checkpoint is reached only by a valid
+	# scan of its QR (api/checkpoints.py) - the GPS trail passing nearby no
+	# longer counts, since that is exactly what scanning exists to prove.
+	by_scan = is_feature_enabled("feature_checkpoint_scanning")
 
 	active_shifts = frappe.get_all(
 		"Security Guard Shift Assignment",
@@ -625,14 +569,39 @@ def check_unscanned_checkpoints():
 		# "checkpoint reached" for a shift that hasn't actually gone there
 		# yet.
 		guard_filter["captured_at"] = [">=", shift_start]
-		points = frappe.get_all(
-			"Patrol GPS Log",
-			filters=guard_filter,
-			fields=["latitude", "longitude"],
-			limit_page_length=0,
-		)
+		if by_scan:
+			scan_filter = {
+				"result": "Valid",
+				"scanned_at": [">=", shift_start],
+				("internal_guard" if shift.security_guard == "Internal Guard" else "external_guard"): guard_label,
+			}
+			scanned = set(frappe.get_all("Checkpoint Scan Log", filters=scan_filter, pluck="checkpoint"))
+			points = []
+		else:
+			points = frappe.get_all(
+				"Patrol GPS Log",
+				filters=guard_filter,
+				fields=["latitude", "longitude"],
+				limit_page_length=0,
+			)
 
 		for checkpoint in shift_checkpoints:
+			if by_scan:
+				if checkpoint.name in scanned:
+					continue
+				alert_kind = "Unscanned checkpoint: " + checkpoint.checkpoint_name
+				if _recent_alert_exists(shift.name, alert_kind):
+					continue
+				_notify_security_ops(
+					shift.name,
+					alert_kind,
+					"Guard " + guard_label + " (shift " + shift.name + ") has not scanned checkpoint '"
+					+ checkpoint.checkpoint_name + "' (" + shift.farm + ") within "
+					+ str(missed_checkin_minutes) + " minutes of shift start.",
+					"security",
+				)
+				flagged += 1
+				continue
 			try:
 				cp_lat = float(checkpoint.latitude)
 				cp_lng = float(checkpoint.longitude)

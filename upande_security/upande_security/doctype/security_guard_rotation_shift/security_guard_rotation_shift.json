@@ -1,0 +1,31 @@
+{
+ "actions": [],
+ "creation": "2026-11-02 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "shift_type"
+ ],
+ "fields": [
+  {
+   "fieldname": "shift_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Shift",
+   "options": "Day\nNight\nFirst\nSecond\nThird",
+   "reqd": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-02 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Security Guard Rotation Shift",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "description": "One step of a rotation plan's shift sequence, in order."
+}

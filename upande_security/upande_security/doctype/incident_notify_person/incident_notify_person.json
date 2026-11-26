@@ -1,0 +1,70 @@
+{
+ "actions": [],
+ "creation": "2026-10-26 21:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-26 22:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Incident Notify Person",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "options": "Employee",
+   "label": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "options": "User",
+   "label": "User Account",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "notified_at",
+   "fieldtype": "Datetime",
+   "label": "Notified At",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "notified_via",
+   "fieldtype": "Data",
+   "label": "Notified Via",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  }
+ ],
+ "field_order": [
+  "employee",
+  "employee_name",
+  "user",
+  "notified_at",
+  "notified_via"
+ ]
+}

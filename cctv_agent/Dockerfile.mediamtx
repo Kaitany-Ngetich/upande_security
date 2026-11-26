@@ -1,0 +1,13 @@
+# MediaMTX + the agent package (for the on-demand playback runner) + ffmpeg.
+# Pin a MediaMTX release you have tested; check its notes for config changes.
+ARG MEDIAMTX_VERSION=1.12.3
+FROM bluenviron/mediamtx:${MEDIAMTX_VERSION} AS mtx
+
+FROM python:3.12-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg tini && rm -rf /var/lib/apt/lists/*
+COPY --from=mtx /mediamtx /usr/local/bin/mediamtx
+WORKDIR /app
+COPY pyproject.toml ./
+COPY cctv_agent ./cctv_agent
+RUN pip install --no-cache-dir .
+ENTRYPOINT ["tini", "--", "mediamtx", "/mediamtx.yml"]

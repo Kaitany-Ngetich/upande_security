@@ -17,6 +17,10 @@ the same channel has reported, so nothing has to be kept in sync by hand:
 
 push_app_update sends an "app_update" push; the app downloads the update and
 restarts itself on receipt (or when the guard taps the notification).
+
+A new native build cannot travel over the air. Security Ops Settings' Mobile
+App Release section names the newest APK; report_app_version hands it back
+(latest_apk) and the app downloads it and opens Android's install screen.
 """
 
 import frappe
@@ -84,10 +88,52 @@ def report_app_version(
 		doc.save(ignore_permissions=True)
 		refresh_update_status()
 		frappe.db.commit()
-		return {"name": doc.name, "update_status": frappe.db.get_value("Guard Device Token", doc.name, "update_status")}
+		return {
+			"name": doc.name,
+			"update_status": frappe.db.get_value("Guard Device Token", doc.name, "update_status"),
+			"latest_apk": latest_apk() if doc.platform == "android" else None,
+		}
 	except Exception as e:
 		frappe.log_error("report_app_version", frappe.get_traceback())
 		return {"error": str(e)}
+
+
+def latest_apk():
+	"""The newest Android build, as published in Security Ops Settings, or
+	None. The app compares the version with its own and, when older,
+	downloads the APK and installs it - silently in the night window on
+	Android 12+, with one tap on older phones (apkUpdate.ts) - the native
+	changes an over-the-air update cannot carry."""
+	s = frappe.db.get_value(
+		"Security Ops Settings",
+		"Security Ops Settings",
+		[
+			"latest_apk_version", "latest_apk_url", "latest_apk_required", "latest_apk_notes",
+			"apk_install_window_start", "apk_install_window_end",
+		],
+		as_dict=True,
+	)
+	if not s or not (s.latest_apk_version or "").strip() or not (s.latest_apk_url or "").strip():
+		return None
+	return {
+		"version": s.latest_apk_version.strip(),
+		"url": s.latest_apk_url.strip(),
+		"required": 1 if s.latest_apk_required else 0,
+		"notes": s.latest_apk_notes or "",
+		# Night window for the silent install, local "HH:MM".
+		"window_start": _hhmm(s.apk_install_window_start, "02:00"),
+		"window_end": _hhmm(s.apk_install_window_end, "04:00"),
+	}
+
+
+def _hhmm(value, default):
+	if not value:
+		return default
+	parts = str(value).split(":")
+	try:
+		return "%02d:%02d" % (int(parts[0]), int(parts[1]))
+	except (ValueError, IndexError):
+		return default
 
 
 def _parse_datetime(value):
@@ -122,8 +168,17 @@ def refresh_update_status():
 		"Guard Device Token",
 		fields=["name", "app_version", "runtime_version", "update_channel", "update_created_at", "update_status"],
 	)
-	runtimes = [r.runtime_version for r in rows if r.runtime_version]
-	newest_runtime = max(runtimes, key=_version_key) if runtimes else None
+	# The newest native build is the runtime of the phone on the highest APP
+	# version, not the highest runtime string: app lines use different
+	# runtime schemes (the old preview builds report "1.2.3" / "1.2.5", the
+	# current app "1.2"), so comparing runtimes by number marked the newest
+	# app as needing a new install.
+	built = [r for r in rows if r.runtime_version and r.app_version]
+	newest_runtime = (
+		max(built, key=lambda r: (_version_key(r.app_version), _version_key(r.runtime_version))).runtime_version
+		if built
+		else None
+	)
 	newest_by_channel = {}
 	for r in rows:
 		if r.runtime_version == newest_runtime and r.update_created_at:
@@ -133,7 +188,7 @@ def refresh_update_status():
 	for r in rows:
 		if not r.app_version and not r.runtime_version:
 			status = "Unknown (old app)"
-		elif r.runtime_version and newest_runtime and _version_key(r.runtime_version) < _version_key(newest_runtime):
+		elif r.runtime_version and newest_runtime and r.runtime_version != newest_runtime:
 			status = "Needs New Install"
 		else:
 			newest = newest_by_channel.get(r.update_channel or "")
@@ -165,7 +220,9 @@ def push_update_to_outdated():
 	refresh_update_status()
 	names = frappe.get_all(
 		"Guard Device Token",
-		filters={"update_status": ["in", ["Outdated", "Unknown (old app)"]]},
+		# Needs New Install too: a phone with the APK updater checks for the
+		# new APK when this push arrives (it re-reports its version).
+		filters={"update_status": ["in", ["Outdated", "Unknown (old app)", "Needs New Install"]]},
 		pluck="name",
 	)
 	return _push(names)

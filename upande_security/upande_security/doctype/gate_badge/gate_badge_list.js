@@ -7,7 +7,7 @@ frappe.listview_settings["Gate Badge"] = {
 	add_fields: ["badge_type", "status"],
 
 	get_indicator(doc) {
-		const colors = { Available: "green", Issued: "orange", Lost: "red" };
+		const colors = { Available: "green", Issued: "orange", "Held at Other Farm": "blue", Lost: "red" };
 		return [__(doc.status), colors[doc.status] || "gray", "status,=," + doc.status];
 	},
 

@@ -32,3 +32,10 @@ def on_doctype_update():
 		["farm", "captured_at"],
 		"farm_captured_at",
 	)
+	# "Latest point for this guard" (the missed-check-in and checkpoint
+	# schedulers, SOS nearest guard) filters by guard and orders by time. With
+	# only the time index MariaDB walks it backwards until it meets the guard -
+	# the whole table for a guard with no recent points, every few minutes per
+	# active shift. Guard first makes each lookup a seek.
+	frappe.db.add_index("Patrol GPS Log", ["external_guard", "captured_at"], "external_guard_captured_at")
+	frappe.db.add_index("Patrol GPS Log", ["internal_guard", "captured_at"], "internal_guard_captured_at")

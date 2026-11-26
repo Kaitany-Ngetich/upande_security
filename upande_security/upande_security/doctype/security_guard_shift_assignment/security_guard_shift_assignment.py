@@ -366,3 +366,14 @@ def get_shift_events(start, end, filters=None):
 			}
 		)
 	return events
+
+
+def on_doctype_update():
+	# Shifts per farm and period: suggest_relievers' farm history (and the
+	# incident Guards on Duty lookup, which uses the same name).
+	frappe.db.add_index("Security Guard Shift Assignment", ["farm", "start_date"], "farm_start_date")
+	# One guard's shifts around a date: the reliever availability check and
+	# toggle_guard_day's own-shift lookups.
+	frappe.db.add_index("Security Guard Shift Assignment", ["external_guard", "start_date"], "external_guard_start_date")
+	# Who covers a guard's day off (toggle_guard_day, release_cover).
+	frappe.db.add_index("Security Guard Shift Assignment", ["covering_for", "start_date"], "covering_for_start_date")

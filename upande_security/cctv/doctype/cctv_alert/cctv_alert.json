@@ -1,0 +1,471 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-11-21 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "alert_type",
+  "severity",
+  "status",
+  "summary",
+  "cb1",
+  "farm",
+  "company",
+  "zone",
+  "camera",
+  "rule",
+  "sb_time",
+  "event_time",
+  "clip_start",
+  "clip_end",
+  "cb2",
+  "source_event",
+  "snapshot",
+  "related_cameras",
+  "sb_subject",
+  "plate",
+  "vehicle_visit",
+  "appointment",
+  "cb3",
+  "person_name",
+  "person_profile",
+  "security_guard",
+  "guard_employee",
+  "guard_name",
+  "hold_until",
+  "confidence",
+  "sb_handling",
+  "assigned_to",
+  "first_viewed_by",
+  "first_viewed_at",
+  "acknowledged_by",
+  "acknowledged_at",
+  "cb4",
+  "escalation_level",
+  "next_escalation_at",
+  "repeat_count",
+  "last_repeat_at",
+  "debounce_key",
+  "sb_close",
+  "false_alarm_reason",
+  "resolution_notes",
+  "resolved_at",
+  "resolved_by",
+  "incident",
+  "cb5",
+  "evidence_exported",
+  "evidence_file",
+  "evidence_command",
+  "sb_notify",
+  "notifications"
+ ],
+ "fields": [
+  {
+   "default": "CCTVA-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "CCTVA-.YYYY.-.#####"
+  },
+  {
+   "fieldname": "alert_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Alert Type",
+   "options": "Entry in Forbidden Hours\nUnauthorized Person\nUnknown Person\nDoor Open Too Long\nDwell Exceeded\nTailgating\nUnregistered Vehicle\nWatchlisted Vehicle\nVehicle Overstay\nVehicle After Hours\nVehicle in Wrong Zone\nExit Not Recorded\nArrived Before Approval\nGate Mismatch\nCamera Tamper\nVideo Loss\nRecording Gap\nCamera Offline\nAgent Offline",
+   "reqd": 1
+  },
+  {
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Severity",
+   "options": "Info\nLow\nMedium\nHigh\nCritical"
+  },
+  {
+   "default": "Open",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Open\nAcknowledged\nEscalated\nResolved\nFalse Alarm"
+  },
+  {
+   "fieldname": "summary",
+   "fieldtype": "Small Text",
+   "label": "Summary"
+  },
+  {
+   "fieldname": "cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Site",
+   "options": "Farm"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "zone",
+   "fieldtype": "Link",
+   "label": "Zone",
+   "options": "Security Zone"
+  },
+  {
+   "fieldname": "camera",
+   "fieldtype": "Link",
+   "label": "Camera",
+   "options": "CCTV Camera"
+  },
+  {
+   "fieldname": "rule",
+   "fieldtype": "Link",
+   "label": "Rule",
+   "options": "CCTV Alert Rule"
+  },
+  {
+   "fieldname": "sb_time",
+   "fieldtype": "Section Break",
+   "label": "Exact Playback"
+  },
+  {
+   "fieldname": "event_time",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Event Time"
+  },
+  {
+   "fieldname": "clip_start",
+   "fieldtype": "Datetime",
+   "label": "Clip Start"
+  },
+  {
+   "fieldname": "clip_end",
+   "fieldtype": "Datetime",
+   "label": "Clip End"
+  },
+  {
+   "fieldname": "cb2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "source_event",
+   "fieldtype": "Link",
+   "label": "Source Event",
+   "options": "CCTV Event"
+  },
+  {
+   "fieldname": "snapshot",
+   "fieldtype": "Attach Image",
+   "label": "Snapshot"
+  },
+  {
+   "fieldname": "related_cameras",
+   "fieldtype": "Table",
+   "label": "Related Cameras",
+   "options": "CCTV Alert Camera"
+  },
+  {
+   "fieldname": "sb_subject",
+   "fieldtype": "Section Break",
+   "label": "Subject"
+  },
+  {
+   "fieldname": "plate",
+   "fieldtype": "Data",
+   "label": "Plate"
+  },
+  {
+   "fieldname": "vehicle_visit",
+   "fieldtype": "Link",
+   "label": "Vehicle Visit",
+   "options": "CCTV Vehicle Visit"
+  },
+  {
+   "fieldname": "appointment",
+   "fieldtype": "Link",
+   "label": "Appointment",
+   "options": "Appointment"
+  },
+  {
+   "fieldname": "cb3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "person_name",
+   "fieldtype": "Data",
+   "label": "Person Name"
+  },
+  {
+   "fieldname": "person_profile",
+   "fieldtype": "Link",
+   "label": "Person Profile",
+   "options": "CCTV Person Profile"
+  },
+  {
+   "fieldname": "security_guard",
+   "fieldtype": "Link",
+   "label": "Guard",
+   "options": "Security Guard",
+   "read_only": 1
+  },
+  {
+   "fieldname": "guard_employee",
+   "fieldtype": "Link",
+   "label": "Guard (Employee)",
+   "options": "Employee",
+   "read_only": 1
+  },
+  {
+   "fieldname": "guard_name",
+   "fieldtype": "Data",
+   "label": "Guard Name",
+   "read_only": 1
+  },
+  {
+   "description": "Not notified until then, in case the guard's GPS or checkpoint scan arrives late.",
+   "fieldname": "hold_until",
+   "fieldtype": "Datetime",
+   "label": "Held Until",
+   "read_only": 1
+  },
+  {
+   "fieldname": "confidence",
+   "fieldtype": "Percent",
+   "label": "Confidence"
+  },
+  {
+   "fieldname": "sb_handling",
+   "fieldtype": "Section Break",
+   "label": "Handling"
+  },
+  {
+   "fieldname": "assigned_to",
+   "fieldtype": "Link",
+   "label": "Assigned To",
+   "options": "User"
+  },
+  {
+   "fieldname": "first_viewed_by",
+   "fieldtype": "Link",
+   "label": "First Viewed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "first_viewed_at",
+   "fieldtype": "Datetime",
+   "label": "First Viewed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "acknowledged_by",
+   "fieldtype": "Link",
+   "label": "Acknowledged By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "acknowledged_at",
+   "fieldtype": "Datetime",
+   "label": "Acknowledged At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "escalation_level",
+   "fieldtype": "Int",
+   "label": "Escalation Level",
+   "read_only": 1
+  },
+  {
+   "fieldname": "next_escalation_at",
+   "fieldtype": "Datetime",
+   "label": "Next Escalation At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "repeat_count",
+   "fieldtype": "Int",
+   "label": "Repeat Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_repeat_at",
+   "fieldtype": "Datetime",
+   "label": "Last Repeat At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "debounce_key",
+   "fieldtype": "Data",
+   "label": "Debounce Key",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "sb_close",
+   "fieldtype": "Section Break",
+   "label": "Outcome"
+  },
+  {
+   "fieldname": "false_alarm_reason",
+   "fieldtype": "Select",
+   "label": "False Alarm Reason",
+   "options": "\nAuthorised Person\nAnimal\nLighting or Shadow\nWeather\nCamera Fault\nTest\nWrong Read\nOther"
+  },
+  {
+   "fieldname": "resolution_notes",
+   "fieldtype": "Small Text",
+   "label": "Resolution Notes"
+  },
+  {
+   "fieldname": "resolved_at",
+   "fieldtype": "Datetime",
+   "label": "Resolved At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "resolved_by",
+   "fieldtype": "Link",
+   "label": "Resolved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "incident",
+   "fieldtype": "Link",
+   "label": "Incident",
+   "options": "Incident Report"
+  },
+  {
+   "fieldname": "cb5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "evidence_exported",
+   "fieldtype": "Check",
+   "label": "Evidence Exported",
+   "read_only": 1
+  },
+  {
+   "fieldname": "evidence_file",
+   "fieldtype": "Attach",
+   "label": "Evidence File"
+  },
+  {
+   "fieldname": "evidence_command",
+   "fieldtype": "Link",
+   "label": "Evidence Request",
+   "options": "CCTV Agent Command",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_notify",
+   "fieldtype": "Section Break",
+   "label": "Notifications Sent"
+  },
+  {
+   "fieldname": "notifications",
+   "fieldtype": "Table",
+   "label": "Notifications",
+   "options": "CCTV Alert Notification"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-22 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CCTV",
+ "name": "CCTV Alert",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "CCTV Operator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Gate Guard",
+   "share": 0,
+   "write": 0
+  }
+ ],
+ "sort_field": "event_time",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "alert_type",
+ "track_changes": 1
+}

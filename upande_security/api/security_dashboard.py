@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from typing import Any
 
 import frappe
@@ -7,6 +8,8 @@ from shapely.geometry import LineString, Point
 from frappe import _
 from frappe.utils import get_datetime
 
+from upande_security.api.feature_flags import is_feature_enabled
+from upande_security.api.patrol_rules import MAX_ACCURACY_M, step_counts, valid_fix
 from upande_security.upande_security.doctype.security_guard_shift_assignment.security_guard_shift_assignment import (
     combine_date_time,
     derive_status,
@@ -889,6 +892,29 @@ def _patrol_last_seen(
 
 # BEGIN INCIDENTS DASHBOARD API
 
+def hidden_incident_types():
+    """Incident types the Security dashboard and the emailed security report
+    leave out everywhere (counts, lists, calendar, type picker, guard
+    ranking) - Security Ops Settings' "Incident Types Left Out", one per
+    line, "SOS" unless a site changes it. Those reports are still created,
+    still alert, and stay in Desk; they are just not reported on. A tuple,
+    empty when nothing is left out."""
+    # Never saved (no Singles row) means the default; saved empty means
+    # nothing is left out. get_single_value cannot tell the two apart.
+    row = frappe.db.sql(
+        "select value from `tabSingles` where doctype='Security Ops Settings' and field='hidden_incident_types'"
+    )
+    value = row[0][0] if row else "SOS"
+    return tuple(t.strip() for t in str(value or "").splitlines() if t.strip())
+
+
+def _hide_incident_types(filters):
+    """Add the left-out incident types to a get_list filter list."""
+    hidden = hidden_incident_types()
+    if hidden:
+        filters.append(["nature_of_incident", "not in", hidden])
+    return filters
+
 
 @frappe.whitelist()
 def get_incidents_dashboard(
@@ -983,6 +1009,8 @@ def get_incidents_dashboard(
                 category,
             ]
         )
+
+    _hide_incident_types(filters)
 
     if location:
         filters.append(
@@ -1395,6 +1423,7 @@ def get_incidents_dashboard(
                         category.get("color"),
                 }
                 for category in categories
+                if category.get("name") not in hidden_incident_types()
             ],
             "locations": locations,
             "assigned_users": assigned_users,
@@ -1448,425 +1477,6 @@ def _incident_text_preview(
 
 # END INCIDENTS DASHBOARD API
 
-# BEGIN CONTRACTORS DASHBOARD API
-
-
-@frappe.whitelist()
-def get_contractors_dashboard(
-    reporting_status=None,
-    transport=None,
-    search=None,
-    date_from=None,
-    date_to=None,
-    limit=2000,
-):
-    """
-    Return Appointment records where visitor_type is Contractor.
-
-    The endpoint deliberately uses the Visitor/Contractor fields,
-    with fallbacks to the core Appointment fields.
-    """
-
-    doctype = "Appointment"
-
-    if not frappe.has_permission(
-        doctype,
-        ptype="read",
-    ):
-        frappe.throw(
-            _("You do not have permission to view Appointments."),
-            frappe.PermissionError,
-        )
-
-    try:
-        row_limit = int(limit or 2000)
-    except (TypeError, ValueError):
-        row_limit = 2000
-
-    row_limit = max(1, min(row_limit, 5000))
-
-    filters = {
-        "visitor_type": "Contractor",
-    }
-
-    if reporting_status and reporting_status not in {
-        "All",
-        "All Statuses",
-        "All statuses",
-    }:
-        filters["reporting_status"] = reporting_status
-
-    if transport and transport not in {
-        "All",
-        "All Transport",
-        "All transport",
-    }:
-        filters["mode_of_transport"] = transport
-
-    appointments = frappe.get_list(
-        doctype,
-        filters=filters,
-        fields=[
-            "name",
-
-            # Core Appointment fields
-            "scheduled_time",
-            "status",
-            "host_whatsapp_no",
-            "farmunit",
-            "customer_name",
-            "customer_phone_number",
-            "customer_email",
-            "customer_details",
-
-            # Visitor/Contractor fields
-            "scheduled_t",
-            "statuss",
-            "meeting_with",
-            "whatsapp_no",
-            "compan",
-            "farm_unit",
-            "number_passengers",
-            "name1",
-            "phone_no",
-            "mail",
-            "detail",
-            "visitor_type",
-            "contractor_ref",
-            "mode_of_transport",
-            "vehicles_number_plate",
-            "vehicles_color",
-            "motorcycles_plate",
-            "check_in_time",
-            "check_out_time",
-            "reporting_status",
-
-            "owner",
-            "creation",
-            "modified",
-        ],
-        order_by="modified desc",
-        page_length=row_limit,
-    )
-
-    selected_from = (
-        frappe.utils.getdate(date_from)
-        if date_from
-        else None
-    )
-
-    selected_to = (
-        frappe.utils.getdate(date_to)
-        if date_to
-        else None
-    )
-
-    search_value = str(search or "").strip().lower()
-
-    rows = []
-
-    for appointment in appointments:
-        scheduled_raw = (
-            appointment.get("scheduled_t")
-            or appointment.get("scheduled_time")
-        )
-
-        scheduled_date = None
-
-        if scheduled_raw:
-            try:
-                scheduled_date = frappe.utils.getdate(
-                    scheduled_raw
-                )
-            except Exception:
-                scheduled_date = None
-
-        if (
-            selected_from
-            and scheduled_date
-            and scheduled_date < selected_from
-        ):
-            continue
-
-        if (
-            selected_to
-            and scheduled_date
-            and scheduled_date > selected_to
-        ):
-            continue
-
-        contractor_name = (
-            appointment.get("name1")
-            or appointment.get("customer_name")
-            or ""
-        )
-
-        phone = (
-            appointment.get("phone_no")
-            or appointment.get(
-                "customer_phone_number"
-            )
-            or ""
-        )
-
-        email = (
-            appointment.get("mail")
-            or appointment.get("customer_email")
-            or ""
-        )
-
-        company = appointment.get("compan") or ""
-
-        farm = (
-            appointment.get("farm_unit")
-            or appointment.get("farmunit")
-            or ""
-        )
-
-        host_phone = (
-            appointment.get("whatsapp_no")
-            or appointment.get(
-                "host_whatsapp_no"
-            )
-            or ""
-        )
-
-        plate = (
-            appointment.get(
-                "vehicles_number_plate"
-            )
-            or appointment.get(
-                "motorcycles_plate"
-            )
-            or ""
-        )
-
-        searchable_values = [
-            appointment.get("name"),
-            contractor_name,
-            phone,
-            email,
-            company,
-            farm,
-            appointment.get("contractor_ref"),
-            appointment.get("meeting_with"),
-            plate,
-        ]
-
-        if search_value:
-            combined = " ".join(
-                str(value or "")
-                for value in searchable_values
-            ).lower()
-
-            if search_value not in combined:
-                continue
-
-        movement_status = (
-            appointment.get("reporting_status")
-            or "Not Set"
-        )
-
-        checked_in = (
-            movement_status == "Checked In"
-            and not appointment.get("check_out_time")
-        )
-
-        checked_out = (
-            movement_status == "Checked Out"
-            or bool(appointment.get("check_out_time"))
-        )
-
-        rows.append(
-            {
-                "name": appointment.get("name"),
-                "contractor_name": contractor_name,
-                "phone": phone,
-                "email": email,
-                "company": company,
-                "farm_unit": farm,
-                "contractor_ref":
-                    appointment.get("contractor_ref")
-                    or "",
-                "meeting_with":
-                    appointment.get("meeting_with")
-                    or "",
-                "host_whatsapp_no": host_phone,
-                "scheduled_time":
-                    _contractor_format_datetime(
-                        scheduled_raw
-                    ),
-                "scheduled_time_raw": scheduled_raw,
-                "appointment_status":
-                    appointment.get("statuss")
-                    or appointment.get("status")
-                    or "",
-                "reporting_status": movement_status,
-                "mode_of_transport":
-                    appointment.get(
-                        "mode_of_transport"
-                    )
-                    or "",
-                "vehicle_plate":
-                    appointment.get(
-                        "vehicles_number_plate"
-                    )
-                    or "",
-                "motorcycle_plate":
-                    appointment.get(
-                        "motorcycles_plate"
-                    )
-                    or "",
-                "plate": plate,
-                "vehicle_colour":
-                    appointment.get(
-                        "vehicles_color"
-                    )
-                    or "",
-                "number_passengers":
-                    _contractor_integer(
-                        appointment.get(
-                            "number_passengers"
-                        )
-                    ),
-                "check_in_time":
-                    _contractor_format_datetime(
-                        appointment.get(
-                            "check_in_time"
-                        )
-                    ),
-                "check_in_time_raw":
-                    appointment.get(
-                        "check_in_time"
-                    ),
-                "check_out_time":
-                    _contractor_format_datetime(
-                        appointment.get(
-                            "check_out_time"
-                        )
-                    ),
-                "check_out_time_raw":
-                    appointment.get(
-                        "check_out_time"
-                    ),
-                "checked_in": checked_in,
-                "checked_out": checked_out,
-                "route": (
-                    f"Form/Appointment/"
-                    f"{appointment.get('name')}"
-                ),
-                "modified":
-                    _contractor_format_datetime(
-                        appointment.get("modified")
-                    ),
-            }
-        )
-
-    summary = {
-        "total_contractors": len(rows),
-        "scheduled": sum(
-            1
-            for row in rows
-            if row["reporting_status"] == "Scheduled"
-        ),
-        "checked_in": sum(
-            1
-            for row in rows
-            if row["checked_in"]
-        ),
-        "checked_out": sum(
-            1
-            for row in rows
-            if row["checked_out"]
-        ),
-        "pending_host_review": sum(
-            1
-            for row in rows
-            if row["reporting_status"]
-            == "Pending Host Review"
-        ),
-        "expired": sum(
-            1
-            for row in rows
-            if row["reporting_status"] == "Expired"
-        ),
-        "with_vehicle": sum(
-            1
-            for row in rows
-            if row["mode_of_transport"]
-            in {"Vehicle", "Motorcycle"}
-        ),
-    }
-
-    return {
-        "summary": summary,
-        "rows": rows,
-        "filter_options": {
-            "reporting_statuses": [
-                "Scheduled",
-                "Checked In",
-                "Checked Out",
-                "Expired",
-                "Pending Host Review",
-            ],
-            "transport_modes": [
-                "On Foot",
-                "Vehicle",
-                "Motorcycle",
-            ],
-            "companies": sorted(
-                {
-                    row["company"]
-                    for row in rows
-                    if row["company"]
-                }
-            ),
-            "farms": sorted(
-                {
-                    row["farm_unit"]
-                    for row in rows
-                    if row["farm_unit"]
-                }
-            ),
-        },
-        "applied_filters": {
-            "reporting_status": reporting_status,
-            "transport": transport,
-            "search": search_value,
-            "date_from": date_from,
-            "date_to": date_to,
-        },
-    }
-
-
-def _contractor_format_datetime(value):
-    if not value:
-        return ""
-
-    try:
-        return frappe.utils.get_datetime(
-            value
-        ).strftime("%d %b %Y %H:%M")
-    except Exception:
-        return str(value)
-
-
-def _contractor_integer(value):
-    if value in (None, ""):
-        return 0
-
-    try:
-        return int(float(value))
-    except (TypeError, ValueError):
-        return 0
-
-
-# END CONTRACTORS DASHBOARD API
-
-
-# ─────────────────────────────────────────────────────────────────
-# Web Page dashboard bridge — used by security-dasboard Web Page
-# ─────────────────────────────────────────────────────────────────
 
 def _resolve_range(period=None, from_date=None, to_date=None):
     """period values here MUST match the range-pill buttons' own
@@ -1915,6 +1525,24 @@ def _haversine_km(p1, p2):
         + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
     )
     return R * 2 * atan2(sqrt(a), sqrt(1 - a))
+
+
+def _walked_km(points, timestamps):
+    """Distance along a trail counting only the steps patrol_rules accepts
+    (at most MAX_GAP_S apart, at most MAX_SPEED_KMH) - the same rule the
+    app's Patrols report and the Guard ranking sum in SQL, so one bad fix
+    or a phone asleep for an hour does not add a straight line across the
+    map to the guard's distance."""
+    km = 0.0
+    for i in range(1, len(points)):
+        try:
+            secs = (get_datetime(timestamps[i]) - get_datetime(timestamps[i - 1])).total_seconds()
+        except Exception:
+            continue
+        step = _haversine_km(points[i - 1], points[i])
+        if step_counts(step * 1000, secs):
+            km += step
+    return km
 
 
 def _path_distance_km(points):
@@ -2130,7 +1758,9 @@ def _incident_filter_options():
     return {
         "statuses": choices("status"),
         "severities": choices("severity"),
-        "categories": sorted({c["name"] for c in incident_categories()}),
+        "categories": sorted(
+            {c["name"] for c in incident_categories()} - set(hidden_incident_types())
+        ),
     }
 
 
@@ -2162,10 +1792,13 @@ def incident_calendar_events(start, end, filters=None, field_map=None):
 
 
 @frappe.whitelist()
-def incident_pattern(category="Theft", from_date=None, to_date=None, farm=None, company=None):
-    """Incidents of one category with their time, for the dashboard's
-    calendar and when-does-it-happen charts. Permission-aware."""
-    filters = [["nature_of_incident", "=", category or "Theft"]]
+def incident_pattern(category="All", from_date=None, to_date=None, farm=None, company=None):
+    """Incidents with their time - every type ("All" or blank) or one
+    nature of incident - for the dashboard's Incident calendar and
+    when-does-it-happen charts. Permission-aware."""
+    category = (category or "All").strip()
+    filters = [] if category == "All" else [["nature_of_incident", "=", category]]
+    _hide_incident_types(filters)
     if from_date:
         filters.append(["incident_datetime", ">=", str(frappe.utils.getdate(from_date)) + " 00:00:00"])
     if to_date:
@@ -2177,7 +1810,7 @@ def incident_pattern(category="Theft", from_date=None, to_date=None, farm=None, 
     rows = frappe.get_list(
         "Incident Report",
         filters=filters,
-        fields=["name", "incident_datetime", "farm", "location", "severity", "status", "description"],
+        fields=["name", "incident_datetime", "farm", "location", "severity", "status", "description", "nature_of_incident"],
         order_by="incident_datetime asc",
         limit_page_length=5000,
     )
@@ -2489,7 +2122,7 @@ def fetchPatrolData(date=None, farm=None):
     # rather than plot it as real guard movement. Missing/unparsable
     # accuracy (older rows, before this field existed) is kept rather than
     # dropped, since absence of data isn't evidence of a bad fix.
-    GPS_ACCURACY_THRESHOLD_M = 100
+    GPS_ACCURACY_THRESHOLD_M = MAX_ACCURACY_M
 
     # Fallback only — stamp_patrol_gps_log_farm (hooks.py before_insert on
     # Patrol GPS Log) already writes farm directly onto every row at capture
@@ -2524,7 +2157,8 @@ def fetchPatrolData(date=None, farm=None):
     for p in points:
         lat = _patrol_float(p.get("latitude"))
         lng = _patrol_float(p.get("longitude"))
-        if lat is None or lng is None or not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+        # patrol_rules.valid_fix: also drops (0, 0), a phone with no fix yet.
+        if not valid_fix(lat, lng):
             continue
 
         accuracy = _patrol_float(p.get("gps_accuracy"))
@@ -2587,7 +2221,7 @@ def fetchPatrolData(date=None, farm=None):
     for key, g in groups.items():
         pts, ts = g["points"], g["timestamps"]
         bounds = [0] + g["breaks"] + [len(pts)]
-        distance_km = sum(_path_distance_km(pts[a:b]) for a, b in zip(bounds, bounds[1:]))
+        distance_km = sum(_walked_km(pts[a:b], ts[a:b]) for a, b in zip(bounds, bounds[1:]))
         first_fix, last_fix = (ts[0], ts[-1]) if ts else (None, None)
 
         duration_min = 0
@@ -2655,7 +2289,87 @@ def fetchPatrolData(date=None, farm=None):
             "total_distance_km": round(total_distance, 2),
             "average_duration_min": round(avg_duration, 1),
         },
+        # The map shows its Playback button only when the feature is on.
+        "playback_enabled": is_feature_enabled("feature_patrol_playback"),
+        "checkpoints": _map_checkpoints(farm, selected_date),
     }
+
+
+def _map_checkpoints(farm, selected_date):
+    """Positioned, active Security Checkpoints for the patrol map's flag
+    layer, each with that day's scans from Checkpoint Scan Log: how many
+    valid, the last one, and how many refused (too far, fake GPS) - a
+    checkpoint refused but never validly scanned is the one to look at."""
+    if not is_feature_enabled("feature_checkpoint_scanning"):
+        return []
+    if not frappe.db.table_exists("Checkpoint Scan Log"):
+        return []
+    if not frappe.has_permission("Security Checkpoint", ptype="read"):
+        return []
+
+    filters = {"active": 1, "latitude": ["!=", 0], "longitude": ["!=", 0]}
+    if farm:
+        filters["farm"] = farm
+    checkpoints = frappe.get_all(
+        "Security Checkpoint",
+        filters=filters,
+        fields=["name", "checkpoint_name", "location_hint", "farm", "latitude", "longitude", "radius_m"],
+        limit_page_length=2000,
+    )
+    if not checkpoints:
+        return []
+
+    scans = {}
+    for r in frappe.db.sql(
+        """
+        SELECT checkpoint, result, scanned_at, internal_guard, external_guard
+        FROM `tabCheckpoint Scan Log`
+        WHERE checkpoint IN %(names)s AND scanned_at BETWEEN %(start)s AND %(end)s
+        ORDER BY scanned_at
+        """,
+        {
+            "names": tuple(c.name for c in checkpoints),
+            "start": f"{selected_date} 00:00:00",
+            "end": f"{selected_date} 23:59:59",
+        },
+        as_dict=True,
+    ):
+        s = scans.setdefault(r.checkpoint, {"valid": 0, "refused": 0, "last": None})
+        if r.result == "Valid":
+            s["valid"] += 1
+            s["last"] = r
+        elif r.result in ("Too Far", "Fake GPS"):
+            s["refused"] += 1
+
+    names = {}
+    out = []
+    for c in checkpoints:
+        s = scans.get(c.name) or {"valid": 0, "refused": 0, "last": None}
+        last = s["last"]
+        last_by = None
+        if last:
+            key = ("Employee", last.internal_guard) if last.internal_guard else ("Security Guard", last.external_guard)
+            if key[1] and key not in names:
+                names[key] = frappe.db.get_value(
+                    key[0], key[1], "employee_name" if key[0] == "Employee" else "full_name"
+                ) or key[1]
+            last_by = names.get(key)
+        out.append(
+            {
+                "checkpoint": c.name,
+                "checkpoint_name": c.checkpoint_name,
+                "location_hint": c.location_hint,
+                "farm": c.farm,
+                "latitude": c.latitude,
+                "longitude": c.longitude,
+                "radius_m": c.radius_m,
+                "valid_scans": s["valid"],
+                "refused_scans": s["refused"],
+                "last_scanned_at": str(last.scanned_at) if last else None,
+                "last_scanned_by": last_by,
+            }
+        )
+    return out
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -2780,6 +2494,146 @@ def search_guards_for_shift(guard_type, query):
     return rows
 
 
+# Biometric attendance on the Shift Assignments tab: external guards punch
+# into Security Checkin (the gate devices), internal guards are Employees and
+# punch into HRMS's own Employee Checkin.
+#
+# The IN/OUT key on a punch is not trusted. On live, Third-shift guards press
+# OUT when they arrive at 22:00 (median "OUT" lands ~8h before the shift
+# ends) and many First-shift "IN" punches come at 14:00, when they leave. So
+# arrival and departure are read from WHEN the punch happened: the earliest
+# punch in the first half of the shift is the arrival, the latest in the
+# second half the departure.
+BIOMETRIC_GRACE_MIN = 15
+# How far outside the shift a punch still counts for it - guards arrive early
+# and the devices sync a few minutes late.
+BIOMETRIC_MARGIN_H = 2
+
+
+def _shift_window(r):
+    """(start, end) datetimes of a shift, end rolled into the next day when the
+    clock wraps past midnight - the same reading derive_status uses."""
+    start = combine_date_time(r.get("start_date"), r.get("start_time"))
+    end = combine_date_time(r.get("end_date"), r.get("end_time"))
+    if start and end and end <= start:
+        end = end + datetime.timedelta(days=1)
+    return start, end
+
+
+# Where each kind of guard punches: (shift field, doctype, guard column).
+BIOMETRIC_SOURCES = (
+    ("external_guard", "Security Checkin", "security_guard"),
+    ("internal_guard", "Employee Checkin", "employee"),
+)
+
+
+def _biometric_sources():
+    """The punch sources this site has and the current user may read - a site
+    without HRMS has no Employee Checkin, and a role without read on either
+    simply gets no attendance for that kind of guard."""
+    return [
+        src for src in BIOMETRIC_SOURCES
+        if frappe.db.table_exists(src[1]) and frappe.has_permission(src[1], ptype="read")
+    ]
+
+
+def _biometric_attendance(range_rows, windows, now, sources):
+    """{shift name: attendance dict} for every shift whose guard punches into
+    one of `sources`. A guard with no source - or a user who cannot read it -
+    gets nothing here, which the tab shows as "Not on biometric"."""
+    margin = datetime.timedelta(hours=BIOMETRIC_MARGIN_H)
+    shifts, punches = [], {}
+    for shift_field, doctype, guard_column in sources:
+        mine = [
+            r for r in range_rows
+            if r.get(shift_field) and r.get("status") != "Cancelled"
+            and all(windows.get(r["name"]) or (None,))
+        ]
+        if not mine:
+            continue
+        shifts.extend((r, shift_field) for r in mine)
+        lo = min(windows[r["name"]][0] for r in mine) - margin
+        hi = max(windows[r["name"]][1] for r in mine) + margin
+        # One read per source for the whole range, grouped per guard in
+        # memory - not one query per shift. Duplicate punches (the HR devices
+        # often post the same one twice) collapse in the set.
+        for p in frappe.db.sql(
+            f"""
+            SELECT `{guard_column}` AS guard, time FROM `tab{doctype}`
+            WHERE `{guard_column}` IN %(guards)s AND time BETWEEN %(lo)s AND %(hi)s
+            """,
+            {"guards": tuple(sorted({r[shift_field] for r in mine})), "lo": lo, "hi": hi},
+            as_dict=True,
+        ):
+            punches.setdefault((shift_field, p.guard), set()).add(get_datetime(p.time))
+    punches = {k: sorted(v) for k, v in punches.items()}
+
+    grace = datetime.timedelta(minutes=BIOMETRIC_GRACE_MIN)
+    out = {}
+    for r, shift_field in shifts:
+        start, end = windows[r["name"]]
+        mid = start + (end - start) / 2
+        mine = punches.get((shift_field, r[shift_field]), [])
+        arrivals = [t for t in mine if start - margin <= t < mid]
+        departures = [t for t in mine if mid <= t <= end + margin]
+        clock_in = arrivals[0] if arrivals else None
+        clock_out = departures[-1] if departures else None
+
+        late_min = None
+        if now < start:
+            result = "Not started"
+        elif clock_in:
+            late_min = int((clock_in - start).total_seconds() // 60)
+            result = "Late" if clock_in > start + grace else "On time"
+        elif clock_out:
+            result = "No clock-in"
+        elif now <= start + grace:
+            result = "Awaiting clock-in"
+        else:
+            result = "Absent"
+
+        departure = None
+        if now > end and result in ("On time", "Late", "No clock-in"):
+            if not clock_out:
+                departure = "No clock-out"
+            elif clock_out < end - grace:
+                departure = "Left early"
+
+        out[r["name"]] = {
+            "clock_in": str(clock_in) if clock_in else None,
+            "clock_out": str(clock_out) if clock_out else None,
+            "result": result,
+            "late_min": late_min if result == "Late" else None,
+            "departure": departure,
+            "early_min": int((end - clock_out).total_seconds() // 60) if departure == "Left early" else None,
+        }
+    return out
+
+
+def _shift_off_days(range_from, range_to, farm_scope=None):
+    """[{guard, farm, off_date}] - External Guards' days off in the range
+    (Security Guard Off Days), limited to guards based at the farms in
+    farm_scope when given."""
+    params = {"from": range_from, "to": range_to}
+    farm_sql = ""
+    if farm_scope is not None:
+        farm_sql = " AND g.farm IN %(farms)s"
+        params["farms"] = tuple(farm_scope) or ("__no_farm_matches__",)
+    return frappe.db.sql(
+        f"""
+        SELECT d.external_guard AS guard, g.farm AS farm, od.off_date AS off_date
+        FROM `tabSecurity Guard Off Day` od
+        JOIN `tabSecurity Guard Off Days` d ON d.name = od.parent
+        JOIN `tabSecurity Guard` g ON g.name = d.external_guard
+        WHERE od.parenttype = 'Security Guard Off Days'
+          AND od.off_date BETWEEN %(from)s AND %(to)s{farm_sql}
+        ORDER BY od.off_date, g.farm, g.full_name
+        """,
+        params,
+        as_dict=True,
+    )
+
+
 def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=None, company=None):
     doctype = "Security Guard Shift Assignment"
     farm_name_field = _farm_name_field()
@@ -2843,7 +2697,7 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
             "name", "security_guard", "internal_guard", "external_guard",
             "farm", "block", "shift_type", "start_date", "start_time",
             "end_date", "end_time", "status", "checked_in",
-            "assigned_by", "remarks", "modified",
+            "assigned_by", "remarks", "modified", "covering_for",
         ],
         order_by="start_date desc",
         # Unlimited: a 30d range is a few thousand rows on live, and a cap
@@ -2894,6 +2748,9 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
 
     employee_ids = {r["internal_guard"] for r in range_rows + all_rows if r.get("internal_guard")}
     security_guard_ids = {r["external_guard"] for r in range_rows + all_rows if r.get("external_guard")}
+    security_guard_ids |= {r["covering_for"] for r in range_rows if r.get("covering_for")}
+    off_rows = _shift_off_days(range_from, range_to, farm_scope)
+    security_guard_ids |= {o["guard"] for o in off_rows}
 
     employee_names = {
         e.name: e.employee_name
@@ -2924,10 +2781,14 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
 
     farm_colors = _shift_farm_colors([a.get("farm") for a in range_rows])
 
+    windows = {r["name"]: _shift_window(r) for r in range_rows}
+    attendance = _biometric_attendance(range_rows, windows, frappe.utils.now_datetime(), _biometric_sources())
+
     rows = []
     for r in range_rows:
         farm_name = r.get("farm") or ""
         color = farm_colors.get(farm_name, {"bg": "#F1EFE8", "text": "#444441"})
+        start_dt, end_dt = windows[r["name"]]
         rows.append({
             "name": r["name"],
             "guard_key": _shift_guard_key(r),
@@ -2942,11 +2803,37 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
             # midnight, then localized, which showed every shift starting and
             # ending at the same wrong clock time (03:00 in Kenya, UTC+3)
             # regardless of its real start_time/end_time.
-            "start_date": str(combine_date_time(r.get("start_date"), r.get("start_time")) or "") or None,
-            "end_date": str(combine_date_time(r.get("end_date"), r.get("end_time")) or "") or None,
+            # End rolled into the next morning for an overnight shift: a Third
+            # shift is stored 22:00 -> 06:00 on one date and used to display
+            # ending sixteen hours before it began.
+            "start_date": str(start_dt or "") or None,
+            "end_date": str(end_dt or "") or None,
             "status": r.get("status"),
             "remarks": r.get("remarks") or "",
+            "biometric": attendance.get(r["name"]),
+            # Whether the guard checked in for this shift, and whose day off
+            # it covers - for the mobile Command Center's plan.
+            "checked_in": 1 if r.get("checked_in") else 0,
+            "covering_for": r.get("covering_for") or None,
+            "covering_for_name": security_guard_names.get(r.get("covering_for")) if r.get("covering_for") else None,
         })
+
+    # Guards off in the range, with whoever covers each day.
+    covers = {
+        (r.get("covering_for"), str(frappe.utils.getdate(r["start_date"]))): _shift_guard_name(r, employee_names, security_guard_names)
+        for r in range_rows
+        if r.get("covering_for") and r.get("start_date") and r.get("status") != "Cancelled"
+    }
+    off_days = [
+        {
+            "guard": o["guard"],
+            "guard_name": security_guard_names.get(o["guard"], o["guard"]),
+            "farm": o["farm"],
+            "date": str(o["off_date"]),
+            "covered_by": covers.get((o["guard"], str(o["off_date"]))),
+        }
+        for o in off_rows
+    ]
 
     # Today's coverage board: farm -> {shift_type: guard_name}. Not every farm
     # runs the same shift pattern any more - most are still the original
@@ -3056,8 +2943,11 @@ def _fetch_shifts_tab(range_from, range_to, farm=None, shift_type=None, status=N
         "success": True,
         "range_from": str(range_from),
         "range_to": str(range_to),
+        "off_days": off_days,
         "summary": {
             "total_assignments": len(rows),
+            "off_count": len(off_days),
+            "off_uncovered": sum(1 for o in off_days if not o["covered_by"]),
             "shift_type_counts": shift_type_counts,
             "shift_type_checked_in": shift_type_checked_in,
             "shift_type_summary": shift_type_summary,

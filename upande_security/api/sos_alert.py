@@ -27,6 +27,8 @@ import urllib.request
 
 import frappe
 
+from upande_security.api.guard_lookup import guard_filters
+
 from upande_security.api.feature_flags import require_feature
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
@@ -55,7 +57,7 @@ def _resolve_calling_guard():
 
 	user_full = frappe.db.get_value("User", current_user, "full_name")
 	if user_full:
-		guard = frappe.db.get_value("Security Guard", {"full_name": user_full}, ["name", "full_name"], as_dict=True)
+		guard = frappe.db.get_value("Security Guard", guard_filters(current_user, user_full), ["name", "full_name"], as_dict=True)
 		if guard:
 			return "External Guard", guard.name, guard.full_name
 

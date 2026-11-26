@@ -14,7 +14,7 @@ app_license = "mit"
 # upande_kaitet is deliberately NOT listed: it provides Farm and Tractor Daily
 # Task here, but krv16 sources Farm from upande_core and has no Tractor Daily
 # Task at all, so requiring it would block a valid deployment.
-required_apps = ["erpnext", "hrms"]
+required_apps = ["erpnext", "hrms", "upande_core"]
 
 # Each item in the list will be shown as an app in the apps page.
 # Without this the Security workspace is still delivered in the desk boot, but
@@ -23,7 +23,7 @@ required_apps = ["erpnext", "hrms"]
 add_to_apps_screen = [
 	{
 		"name": "upande_security",
-		"logo": "/assets/upande_security/images/upande_logo.png",
+		"logo": "/assets/upande_security/images/security_logo.svg",
 		"title": "Security",
 		"route": "/app/security",
 	}
@@ -35,6 +35,7 @@ add_to_apps_screen = [
 # include js, css files in header of desk.html
 # app_include_css = "/assets/upande_security/css/upande_security.css"
 # app_include_js = "/assets/upande_security/js/upande_security.js"
+app_include_js = ["/assets/upande_security/js/security_logo_motion.js"]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/upande_security/css/upande_security.css"
@@ -88,6 +89,7 @@ add_to_apps_screen = [
 jinja = {
 	"methods": [
 		"upande_security.utils.dispatch_qr.get_dispatch_qr_svg",
+		"upande_security.api.badge_branding.get_badge_branding",
 	],
 }
 
@@ -95,7 +97,9 @@ jinja = {
 # ------------
 
 # before_install = "upande_security.install.before_install"
-# after_install = "upande_security.install.after_install"
+# Fixtures for doctypes of apps this one does not require (WhatsApp) -
+# imported only where those apps are installed. See optional_fixtures.py.
+after_install = "upande_security.optional_fixtures.sync"
 
 # Uninstallation
 # ------------
@@ -163,9 +167,18 @@ jinja = {
 # and not a one-time patch.
 after_migrate = [
 	"upande_security.sync_workspace.sync_shortcuts",
+	"upande_security.optional_fixtures.sync",
+	# Secretary / Visit Approver rights, added next to the standard ones.
+	"upande_security.role_permissions.apply",
+	# CCTV Settings defaults (every switch OFF) and the default plate formats.
+	"upande_security.cctv.setup.after_migrate",
 ]
 
 doc_events = {
+	"Security Checkin": {
+		# A biometric punch ticks the shift it falls in - see api/shift_checkin.py.
+		"after_insert": "upande_security.api.shift_checkin.mark_shift_from_punch",
+	},
 	"Staff Vehicle Sticker": {
 		"after_insert": "upande_security.api.staff_vehicle_sticker_qr.generate_qr_for_sticker",
 		"validate": "upande_security.api.staff_vehicle_sticker_qr.auto_sync_status",
@@ -176,8 +189,12 @@ doc_events = {
 		# insert, so the party clear fires twice on a new doc — same as the
 		# Server Scripts did, and harmless since it only clears fields.
 		"before_insert": "upande_security.api.appointment_events.clear_appointment_party_before_insert",
+		# "Also Visiting" farms stay within the visit's company (api/visitor_route.py).
+		"validate": "upande_security.api.visitor_route.validate_farm_stops",
 		"before_save": [
 			"upande_security.api.appointment_events.clear_appointment_party",
+			# Host email from the Employee's other emails when they have no user.
+			"upande_security.api.appointment_events.set_host_email",
 			# appointment_host_wa_number is DELIBERATELY NOT WIRED. Its Server
 			# Script was disabled because it was stopping WhatsApp host alerts
 			# from going out. Uncommenting restores that breakage.
@@ -188,6 +205,9 @@ doc_events = {
 		# host's own "Visitor at Reception" Notification.
 		"after_insert": [
 			"upande_security.api.appointment_recipients.notify_extra_recipients",
+			# Visit code SMS to the visitor for a scheduled (not gate-created)
+			# visit - see api/visitor_sms.py.
+			"upande_security.api.visitor_sms.on_appointment_insert",
 			# Covert watchlist - see api/watchlist.py. Never raises.
 			"upande_security.api.watchlist.on_doc_event",
 		],
@@ -222,6 +242,8 @@ doc_events = {
 			# Desk-path check-in/out for the covert watchlist; the mobile
 			# endpoints call watchlist.track() themselves (they never save).
 			"upande_security.api.watchlist.on_doc_event",
+			# CCTV: a Desk check-in confirms the camera's vehicle visit.
+			"upande_security.cctv.vehicles.on_appointment_update",
 		],
 	},
 	# Auto-provision the Company/Farm User Permission rows the hierarchical
@@ -240,12 +262,22 @@ doc_events = {
 	# be scoped by the standard Frappe Link + User Permission engine.
 	"Patrol GPS Log": {
 		"before_insert": "upande_security.api.scoping.stamp_patrol_gps_log_farm",
+		# CCTV: a guard's late GPS point clears a held "person seen" alert it explains.
+		"after_insert": "upande_security.cctv.guard_match.on_guard_position",
+	},
+	"Checkpoint Scan Log": {
+		# CCTV: same, for a scan of a checkpoint linked to a camera.
+		"after_insert": "upande_security.cctv.guard_match.on_guard_position",
 	},
 	"Incident Report": {
 		"before_insert": "upande_security.api.scoping.stamp_incident_report_farm",
 		# Logs watched people named on it, and closes watchlist entries whose
 		# incident is Resolved/Closed.
-		"on_update": "upande_security.api.watchlist.on_doc_event",
+		"on_update": [
+			"upande_security.api.watchlist.on_doc_event",
+			# Tells the people picked under Notify, once each (api/incident_notify.py).
+			"upande_security.api.incident_notify.notify_people",
+		],
 	},
 	# Covert watchlist (api/watchlist.py): log a watched person's gate
 	# transactions for Security Heads. Every handler is a no-op while the
@@ -283,6 +315,24 @@ scheduler_events = {
             # is this guard in, and are they cleared for it - gated by
             # feature_zone_breach_alerts.
             "upande_security.tasks.check_zone_breaches",
+            # Security report subscriptions (Security Ops Settings): each row
+            # goes out at its own Send At time.
+            "upande_security.api.security_report.send_scheduled_reports",
+        ],
+        # CCTV (upande_security/cctv). Every job returns at once while the
+        # module is switched off in CCTV Settings.
+        "* * * * *": [
+            # Escalate unacknowledged alerts, doors left open, cameras and
+            # site agents gone quiet, late review items.
+            "upande_security.cctv.tasks.every_minute",
+        ],
+        "*/5 * * * *": [
+            # Vehicles past their expected exit.
+            "upande_security.cctv.tasks.every_five_minutes",
+        ],
+        "55 23 * * *": [
+            # Visits with no exit read leave "on premises" for the guards' list.
+            "upande_security.cctv.tasks.end_of_day",
         ],
     },
     "hourly": [
@@ -294,11 +344,22 @@ scheduler_events = {
         "upande_security.api.gate_receiving.match_pending_receipts",
     ],
     "daily": [
+        # CCTV retention (CCTV Settings > Retention).
+        "upande_security.cctv.tasks.purge_old_records",
         # Pulls today's on-duty guards from HR's own roster (Shift Type +
         # Shift Assignment) into Security Guard Shift Assignment, so
         # Security never re-plans what HR already scheduled and never
         # rosters a guard HR has them down as off.
         "upande_security.tasks.sync_shifts_from_hr_roster",
+    ],
+    "daily_long": [
+        # Works out each settled day's per-guard patrol figures for the
+        # Security Dashboard's Guard ranking, so the page only reads today
+        # and yesterday live.
+        "upande_security.api.patrol_ranking.warm_ranking_days",
+        # Same for the app's Reports > Patrols tab (all farms), so its 7 and
+        # 30 day ranges only work out today and yesterday live.
+        "upande_security.api.patrol_report.warm_report_days",
     ],
 }
 
@@ -432,6 +493,19 @@ override_whitelisted_methods = {
 	"my_patrol_reports": "upande_security.api.security_api.my_patrol_reports",
 	"createPatrolEntry": "upande_security.api.security_api.createPatrolEntry",
 	"fetchPatrolData": "upande_security.api.security_dashboard.fetchPatrolData",
+	# Command Center: guard performance (the Security Dashboard's ranking).
+	"guard_ranking": "upande_security.api.patrol_ranking.get_guard_ranking",
+	# Command Center patrol map: farm boundaries and patrol playback.
+	"farm_boundary_shapes": "upande_security.api.patrol_playback.get_farm_boundary_shapes",
+	"patrol_playback": "upande_security.api.patrol_playback.get_patrol_playback",
+	# Security messages (guards and supervisors, in the app).
+	"list_conversations": "upande_security.api.messaging.list_conversations",
+	"get_messages": "upande_security.api.messaging.get_messages",
+	"send_message": "upande_security.api.messaging.send_message",
+	"mark_conversation_read": "upande_security.api.messaging.mark_conversation_read",
+	"message_contacts": "upande_security.api.messaging.message_contacts",
+	"message_farm_guards": "upande_security.api.messaging.message_farm_guards",
+	"unread_messages": "upande_security.api.messaging.unread_messages",
 	"submit_patrol_points": "upande_security.api.security_api.submit_patrol_points",
 	"file_patrol_report": "upande_security.api.security_api.file_patrol_report",
 	# -- SECTION 7  incidents
@@ -551,7 +625,7 @@ fixtures = [
     {
         "dt": "Web Page",
         "filters": [
-            ["route", "in", ["security-dashboard", "patrol-map", "visitor-received", "supplier-badge", "request-sticker", "shift-schedule"]],
+            ["route", "in", ["security-dashboard", "patrol-map", "patrol-playback", "visitor-received", "supplier-badge", "request-sticker", "shift-schedule"]],
         ],
     },
     {
@@ -576,6 +650,7 @@ fixtures = [
                     "Appointment-custom_host_whatsapp_no",
                     "Appointment-custom_company",
                     "Appointment-custom_farmunit",
+                    "Appointment-custom_also_visiting",
                     "Appointment-custom_visit_purpose",
                     "Appointment-custom_number_of_passengers",
                     "Appointment-custom_mode_of_transport",
@@ -703,7 +778,7 @@ fixtures = [
         # a new sibling entry.
         "dt": "Print Format",
         "filters": [
-            ["name", "in", ["Gate Badge Card", "Delivery Note - Gate Copy", "Purchase Receipt - Gate Copy", "Staff Vehicle Sticker Card"]],
+            ["name", "in", ["Gate Badge Card", "Delivery Note - Gate Copy", "Purchase Receipt - Gate Copy", "Staff Vehicle Sticker Card", "Checkpoint QR Label"]],
         ],
     },
     {
@@ -740,7 +815,7 @@ fixtures = [
         # would ship every role on the site, including ones owned by HR/ERPNext.
         "dt": "Role",
         "filters": [
-            ["name", "in", ["Visit Approver", "Secretary"]],
+            ["name", "in", ["Visit Approver", "Secretary", "CCTV Operator", "CCTV Agent"]],
         ],
     },
     {
@@ -829,24 +904,9 @@ fixtures = [
             ],
         ],
     },
-    {
-        # Grants Visit Approver base read/write/create on Appointment
-        # (permlevel 0) - a Workflow Transition's `allowed` role can only
-        # ever narrow an already-granted base permission, never create one,
-        # so without this row a Visit Approver gets a bare PermissionError
-        # the moment Desk asks for available workflow actions. No if_owner -
-        # matches real production's actual pattern, where the *broad* role
-        # DocPerm is deliberately unrestricted and the real per-user
-        # narrowing ("only your own appointments") happens entirely via the
-        # "Host Sees Own Appointments" Permission Query script below, not
-        # here. Custom DocPerm names are random per-site hashes, not
-        # portable across environments, so this is filtered on the stable
-        # (parent, role) pair instead of `name`.
-        "dt": "Custom DocPerm",
-        "filters": [
-            ["role", "in", ["Visit Approver", "Secretary"]],
-        ],
-    },
+    # Secretary / Visit Approver permission rules are NOT fixtures: a
+    # Custom DocPerm fixture hides a doctype's standard permissions on import.
+    # They are added on migrate by role_permissions.apply.
     {
         # Mirrors real production's 6 "Value Change"-triggered notifications
         # ... no: real production actually uses 3 "New"-event Notification
@@ -860,33 +920,19 @@ fixtures = [
                 "in",
                 [
                     "Visitor at Reception - Host & Secretary SMS",
-                    "Visitor at Reception - Host Alert (Kaitet Ltd.)",
-                    "Visitor at Reception - Host Alert (Karen Roses)",
+                    # One alert for every company. A site may keep its own
+                    # "Visitor at Reception - Host Alert (<Company>)" in its
+                    # database; the generic one then stays out of its way.
+                    "Visitor at Reception - Host Alert",
                     "Staff Vehicle Sticker Approved - Employee Email",
                 ],
             ],
         ],
     },
-    {
-        # frappe_whatsapp's own Notification doctype (production-only app —
-        # not installed on this local bench, so this fixture documents the
-        # live config but can't be replayed here). Fires the same "visitor
-        # arrived" alert as the Email/SMS Notifications above, over
-        # WhatsApp, using the already-Meta-approved visitor_host_alert_v2
-        # template (body + an "Open Appointment" button).
-        "dt": "WhatsApp Notification",
-        "filters": [
-            [
-                "name",
-                "in",
-                [
-                    "Visitor at Reception - Host Alert (WhatsApp)",
-                    # "Visitor at Reception - Secretary Alert (Karen Roses)" is
-                    # retired - deleted by patches/remove_retired_appointment_
-                    # contact_fields along with the custom_secretary_wa field it read.
-                ],
-            ],
-        ],
-    },
+    # The "Visitor at Reception - Host Alert (WhatsApp)" WhatsApp Notification
+    # is NOT listed here: listing it made frappe_whatsapp a hard requirement
+    # (the import fails on sites without its table). It lives in
+    # optional_fixtures/ and is imported only where that app is installed -
+    # see optional_fixtures.py, run from after_install / after_migrate below.
 ]
 

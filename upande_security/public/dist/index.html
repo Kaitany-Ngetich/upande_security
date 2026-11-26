@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Upande Security</title>
+    <!-- Poppins is self-hosted via @font-face in src/index.css (bundled). -->
+    <!-- The loading cover. Mirrors www/security-dashboard-v2.html, which is what
+         actually serves this app; kept in step so the dev server and the real
+         page behave the same. Inline, because its job is to be on screen in
+         the first frame. -->
+    <style>
+      /* Mirrors www/security-dashboard-v2.html, which is what actually serves this
+         app. The difference mattered: the served page makes #security-root
+         the scroller and leaves the window unscrollable, and a dev shell that
+         scrolled the window hid a scroll listener that could never fire in
+         production. */
+      html, body { height: 100%; margin: 0; padding: 0; background: #fbfaf6; }
+      body { overflow: hidden; }
+      #security-root { height: 100vh; width: 100%; overflow: auto; }
+      .sec-splash {
+        position: fixed; inset: 0; z-index: 2147483000;
+        display: flex; align-items: center; justify-content: center;
+        background: #ffffff; transition: opacity 280ms ease;
+      }
+      .sec-splash img { width: 106px; height: auto; display: block; }
+      .sec-splash.sec-leaving { opacity: 0; pointer-events: none; }
+    </style>
+    <script type="module" crossorigin src="/assets/upande_security/dist/security-v2-CMNh1yXI.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/upande_security/dist/security-v2-D9hfiN2w.css">
+  </head>
+  <body>
+    <div id="security-root"></div>
+    <div class="sec-splash" id="sec-splash">
+      <img src="/assets/upande_security/images/security_logo_loader.svg" alt="Upande Security" />
+    </div>
+  </body>
+</html>

@@ -1,0 +1,431 @@
+@import "tailwindcss";
+
+/* Self-hosted Poppins (latin subset) — bundled by Vite from src/assets/fonts
+   and served same-origin. Local @font-face url()s survive the build; an
+   external @import does NOT (Tailwind v4 / Lightning CSS drops it), which is
+   why the webfont never loaded before. */
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/poppins-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/poppins-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/poppins-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/poppins-700.woff2") format("woff2");
+}
+
+/* ─── Global UI scale ───────────────────────────────────────────────
+   Drop the root font-size to 75% (12px from the 16px default).
+   Tailwind's spacing, text, border-radius, and most shadcn primitives
+   are rem-based, so this scales the whole frontend proportionally. */
+html { font-size: 85%; }
+
+/* ─── Design tokens — the warm-paper palette shared with the other
+   Upande farm frontends. Duplicated here on purpose: this app has to be
+   releasable on its own, so it imports nothing from a sibling app. ─── */
+:root {
+  /* Surfaces — warm-paper identity ported from the reference design
+     (doc references/design/ufd-modern-7-scouting.html, 2026-07-15).
+     Kept the --sd-* token NAMES so every page that reads them keeps
+     working; only the values shifted from cool-gray to warm ink/paper. */
+  /* Lightened twice on 2026-09-11, #f4f3ef -> #f9f8f4 -> #fbfaf6: the paper
+     read as dull rather than warm against the white cards. It sat 4.2 points of
+     L* below white and now sits 1.8, so the page is nearly as bright as the
+     cards on it and they separate on their hairline border and shadow rather
+     than on their fill.
+
+     The warm cast is unchanged throughout — red, green and blue keep the same
+     0 / -1 / -5 relationship, so the ramp moves toward white without drifting
+     grey. Much past this the cards would need a stronger border to read at
+     all, which is a different design decision from brightening the paper. */
+  --sd-bg: #fbfaf6; /* --bg   warm paper */
+  /* The inset surface — a panel sitting ON a white card (figure strips, day
+     status, table sub-rows). Lifted from #e9e7df on 2026-09-11: at L* 91.6 it
+     read as a dark slab dropped on the card rather than a recess in it. At
+     95.8 it is 4.2 below the card, which is enough to read as inset and not
+     enough to fight the card for attention. */
+  --sd-bg-soft: #f5f3ed;
+  --sd-card: #ffffff; /* --surface-2 */
+  --sd-ink: #0a0a0a; /* --ink   headings / strongest text */
+  --sd-text: #3a3a34; /* --ink-3 body text */
+  --sd-muted: #5a5a52; /* --ink-4 */
+  --sd-quiet: #8a8780; /* --ink-mute */
+  --sd-line: rgba(10, 10, 10, 0.08); /* --hairline */
+  --sd-line-soft: rgba(10, 10, 10, 0.05);
+
+  /* Brand accents — ink primary + reference "sticky-trap" gold */
+  --sd-accent: #2a2a26; /* --ink-2 */
+  --sd-accent-fg: #fafaf6;
+  --sd-accent-2: #0a0a0a; /* --ink   primary */
+  /* Chips, badges and secondary buttons sit one step BELOW the inset panel.
+     They used to be the same value, which left a chip invisible on the panel
+     it sat in. */
+  --sd-pistachio: #ece9e0;
+  --sd-pistachio-2: #e0dbd0;
+  --sd-target: #d9a514; /* --trap-500 gold */
+  /* Ink gradient — the active sidebar pill / primary emphasis fill
+     (reference --grad-ink). Used by the [data-active] override below. */
+  --sd-grad-ink: linear-gradient(135deg, #0a0a0a 0%, #3a3a34 100%);
+
+  /* ── Chart palette ──────────────────────────────────────────────────────
+     GREYSCALE FIRST, COLOUR ONLY WHERE IT MEANS SOMETHING.
+
+     TWO PALETTES, AND WHICH ONE A CHART USES IS A QUESTION ABOUT ITS DATA.
+
+     The ramp is for one quantity of one kind: feed stock day after day, head counts
+     across herds, a ranked bar chart. There the series differ only in WHICH
+     they are, not in what they mean, so hue was carrying nothing — and a cyan
+     line beside a pink one made the brighter of the two look like the more
+     important. Ink through to pale warm grey instead, where position and area
+     carry the comparison and the subject is simply the darkest thing on the
+     chart.
+
+     The named colours are for charts where the hue IS the fact: a cow's life
+     banded by the herds she stood in, her figures against the herd's, green
+     recovered against red lost. Those want telling apart at a glance and a
+     grey ramp would make them harder to read, not calmer. */
+
+  /* The ramp. Use in order; each step is a step down in emphasis. */
+  --sd-series-1: #0a0a0a;
+  --sd-series-2: #4a4a44;
+  --sd-series-3: #7a7770;
+  --sd-series-4: #a8a49c;
+  --sd-series-5: #cbc7be;
+  --sd-series-6: #e4e0d7;
+
+  --sd-data-cyan: #2ba6e0;
+  --sd-data-pink: #e66baa;
+  --sd-data-purple: #8466c7;
+  --sd-data-red: #e63946;
+  --sd-data-green: #5bb45d;
+  --sd-data-amber: #e9a23b;
+  --sd-data-indigo: #3d54b0;
+
+  /* Severity — mirrors the reference Scouting Severity Scale */
+  --sd-sev-critical: #c4302b; /* --sev-high */
+  --sd-sev-high: #d9962e; /* --sev-mod */
+  --sd-sev-moderate: #3f8f4f; /* --sev-low */
+  --sd-sev-low: #d9e2d2;
+
+  /* Type */
+  --sd-font: "Poppins", "Inter", "Helvetica Neue", Arial, sans-serif;
+  /* One typeface. IDs and figures used to switch to a system monospace, which
+     read as a different font beside Poppins; they stay in Poppins and line up
+     through tabular figures instead (see .font-mono and body below). */
+  --sd-font-mono: var(--sd-font);
+
+  /* Geometry */
+  /* Alert washes, taken from Frappe's own desk alert so a livestock toast and
+     a desk toast are the same object: --alert-bg-danger/warning/info/success,
+     which resolve to red-50 / yellow-50 / blue-50 / green-100. The tone is the
+     fill plus the icon — never a strip down one edge, which read as a second,
+     louder copy of the word "error". */
+  --sd-alert-error: #fff7f7;
+  --sd-alert-warn: #fffcef;
+  --sd-alert-info: #f7fbfd;
+  --sd-alert-ok: #e4f5e9;
+  /* The one place this deliberately parts company with Frappe, which uses its
+     --border-radius-md. Rounder, to sit with this app's cards. */
+  --sd-radius-toast: 16px;
+
+  --sd-radius-xs: 4px;
+  --sd-radius: 8px;
+  --sd-radius-lg: 12px;
+  --sd-radius-card: 20px; /* reference .card / .kpi radius */
+  --sd-radius-pill: 999px;
+
+  /* Elevation. The shadow IS the z-order — a reader should be able to tell
+     what sits on what without moving anything, so each level has exactly one
+     shadow and nothing borrows a level it does not occupy.
+
+       inset  a panel recessed INTO a card (figure strips, day status). It is
+              below the card surface, not above it, so its shadow is a hint
+              rather than a lift — using the card's own shadow here is what
+              made a summary strip look like it was floating on the card.
+       1      a card resting on the paper. The common case.
+       2      a card under the pointer, or one deliberately picked out.
+       3      chrome that floats over the page — the scrolled title dock.
+       4      a modal, which sits over everything including its own overlay. */
+  --sd-shadow-inset: 0 1px 2px rgba(10, 10, 10, 0.035);
+  --sd-shadow-1: 0 1px 0 rgba(10, 10, 10, 0.04),
+    0 8px 32px -16px rgba(10, 10, 10, 0.1);
+  --sd-shadow-2: 0 1px 0 rgba(10, 10, 10, 0.06),
+    0 24px 48px -24px rgba(10, 10, 10, 0.18);
+  --sd-shadow-3: 0 2px 6px rgba(10, 10, 10, 0.06),
+    0 18px 48px -12px rgba(10, 10, 10, 0.16);
+  --sd-shadow-4: 0 8px 16px rgba(10, 10, 10, 0.08),
+    0 40px 80px -20px rgba(10, 10, 10, 0.28);
+  --sd-ring: 0 0 0 2px rgba(10, 10, 10, 0.14);
+
+  /* shadcn semantic tokens (mapped onto kaitet palette) */
+  --background: var(--sd-bg);
+  --foreground: var(--sd-ink);
+  --card: var(--sd-card);
+  --card-foreground: var(--sd-ink);
+  --popover: var(--sd-card);
+  --popover-foreground: var(--sd-ink);
+  --primary: var(--sd-accent-2);
+  --primary-foreground: var(--sd-accent-fg);
+  --secondary: var(--sd-pistachio);
+  --secondary-foreground: var(--sd-ink);
+  --muted: var(--sd-pistachio);
+  --muted-foreground: var(--sd-muted);
+  --accent: var(--sd-pistachio);
+  --accent-foreground: var(--sd-ink);
+  --destructive: var(--sd-data-red);
+  --destructive-foreground: #ffffff;
+  --border: var(--sd-line);
+  --input: var(--sd-line);
+  --ring: var(--sd-accent);
+  --radius: var(--sd-radius);
+
+  /* sidebar — white floating card from the reference (.side uses
+     --surface-2 = #ffffff). White on the warm paper bg, so the border +
+     shadow make it read as a distinct detached panel. The active pill uses
+     the ink gradient + shadow via the [data-active] override in @layer base. */
+  --sidebar: #ffffff; /* --surface-2, matches cards */
+  --sidebar-foreground: #1a1a18; /* --ink-1 */
+  --sidebar-primary: #0a0a0a; /* active item bg (gradient overrides) */
+  --sidebar-primary-foreground: #fafaf6;
+  --sidebar-accent: #f1eee7; /* hover / active-hover */
+  --sidebar-accent-foreground: #0a0a0a;
+  --sidebar-border: rgba(10, 10, 10, 0.08);
+  --sidebar-ring: rgba(10, 10, 10, 0.28);
+
+  /* recharts palette */
+  --chart-1: var(--sd-data-cyan);
+  --chart-2: var(--sd-data-pink);
+  --chart-3: var(--sd-data-purple);
+  --chart-4: var(--sd-data-amber);
+  --chart-5: var(--sd-data-green);
+  --chart-6: var(--sd-data-indigo);
+  --chart-7: var(--sd-data-red);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
+
+  --font-sans: var(--sd-font);
+  --font-mono: var(--sd-font-mono);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html,
+  body,
+  #security-root {
+    height: 100%;
+  }
+  /* Match the www pages' denser type scale: 14px body, 1.5 line-height.
+     The www templates (e.g. scouting_dashboard.css, new_application_floor_plan.css)
+     read at 14px base; matching here keeps rem-based shadcn components in step
+     with the server-rendered pages users navigate between. */
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--sd-font);
+    font-size: 14px;
+    line-height: 1.5;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: rgba(75, 85, 99, 0.18);
+  }
+
+  /* Native scrollbars — thin and translucent to match the Radix ScrollArea */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(107, 114, 128, 0.35) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(107, 114, 128, 0.35);
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(107, 114, 128, 0.55);
+  }
+
+  /* ─── Sidebar — reference .side__link treatment ──────────────────────
+     Restyle the shadcn sidebar menu buttons to mirror the reference's
+     nav rows: pill radius, 13px medium label, roomier hit area. The
+     nav data (links, sections, role gating) lives untouched in
+     AppSidebar.tsx — this only changes how those rows look. */
+  [data-sidebar="menu-button"] {
+    border-radius: var(--sd-radius-lg); /* 12px, reference .side__link */
+    font-size: 13px;
+    font-weight: 500;
+    height: auto;
+    min-height: 2.25rem;
+    padding: 0.5rem 0.75rem;
+  }
+  /* Icon-collapsed rail: let the cva's !size-8 win over the min-height above
+     so the button is a true square (→ circle via rounded-full in the cva). */
+  [data-collapsible="icon"] [data-sidebar="menu-button"] {
+    min-height: 0;
+    padding: 0.5rem;
+  }
+  /* Selected item — ink gradient fill, light text, soft lift
+     (reference .side__link.on with --grad-ink). */
+  [data-sidebar="menu-button"][data-active="true"] {
+    background: var(--sd-grad-ink);
+    color: var(--sidebar-primary-foreground);
+    box-shadow: 0 4px 14px rgba(10, 10, 10, 0.18);
+  }
+  [data-sidebar="menu-button"][data-active="true"]:hover {
+    background: var(--sd-grad-ink);
+    color: var(--sidebar-primary-foreground);
+  }
+  /* Section headers — 10px uppercase with the reference's wide tracking. */
+  [data-sidebar="group-label"] {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: var(--sd-quiet);
+  }
+}
+
+/* Amber marks — a run that is not an ordinary one. Backdated (a past posting
+   date) and Manual (an operator-written recipe) both read as the same warning
+   colour on the desk block; kept identical here so the two UIs cannot teach
+   the farm two different meanings for the same word. */
+:root {
+  --sd-amber: #b45309;
+  --sd-amber-bg: #fef6e7;
+  --sd-amber-line: rgba(180, 83, 9, 0.28);
+}
+
+/* Page-level motion shared with SCP: map cards and panels rise/slide in, tab
+   content fades in. */
+@keyframes scp-card-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.scp-card-in { animation: scp-card-in 280ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+@keyframes scp-panel-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: none; }
+}
+.scp-panel-in { animation: scp-panel-in 300ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+@keyframes scp-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.scp-fade-in { animation: scp-fade-in 180ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .scp-card-in, .scp-panel-in, .scp-fade-in { animation: none; }
+}
+
+/* Date range picker motion (components/DateRangePicker.tsx + ui/calendar.tsx).
+   Quick (<=220ms) and transform/opacity only. The range fill grows out from
+   the start day, a picked end day pops, the month grid slides in the
+   direction of travel. Two identical keyframes per direction let a changed
+   data-tick restart the slide without remounting (which would drop keyboard
+   focus). */
+@keyframes scp-cal-fill {
+  from { transform: scaleX(0); opacity: 0.4; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+@keyframes scp-cal-pop {
+  0% { transform: scale(0.82); }
+  60% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+@keyframes scp-cal-next-a { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+@keyframes scp-cal-next-b { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+@keyframes scp-cal-prev-a { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+@keyframes scp-cal-prev-b { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+@keyframes scp-cal-zoom { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+
+.scp-cal-fill { transform-origin: left center; animation: scp-cal-fill 200ms ease-out both; }
+.scp-cal-pop { animation: scp-cal-pop 200ms ease-out both; }
+.scp-cal-slide[data-dir="next"][data-tick="0"] { animation: scp-cal-next-a 200ms ease-out both; }
+.scp-cal-slide[data-dir="next"][data-tick="1"] { animation: scp-cal-next-b 200ms ease-out both; }
+.scp-cal-slide[data-dir="prev"][data-tick="0"] { animation: scp-cal-prev-a 200ms ease-out both; }
+.scp-cal-slide[data-dir="prev"][data-tick="1"] { animation: scp-cal-prev-b 200ms ease-out both; }
+.scp-cal-zoom { animation: scp-cal-zoom 160ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .scp-cal-fill,
+  .scp-cal-pop,
+  .scp-cal-slide,
+  .scp-cal-zoom {
+    animation: none !important;
+  }
+  .scp-cal-day { transition: none !important; }
+  .scp-cal-day:active { transform: none !important; }
+}
+
+/* Basemap credit folded into a small ⓘ (maps). */
+.scp-map-credit { display: flex; align-items: center; gap: 6px; margin: 0 0 8px 8px; font: 400 10px var(--sd-font), Poppins, sans-serif; color: var(--muted-foreground, #5d5b55); }
+.scp-map-credit button { width: 18px; height: 18px; border-radius: 9999px; border: 1px solid rgba(0,0,0,.12); background: rgba(255,255,255,.85); color: #5d5b55; font: 600 10px/1 Georgia, serif; font-style: italic; cursor: pointer; opacity: .7; }
+.scp-map-credit button:hover { opacity: 1; }
+.scp-map-credit span { display: none; padding: 2px 8px; border-radius: 9999px; background: rgba(255,255,255,.92); }
+.scp-map-credit:hover span, .scp-map-credit.open span { display: inline; }
+.scp-map-credit a { color: inherit; text-decoration: underline; }
+

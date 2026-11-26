@@ -1,0 +1,177 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:model_name",
+ "creation": "2026-11-21 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "model_name",
+  "task",
+  "version",
+  "enabled",
+  "shadow_mode",
+  "cb1",
+  "model_file",
+  "sha256",
+  "input_size",
+  "labels",
+  "sb_lic",
+  "licence",
+  "licence_notes",
+  "accuracy_notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "model_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Model Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "task",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Task",
+   "options": "vehicle_detector\nplate_detector\nplate_ocr\nperson_detector\nface_detector\nface_embedder",
+   "reqd": 1
+  },
+  {
+   "fieldname": "version",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Version",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "description": "Runs beside the live model; its results are logged, never acted on.",
+   "fieldname": "shadow_mode",
+   "fieldtype": "Check",
+   "label": "Shadow Mode"
+  },
+  {
+   "fieldname": "cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "ONNX file.",
+   "fieldname": "model_file",
+   "fieldtype": "Attach",
+   "label": "Model File"
+  },
+  {
+   "fieldname": "sha256",
+   "fieldtype": "Data",
+   "label": "Sha256",
+   "read_only": 1
+  },
+  {
+   "default": "640x640",
+   "fieldname": "input_size",
+   "fieldtype": "Data",
+   "label": "Input Size"
+  },
+  {
+   "description": "Class names, one per line (detectors), or the character set (OCR).",
+   "fieldname": "labels",
+   "fieldtype": "Small Text",
+   "label": "Labels"
+  },
+  {
+   "fieldname": "sb_lic",
+   "fieldtype": "Section Break",
+   "label": "Licence"
+  },
+  {
+   "fieldname": "licence",
+   "fieldtype": "Select",
+   "label": "Licence",
+   "options": "\nApache-2.0\nMIT\nBSD\nCommercial\nOther - check",
+   "reqd": 1
+  },
+  {
+   "fieldname": "licence_notes",
+   "fieldtype": "Small Text",
+   "label": "Licence Notes"
+  },
+  {
+   "fieldname": "accuracy_notes",
+   "fieldtype": "Small Text",
+   "label": "Accuracy Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-21 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CCTV",
+ "name": "CCTV Engine Model",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Manager",
+   "share": 0,
+   "write": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 0,
+   "role": "CCTV Agent",
+   "share": 0,
+   "write": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

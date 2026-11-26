@@ -23,10 +23,13 @@ import frappe
 FEATURE_FIELDS = [
 	"feature_visitor_approval_workflow",
 	"feature_contractor_checkin",
+	"feature_contractor_badges",
 	"feature_sos_alert",
 	"feature_patrol_geofence_alerts",
 	"feature_patrol_coverage_grid",
 	"feature_patrol_boundary_filter",
+	"feature_patrol_playback",
+	"feature_checkpoint_scanning",
 	"feature_security_alerts",
 	"feature_watchlist",
 	"feature_zone_breach_alerts",
@@ -40,13 +43,19 @@ FEATURE_FIELDS = [
 	"feature_visitor_sms_otp",
 	"feature_appointment_extra_recipients",
 	"feature_staff_checkin",
+	"feature_biometric_shift_checkin",
 	"feature_vehicle_gate_tracking",
 	"feature_taxi_driver_checkout",
 	"feature_gate_temp_exit",
 	"feature_host_receipt_confirmation",
 	"feature_passenger_names",
 	"feature_carried_items",
+	"feature_cctv",
 ]
+
+# Flags that are OFF until someone switches them on. Every other flag counts as
+# on while unset (sites that predate a flag keep the behaviour they had).
+DEFAULT_OFF = {"feature_cctv"}
 
 
 def get_enabled_features():
@@ -65,7 +74,7 @@ def get_enabled_features():
 			or {}
 		)
 		frappe.local.security_feature_flags = {
-			field: bool(values.get(field) if values.get(field) is not None else 1)
+			field: bool(values.get(field) if values.get(field) is not None else (0 if field in DEFAULT_OFF else 1))
 			for field in FEATURE_FIELDS
 		}
 	return frappe.local.security_feature_flags

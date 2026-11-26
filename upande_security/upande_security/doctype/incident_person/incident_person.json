@@ -7,23 +7,17 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "person_name",
   "person_type",
+  "employee",
+  "person_name",
   "contact",
   "id_number",
-  "notes"
+  "notes",
+  "statement"
  ],
  "fields": [
   {
-   "columns": 2,
-   "fieldname": "person_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Name",
-   "reqd": 1
-  },
-  {
-   "columns": 2,
+   "columns": 1,
    "default": "Unknown",
    "fieldname": "person_type",
    "fieldtype": "Select",
@@ -32,32 +26,60 @@
    "options": "Employee\nVisitor\nExternal\nUnknown"
   },
   {
-   "columns": 2,
-   "fieldname": "contact",
-   "fieldtype": "Data",
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "options": "Employee",
+   "label": "Employee",
    "in_list_view": 1,
-   "label": "Contact"
+   "columns": 2,
+   "depends_on": "eval:doc.person_type=='Employee'"
   },
   {
    "columns": 2,
+   "fieldname": "person_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Name",
+   "reqd": 1,
+   "fetch_from": "employee.employee_name",
+   "read_only_depends_on": "eval:doc.employee"
+  },
+  {
+   "columns": 1,
+   "fieldname": "contact",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Contact",
+   "fetch_from": "employee.cell_number",
+   "fetch_if_empty": 1
+  },
+  {
+   "columns": 1,
    "fieldname": "id_number",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "ID Number"
   },
   {
-   "columns": 3,
+   "columns": 1,
    "fieldname": "notes",
    "fieldtype": "Small Text",
    "in_list_view": 1,
    "label": "Notes"
+  },
+  {
+   "fieldname": "statement",
+   "fieldtype": "Attach",
+   "label": "Written Statement",
+   "in_list_view": 1,
+   "columns": 2
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-07-21 09:47:37.131820",
+ "modified": "2026-10-26 19:30:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Incident Person",

@@ -1,0 +1,10 @@
+node_modules
+dist
+*.local
+.env
+.env.local
+
+# TypeScript incremental build cache. Contains absolute paths + timestamps
+# from the build machine; committing it makes `tsc -b` skip rebuilds
+# incorrectly on a fresh checkout and can destroy the deployment build.
+*.tsbuildinfo

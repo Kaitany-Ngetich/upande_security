@@ -357,35 +357,78 @@ def _close_with_incident(incident):
 
 # --- starting a watch from an incident ------------------------------------------------
 
+_WATCH_PERSON_TYPES = ("Visitor", "Contractor", "Employee", "Supplier / Driver", "External")
+
+
 @frappe.whitelist()
-def watch_incident_person(incident, row_name, reason=None, close_with_incident=1):
-	"""Put a person named on an Incident Report on the watchlist.
+def watch_incident_person(
+	incident,
+	row_name=None,
+	reason=None,
+	close_with_incident=1,
+	full_name=None,
+	person_type=None,
+	employee=None,
+	id_number=None,
+	phone_number=None,
+	vehicle_plate=None,
+):
+	"""Put a person on the watchlist from an Incident Report: someone named
+	on it (row_name, a Responsible Person / Victim / Witness row), or anyone
+	else typed in (full_name plus whatever is known - employee, ID number,
+	phone, vehicle plate - which is what the watch matches on).
 	Security Head / System Manager only."""
 	frappe.only_for(("Security Head", "System Manager"))
 	inc = frappe.get_doc("Incident Report", incident)
-	row = None
-	for table in ("responsible_persons", "victims", "witnesses"):
-		for r in inc.get(table) or []:
-			if r.name == row_name:
-				row = r
-	if not row:
-		frappe.throw("That person is not on incident " + incident + ".")
+	if row_name:
+		row = None
+		for table in ("responsible_persons", "victims", "witnesses"):
+			for r in inc.get(table) or []:
+				if r.name == row_name:
+					row = r
+		if not row:
+			frappe.throw("That person is not on incident " + incident + ".")
+		person = {
+			"full_name": row.person_name,
+			"person_type": {"Employee": "Employee", "Visitor": "Visitor", "External": "External"}.get(row.person_type or "", ""),
+			"employee": row.get("employee"),
+			"id_number": row.id_number,
+			"phone_number": row.contact,
+		}
+	else:
+		full_name = (full_name or "").strip()
+		if employee and not full_name:
+			full_name = frappe.db.get_value("Employee", employee, "employee_name") or ""
+		if not full_name:
+			frappe.throw("Enter the name of the person to watch.")
+		if person_type and person_type not in _WATCH_PERSON_TYPES:
+			frappe.throw("Unknown person type: " + person_type)
+		if not any((employee, id_number, phone_number, vehicle_plate)):
+			frappe.msgprint(
+				"No employee, ID number, phone or vehicle plate given - the watch can only match on the name.",
+				indicator="orange",
+				alert=True,
+			)
+		person = {
+			"full_name": full_name,
+			"person_type": person_type or ("Employee" if employee else ""),
+			"employee": employee,
+			"id_number": (id_number or "").strip(),
+			"phone_number": (phone_number or "").strip(),
+			"vehicle_plate": (vehicle_plate or "").strip(),
+		}
 
 	existing = frappe.db.get_value(
 		"Security Watchlist",
-		{"incident": incident, "full_name": row.person_name, "status": "Active"},
+		{"incident": incident, "full_name": person["full_name"], "status": "Active"},
 		"name",
 	)
 	if existing:
 		return {"name": existing, "existing": True}
 
-	person_type = {"Employee": "Employee", "Visitor": "Visitor", "External": "External"}.get(row.person_type or "", "")
 	entry = frappe.get_doc({
 		"doctype": "Security Watchlist",
-		"full_name": row.person_name,
-		"person_type": person_type,
-		"id_number": row.id_number,
-		"phone_number": row.contact,
+		**{k: v for k, v in person.items() if v},
 		"status": "Active",
 		"incident": incident,
 		"close_with_incident": frappe.utils.cint(close_with_incident),

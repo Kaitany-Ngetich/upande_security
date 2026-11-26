@@ -4,49 +4,19 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "fallback_section",
-  "fallback_contacts",
-  "nearby_alert_section",
-  "nearby_guard_alert_radius_m",
-  "nearby_alert_stale_minutes",
-  "geofence_section",
-  "on_duty_interval_minutes",
-  "missed_checkin_minutes",
-  "escalation_minutes",
-  "coverage_grid_section",
-  "coverage_grid_cell_width_m",
-  "coverage_grid_cell_height_m",
-  "coverage_column_break",
-  "coverage_fresh_hours",
-  "coverage_stale_hours",
-  "coverage_influence_radius_m",
-  "coverage_boundary_tolerance_m",
-  "notification_recipients_section",
-  "notification_rules",
-  "visitor_sms_section",
-  "visitor_otp_sms_template",
-  "visitor_sms_column_break",
-  "visitor_thankyou_sms_template",
-  "appointment_notify_section",
-  "appointment_notification_recipients",
-  "gates_section",
-  "farm_gates",
-  "dispatch_section",
-  "dispatch_sources",
-  "vehicle_task_section",
-  "vehicle_task_sources",
-  "command_center_section",
-  "command_center_extra_users",
   "feature_flags_section",
   "feature_visitor_approval_workflow",
   "feature_column_break_1",
   "feature_contractor_checkin",
+  "feature_contractor_badges",
   "feature_flags_section_2",
   "feature_sos_alert",
   "feature_patrol_geofence_alerts",
   "feature_on_duty_tracking",
   "feature_patrol_coverage_grid",
   "feature_patrol_boundary_filter",
+  "feature_patrol_playback",
+  "feature_checkpoint_scanning",
   "feature_security_alerts",
   "feature_column_break_2",
   "feature_watchlist",
@@ -64,17 +34,84 @@
   "feature_appointment_extra_recipients",
   "feature_flags_section_5",
   "feature_staff_checkin",
+  "feature_biometric_shift_checkin",
   "feature_vehicle_gate_tracking",
   "feature_taxi_driver_checkout",
   "feature_passenger_names",
   "feature_column_break_5",
   "feature_gate_temp_exit",
   "feature_host_receipt_confirmation",
+  "feature_cctv",
   "staff_gate_mode_section",
   "staff_gate_modes",
   "feature_carried_items",
+  "emergency_contacts_section",
+  "emergency_contacts_link",
+  "badge_emergency_section",
+  "badge_emergency_contacts",
+  "nearby_alert_section",
+  "nearby_guard_alert_radius_m",
+  "nearby_alert_stale_minutes",
+  "geofence_section",
+  "on_duty_interval_minutes",
+  "missed_checkin_minutes",
+  "escalation_minutes",
+  "coverage_grid_section",
+  "coverage_grid_cell_width_m",
+  "coverage_grid_cell_height_m",
+  "coverage_column_break",
+  "coverage_fresh_hours",
+  "coverage_stale_hours",
+  "coverage_influence_radius_m",
+  "coverage_boundary_tolerance_m",
+  "playback_section",
+  "playback_include_on_duty",
+  "playback_column_break",
+  "playback_max_window_days",
+  "checkpoint_section",
+  "checkpoint_accuracy_allowance_m",
+  "checkpoint_column_break",
+  "checkpoint_max_accuracy_m",
+  "security_report_section",
+  "security_day_starts_at",
+  "security_report_subscriptions",
+  "hidden_incident_types",
+  "notification_recipients_section",
+  "notification_rules",
+  "visitor_sms_section",
+  "visitor_booking_sms_template",
+  "visitor_otp_sms_template",
+  "visitor_sms_column_break",
+  "visitor_thankyou_sms_template",
+  "appointment_notify_section",
+  "appointment_notification_recipients",
+  "gates_section",
+  "farm_gates",
+  "dispatch_section",
+  "dispatch_sources",
+  "vehicle_task_section",
+  "vehicle_task_sources",
+  "command_center_section",
+  "command_center_extra_users",
   "feature_zone_breach_alerts",
-  "zone_breach_grace_minutes"
+  "zone_breach_grace_minutes",
+  "apk_release_section",
+  "latest_apk_version",
+  "latest_apk_url",
+  "apk_release_column_break",
+  "latest_apk_required",
+  "latest_apk_notes",
+  "apk_install_window_start",
+  "apk_install_window_end",
+  "standard_shift_times_section",
+  "standard_shift_times",
+  "terminology_section",
+  "use_custom_words",
+  "site_label",
+  "site_label_plural",
+  "terminology_column",
+  "area_label",
+  "area_label_plural"
  ],
  "fields": [
   {
@@ -103,6 +140,15 @@
    "permlevel": 1
   },
   {
+   "default": "1",
+   "depends_on": "eval:doc.feature_contractor_checkin",
+   "description": "Off: contractor visits can be checked in without issuing contractor badges first, even where the company keeps a badge pool.",
+   "fieldname": "feature_contractor_badges",
+   "fieldtype": "Check",
+   "label": "Contractor Badges Required at Check-in",
+   "permlevel": 1
+  },
+  {
    "fieldname": "feature_flags_section_2",
    "fieldtype": "Section Break",
    "label": "Feature Flags \u2014 Alerts",
@@ -124,7 +170,6 @@
   },
   {
    "default": "1",
-   "description": "After a guard stops patrol, the app keeps sending their position until they log out, logged as On Duty (not patrol work). Guards see an 'On duty' notification while it runs.",
    "fieldname": "feature_on_duty_tracking",
    "fieldtype": "Check",
    "label": "On-Duty Location Tracking",
@@ -143,6 +188,18 @@
    "fieldtype": "Check",
    "label": "Hide Patrol Points Outside Farm Boundary (Patrol Map)",
    "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_patrol_playback",
+   "fieldtype": "Check",
+   "label": "Patrol Playback"
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_checkpoint_scanning",
+   "fieldtype": "Check",
+   "label": "Patrol Checkpoint Scanning"
   },
   {
    "default": "1",
@@ -258,6 +315,13 @@
   },
   {
    "default": "1",
+   "fieldname": "feature_biometric_shift_checkin",
+   "fieldtype": "Check",
+   "label": "Biometric Punches Mark Shift Checked In",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
    "fieldname": "feature_vehicle_gate_tracking",
    "fieldtype": "Check",
    "label": "Company Vehicle/Tractor Gate Tracking",
@@ -297,6 +361,14 @@
    "permlevel": 1
   },
   {
+   "default": "0",
+   "description": "Master switch for the CCTV module. Off by default and stays off until the legal review is done. When on, CCTV Settings decides which parts run.",
+   "fieldname": "feature_cctv",
+   "fieldtype": "Check",
+   "label": "CCTV Integration (cameras, alerts, plate recognition)",
+   "permlevel": 1
+  },
+  {
    "fieldname": "staff_gate_mode_section",
    "fieldtype": "Section Break",
    "label": "Staff Gate Mode (per Company)",
@@ -317,15 +389,26 @@
    "permlevel": 1
   },
   {
-   "fieldname": "fallback_section",
+   "fieldname": "emergency_contacts_section",
    "fieldtype": "Section Break",
-   "label": "SOS Fallback Contact"
+   "label": "Emergency Contacts"
   },
   {
-   "fieldname": "fallback_contacts",
+   "fieldname": "emergency_contacts_link",
+   "fieldtype": "HTML",
+   "label": "Emergency Contacts",
+   "options": "<p><a class='btn btn-default btn-sm' href='/app/security-emergency-contact'>Open Emergency Contacts</a></p>"
+  },
+  {
+   "fieldname": "badge_emergency_section",
+   "fieldtype": "Section Break",
+   "label": "Badges per Company"
+  },
+  {
+   "fieldname": "badge_emergency_contacts",
    "fieldtype": "Table",
-   "label": "Per-Company Fallback Contacts",
-   "options": "Security Fallback Contact"
+   "label": "Badge Details",
+   "options": "Security Badge Emergency Contact"
   },
   {
    "fieldname": "nearby_alert_section",
@@ -351,7 +434,6 @@
   },
   {
    "default": "5",
-   "description": "How often the app sends a guard's position while on duty but not patrolling.",
    "fieldname": "on_duty_interval_minutes",
    "fieldtype": "Int",
    "label": "On-Duty Position Interval (minutes)"
@@ -414,6 +496,79 @@
    "label": "Boundary Tolerance (meters)"
   },
   {
+   "collapsible": 1,
+   "depends_on": "eval:doc.feature_patrol_playback",
+   "fieldname": "playback_section",
+   "fieldtype": "Section Break",
+   "label": "Patrol Playback"
+  },
+  {
+   "default": "1",
+   "fieldname": "playback_include_on_duty",
+   "fieldtype": "Check",
+   "label": "Include On-Duty Positions"
+  },
+  {
+   "fieldname": "playback_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "7",
+   "fieldname": "playback_max_window_days",
+   "fieldtype": "Int",
+   "label": "Longest Window (days)",
+   "non_negative": 1
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.feature_checkpoint_scanning",
+   "fieldname": "checkpoint_section",
+   "fieldtype": "Section Break",
+   "label": "Patrol Checkpoints"
+  },
+  {
+   "default": "7",
+   "fieldname": "checkpoint_accuracy_allowance_m",
+   "fieldtype": "Int",
+   "label": "GPS Accuracy Allowance (meters)",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "checkpoint_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "15",
+   "fieldname": "checkpoint_max_accuracy_m",
+   "fieldtype": "Int",
+   "label": "Refuse GPS Fixes Worse Than (meters)",
+   "non_negative": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "security_report_section",
+   "fieldtype": "Section Break",
+   "label": "Security Reports"
+  },
+  {
+   "default": "06:00:00",
+   "fieldname": "security_day_starts_at",
+   "fieldtype": "Time",
+   "label": "Security Day Starts At"
+  },
+  {
+   "fieldname": "security_report_subscriptions",
+   "fieldtype": "Table",
+   "label": "Report Subscriptions",
+   "options": "Security Report Subscription"
+  },
+  {
+   "default": "SOS",
+   "fieldname": "hidden_incident_types",
+   "fieldtype": "Small Text",
+   "label": "Incident Types Left Out"
+  },
+  {
    "fieldname": "notification_recipients_section",
    "fieldtype": "Section Break",
    "label": "Notification Recipients"
@@ -428,6 +583,12 @@
    "fieldname": "visitor_sms_section",
    "fieldtype": "Section Break",
    "label": "Visitor SMS Messages"
+  },
+  {
+   "default": "Hello {visitor}, your visit to {company} on {date} is booked. Show this code at the gate: {code}",
+   "fieldname": "visitor_booking_sms_template",
+   "fieldtype": "Small Text",
+   "label": "Booking Code SMS"
   },
   {
    "default": "Welcome to {company}! Your visit code is {code}.",
@@ -504,23 +665,132 @@
   },
   {
    "default": "1",
-   "description": "Check each on-duty guard's last position against the Security Zones of their farm.",
    "fieldname": "feature_zone_breach_alerts",
    "fieldtype": "Check",
    "label": "Restricted Zone Breach Alerts"
   },
   {
    "default": "55",
-   "description": "One alert per guard per zone inside this window. The check runs every 15 minutes, so a guard who stays put should be flagged once, not four times an hour.",
    "fieldname": "zone_breach_grace_minutes",
    "fieldtype": "Int",
    "label": "Zone Breach Repeat Window (minutes)"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "apk_release_section",
+   "fieldtype": "Section Break",
+   "label": "Mobile App Release (Android APK)"
+  },
+  {
+   "fieldname": "latest_apk_version",
+   "fieldtype": "Data",
+   "label": "Latest APK Version"
+  },
+  {
+   "fieldname": "latest_apk_url",
+   "fieldtype": "Data",
+   "label": "APK Download Link",
+   "options": "URL"
+  },
+  {
+   "fieldname": "apk_release_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "latest_apk_required",
+   "fieldtype": "Check",
+   "label": "Compulsory"
+  },
+  {
+   "fieldname": "latest_apk_notes",
+   "fieldtype": "Small Text",
+   "label": "What's New"
+  },
+  {
+   "default": "02:00:00",
+   "fieldname": "apk_install_window_start",
+   "fieldtype": "Time",
+   "label": "Install Window From"
+  },
+  {
+   "default": "04:00:00",
+   "fieldname": "apk_install_window_end",
+   "fieldtype": "Time",
+   "label": "Install Window To"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "standard_shift_times_section",
+   "fieldtype": "Section Break",
+   "label": "Standard Shift Times"
+  },
+  {
+   "fieldname": "standard_shift_times",
+   "fieldtype": "Table",
+   "label": "Standard Shift Times",
+   "options": "Security Shift Time"
+  },
+  {
+   "collapsible": 1,
+   "description": "Still being built. What this organisation calls its places, for clients that are not farms (a factory, office, hotel, estate). Off: everything says Farm and Block, as before.",
+   "fieldname": "terminology_section",
+   "fieldtype": "Section Break",
+   "label": "Words Used (Beta)"
+  },
+  {
+   "default": "0",
+   "description": "On: the Security Dashboard and the Desk field labels use the words below. Turning it off puts Farm and Block back.",
+   "fieldname": "use_custom_words",
+   "fieldtype": "Check",
+   "label": "Use Custom Words"
+  },
+  {
+   "default": "Farm",
+   "depends_on": "eval:doc.use_custom_words",
+   "description": "Singular, e.g. Farm, Site, Branch, Premises, Estate, Campus.",
+   "fieldname": "site_label",
+   "fieldtype": "Data",
+   "label": "A Site Is Called",
+   "mandatory_depends_on": "eval:doc.use_custom_words"
+  },
+  {
+   "default": "Farms",
+   "depends_on": "eval:doc.use_custom_words",
+   "description": "Plural, e.g. Farms, Sites, Branches.",
+   "fieldname": "site_label_plural",
+   "fieldtype": "Data",
+   "label": "Sites Are Called",
+   "mandatory_depends_on": "eval:doc.use_custom_words"
+  },
+  {
+   "depends_on": "eval:doc.use_custom_words",
+   "fieldname": "terminology_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Block",
+   "depends_on": "eval:doc.use_custom_words",
+   "description": "A part of a site (Security Block), e.g. Block, Zone, Wing, Floor.",
+   "fieldname": "area_label",
+   "fieldtype": "Data",
+   "label": "An Area Is Called",
+   "mandatory_depends_on": "eval:doc.use_custom_words"
+  },
+  {
+   "default": "Blocks",
+   "depends_on": "eval:doc.use_custom_words",
+   "description": "Plural, e.g. Blocks, Zones, Wings.",
+   "fieldname": "area_label_plural",
+   "fieldtype": "Data",
+   "label": "Areas Are Called",
+   "mandatory_depends_on": "eval:doc.use_custom_words"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-20 12:00:00.000000",
+ "modified": "2026-11-22 09:30:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",

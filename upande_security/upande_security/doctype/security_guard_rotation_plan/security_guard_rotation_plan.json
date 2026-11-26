@@ -20,6 +20,11 @@
   "start_date",
   "end_date",
   "rotation_interval_days",
+  "shift_rotation_section",
+  "rotate_shifts",
+  "shift_change_every_days",
+  "shift_rotation_column_break",
+  "shift_sequence",
   "rotation_section",
   "rotation_farms",
   "preview_rows",
@@ -131,12 +136,42 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks"
+  },
+  {
+   "fieldname": "shift_rotation_section",
+   "fieldtype": "Section Break",
+   "label": "Shift Rotation"
+  },
+  {
+   "default": "0",
+   "fieldname": "rotate_shifts",
+   "fieldtype": "Check",
+   "label": "Rotate Shifts"
+  },
+  {
+   "depends_on": "rotate_shifts",
+   "fieldname": "shift_change_every_days",
+   "fieldtype": "Int",
+   "label": "Change Shift Every (Days)",
+   "mandatory_depends_on": "rotate_shifts"
+  },
+  {
+   "fieldname": "shift_rotation_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "rotate_shifts",
+   "fieldname": "shift_sequence",
+   "fieldtype": "Table",
+   "label": "Shift Sequence",
+   "mandatory_depends_on": "rotate_shifts",
+   "options": "Security Guard Rotation Shift"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-02 00:00:00.000000",
+ "modified": "2026-11-03 07:52:06.854886",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Guard Rotation Plan",

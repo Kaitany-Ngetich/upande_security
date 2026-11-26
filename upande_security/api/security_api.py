@@ -83,8 +83,11 @@ import urllib.parse
 
 import frappe
 
+from upande_security.api.guard_lookup import guard_filters
+
 from upande_security.api import watchlist
 from upande_security.api.security_alerts import log_unauthorized_access
+from upande_security.api.visitor_sms import send_system_sms
 
 
 def _s(value):
@@ -194,7 +197,7 @@ def _guard_scope():
 		user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 		if user_full:
 			guard = frappe.db.get_value(
-				"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+				"Security Guard", guard_filters(current_user, user_full), ["company", "farm"], as_dict=True
 			)
 			if guard:
 				if not resolved_company:
@@ -209,6 +212,51 @@ def _guard_scope():
 		if resolved_farm and not resolved_company and frappe.get_meta("Farm").has_field("company"):
 			resolved_company = frappe.db.get_value("Farm", resolved_farm, "company")
 	return resolved_company, resolved_farm
+# The farm a visit belongs to: the farm stamped at the gate, else the host's
+# farm - a booked visit has no gate farm until the visitor checks in.
+_VISIT_FARM_SQL = "COALESCE(NULLIF({a}.custom_farmunit, ''), {a}.custom_meet_with_farm)"
+_VISIT_COMPANY_SQL = "COALESCE(NULLIF({a}.custom_company, ''), {a}.custom_meet_with_company)"
+
+
+def visit_scope(alias="a"):
+	"""(sql, params) limiting Appointment rows (table alias `alias`) to those
+	the caller may see at the gate. Appended to a WHERE clause.
+
+	  - System Manager: everything.
+	  - Security Head: the companies/farms of their own User Permission rows.
+	  - Anyone else (a guard): the farm they are at now - where the phone's
+		GPS put them at sign-in (gate_movement.locate_post), else today's
+		roster, else their own record (gate_movement._location).
+	No resolvable scope means nothing, never everything."""
+	user = frappe.session.user
+	roles = frappe.get_roles(user)
+	if user == "Administrator" or "System Manager" in roles:
+		return "", []
+	farm_sql = _VISIT_FARM_SQL.format(a=alias)
+	if "Security Head" in roles:
+		perms = frappe.get_all(
+			"User Permission",
+			filters={"user": user, "allow": ["in", ["Company", "Farm"]]},
+			fields=["allow", "for_value"],
+		)
+		companies = [p.for_value for p in perms if p.allow == "Company" and p.for_value]
+		farms = [p.for_value for p in perms if p.allow == "Farm" and p.for_value]
+		conditions, params = [], []
+		if companies:
+			conditions.append(_VISIT_COMPANY_SQL.format(a=alias) + " IN (" + ", ".join(["%s"] * len(companies)) + ")")
+			params += companies
+		if farms:
+			conditions.append(farm_sql + " IN (" + ", ".join(["%s"] * len(farms)) + ")")
+			params += farms
+		return (" AND (" + " OR ".join(conditions) + ")", params) if conditions else (" AND 1=0", [])
+	from upande_security.api.gate_movement import _location
+
+	farm = _location(user)["farm"]
+	if not farm:
+		return " AND 1=0", []
+	return " AND " + farm_sql + " = %s", [farm]
+
+
 def _form_has(key):
 	"""True if the client sent `key` at all (even as null/"").
 
@@ -383,6 +431,7 @@ def get_session_info():
 			"feature_watchlist",
 			"feature_zone_breach_alerts",
 			"feature_asset_scanning",
+			"feature_checkpoint_scanning",
 			"feature_gate_dispatch",
 			"feature_gate_receiving",
 			"feature_vehicle_stickers",
@@ -414,6 +463,11 @@ def get_session_info():
 			"full_name": full_name,
 			"roles": roles,
 			"is_gate_guard": "Gate Guard" in roles,
+			# Only gate roles check people in or out; hosts schedule and
+			# approve (gate_movement.CHECK_IN_OUT_ROLES). The app hides the
+			# check-in/out buttons when this is false.
+			"can_check_in_out": user == "Administrator"
+			or any(r in ("Gate Guard", "Security Head", "System Manager") for r in roles),
 			"is_security_head": "Security Head" in roles,
 			"has_command_center_access": has_command_center_access
 			and features.get("feature_command_center", True),
@@ -645,9 +699,11 @@ def search_customers(query=None):
 def get_security_head_contact():
 	"""Who the calling guard should ring in an emergency, and on what number.
 
-	Resolution order, narrowest first: a Security Head holding a Farm User
-	Permission for this guard's farm, then one holding a Company permission,
-	then that company's own Security Fallback Contact row.
+	Resolution order, narrowest first (api/emergency_contacts.py): the
+	farm's own Emergency Contact, a Security Head holding a Farm User
+	Permission for it, one holding a Company permission, then the company's
+	default Emergency Contact. The farm is where the guard is today (location
+	change, roster), else the farm on their record.
 
 	Joins to User, not Employee, for the phone. A Security Head's login
 	always has a User record, but several real heads on this site are shared
@@ -677,61 +733,33 @@ def get_security_head_contact():
 			farm = employee.custom_farm or ""
 		else:
 			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
-			if user_full:
-				guard = frappe.db.get_value(
-					"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
-				)
+			filters = guard_filters(current_user, user_full)
+			if filters.get("name") or user_full:
+				guard = frappe.db.get_value("Security Guard", filters, ["company", "farm"], as_dict=True)
 				if guard:
 					company = guard.company or ""
 					farm = guard.farm or ""
 
-		HEAD_BY_SCOPE = (
-			"SELECT u.full_name, u.mobile_no, u.phone "
-			"FROM `tabUser Permission` up "
-			"JOIN `tabHas Role` hr ON hr.parent = up.user AND hr.role = 'Security Head' "
-			"JOIN `tabUser` u ON u.name = up.user "
-			"WHERE up.allow = %s AND up.for_value = %s LIMIT 1"
-		)
+		# Where the guard is today wins over the farm on their record: guards
+		# are moved between farms, and farms far apart have their own
+		# contacts.
+		from upande_security.api.gate_movement import _location
 
-		contact_name = ""
-		phone = ""
+		here = _location(current_user)["farm"]
+		if here:
+			farm = here
+			company = frappe.db.get_value("Farm", here, "company") or company
 
-		if farm:
-			farm_rows = frappe.db.sql(HEAD_BY_SCOPE, ("Farm", farm), as_dict=True)
-			if farm_rows:
-				contact_name = farm_rows[0].full_name or ""
-				phone = farm_rows[0].mobile_no or farm_rows[0].phone or ""
+		from upande_security.api.emergency_contacts import emergency_contact
 
-		if not phone and company:
-			company_rows = frappe.db.sql(HEAD_BY_SCOPE, ("Company", company), as_dict=True)
-			if company_rows:
-				contact_name = company_rows[0].full_name or ""
-				phone = company_rows[0].mobile_no or company_rows[0].phone or ""
-
-		source = "company_or_farm_head"
-
-		# A company's own configured fallback, so each company (Kaitet Ltd.,
-		# Karen Roses, Westwood Dairies, ...) can have a number without
-		# needing a real Security Head assignment just to get one.
-		if not phone and company:
-			fallback_row = frappe.db.get_value(
-				"Security Fallback Contact",
-				{"parent": "Security Ops Settings", "company": company},
-				["contact_name", "contact_phone"],
-				as_dict=True,
-			)
-			if fallback_row and fallback_row.contact_phone:
-				contact_name = fallback_row.contact_name or "Security Operations"
-				phone = fallback_row.contact_phone
-				source = "company_fallback"
-
-		if not phone:
+		found = emergency_contact(company, farm)
+		if not found:
 			return {
-				"error": "No Security Head configured for company '"
-				+ company
-				+ "' and no fallback contact row exists for it in Security Ops Settings "
-				"— ask a System Manager to add one."
+				"error": "No emergency contact for "
+				+ (farm or company or "this guard")
+				+ " - ask a System Manager to add one under Security Ops Settings > Emergency Contacts."
 			}
+		contact_name, phone, source = found.name, found.phone, found.source
 
 		return {
 			"name": contact_name,
@@ -751,7 +779,7 @@ def get_security_ops_settings():
 	Settings screen.
 
 	Deliberately narrow: only the four scalar thresholds are exposed.
-	fallback_contacts / notification_rules / farm_gates / dispatch_sources
+	emergency_contacts / notification_rules / farm_gates / dispatch_sources
 	are Desk-only for now (no mobile screen needs them) and are left out.
 
 	Access is strictly Security Head / System Manager by role, with no
@@ -807,7 +835,7 @@ def update_security_ops_settings(
 
 	WRITES Security Ops Settings (Single). Only fields present and non-empty
 	are updated; a value that is not an integer is silently skipped (not an
-	error). Deliberately narrow: fallback_contacts, notification_rules,
+	error). Deliberately narrow: emergency_contacts, notification_rules,
 	farm_gates and dispatch_sources stay Desk-only.
 
 	Access: strictly Security Head / System Manager by role, no allowlist (the
@@ -1208,6 +1236,8 @@ def search_visitor_appointment(query=None):
 
 		today = frappe.utils.today()
 		like = "%" + query + "%"
+		# A guard finds only visits to the farm they are at (visit_scope).
+		scope_sql, scope_params = visit_scope("a")
 
 		rows = frappe.db.sql(
 			"""
@@ -1217,18 +1247,22 @@ def search_visitor_appointment(query=None):
 			       a.scheduled_time, a.customer_details,
 			       a.custom_mode_of_transport,
 			       a.custom_vehicles_number_plate, a.custom_vehicles_colour,
-			       a.workflow_state, a.status, a.custom_reporting_status
+			       a.workflow_state, a.status, a.custom_reporting_status, a.custom_visitor_otp
 			FROM `tabAppointment` a
 			LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with
 			WHERE DATE(a.scheduled_time) = %s
 			  AND (a.customer_name LIKE %s
 			       OR a.customer_phone_number LIKE %s
 			       OR a.name LIKE %s
-			       OR a.custom_id_number = %s)
-			ORDER BY a.scheduled_time DESC
+			       OR a.custom_id_number = %s
+			       OR a.custom_visitor_otp = %s)
+			"""
+			+ scope_sql
+			+ """
+			ORDER BY (a.custom_visitor_otp = %s) DESC, a.scheduled_time DESC
 			LIMIT 1
 			""",
-			(today, like, like, like, query),
+			tuple([today, like, like, like, query, query] + scope_params + [query]),
 			as_dict=True,
 		)
 
@@ -1286,7 +1320,9 @@ def search_visitor_appointment(query=None):
 
 		if r.custom_id_number and r.custom_id_number == query:
 			matched_by = "id"
-		elif r.name == query:
+		elif r.name == query or (r.get("custom_visitor_otp") and r.custom_visitor_otp == query):
+			# The visit code from the booking SMS identifies the visit as
+			# exactly as its ID does.
 			matched_by = "appointment"
 		else:
 			matched_by = "other"
@@ -1319,6 +1355,12 @@ def search_visitor_appointment(query=None):
 @frappe.whitelist()
 def approved_appointments():
 	"""Visitors cleared to enter or already inside, for the gate's main list.
+	Cleared means approved by the host or by a secretary on the host's behalf,
+	or BOOKED for today: a visit booked ahead stays "Open" (the workflow only
+	moves it on at the gate), and check_in_visitor accepts Open, so it must be
+	on this list or the guard has nothing to tap. Only today's Open bookings -
+	older, never-used Open records stay off the list. Such rows carry
+	booked=True.
 
 	Ordering matters to the guard: anyone already Checked In sorts above
 	those merely Approved, then most recent first within each group. The
@@ -1326,6 +1368,8 @@ def approved_appointments():
 	plain workflow_state sort.
 	"""
 	try:
+		# A guard sees only visits to the farm they are at (visit_scope).
+		scope_sql, scope_params = visit_scope("a")
 		rows = frappe.db.sql(
 			"""
 			SELECT a.name, a.customer_name, a.customer_phone_number,
@@ -1334,14 +1378,18 @@ def approved_appointments():
 			       a.custom_check_in_time, a.custom_mode_of_transport,
 			       a.custom_vehicles_number_plate, a.custom_vehicles_colour,
 			       a.custom_number_of_passengers,
-			       a.custom_host_received_time,
-			       a.custom_visitor_type,
+			       a.custom_host_received_time, a.custom_temp_exit_time,
+			       a.custom_visitor_type, a.customer_organization,
 			       b.badge_number,
 			       e.employee_name AS host_name
 			FROM `tabAppointment` a
 			LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with
 			LEFT JOIN `tabGate Badge` b ON b.name = a.custom_visitor_badge
-			WHERE a.workflow_state IN ('Approved by Host', 'Visitor Checked In')
+			WHERE (a.workflow_state IN ('Approved by Host', 'Approved by Secretary', 'Visitor Checked In')
+			       OR (a.workflow_state = 'Open' AND DATE(a.scheduled_time) = %s))
+			"""
+			+ scope_sql
+			+ """
 			ORDER BY
 			  CASE a.workflow_state
 			    WHEN 'Visitor Checked In' THEN 0
@@ -1351,6 +1399,7 @@ def approved_appointments():
 			  a.scheduled_time DESC
 			LIMIT 100
 			""",
+			tuple([frappe.utils.today()] + scope_params),
 			as_dict=True,
 		)
 		result = []
@@ -1389,9 +1438,15 @@ def approved_appointments():
 					"custom_host_received_time": str(r.custom_host_received_time)
 					if r.custom_host_received_time
 					else "",
+					# Set while an inside visitor has stepped out (gate temp exit).
+					"custom_temp_exit_time": str(r.custom_temp_exit_time) if r.custom_temp_exit_time else None,
 					"custom_visitor_type": str(r.custom_visitor_type)
 					if r.custom_visitor_type
 					else "",
+					# Prefills the gate's visit-details step at check-in.
+					"organization": r.customer_organization or "",
+					# Booked for today, not yet through host review (state "Open").
+					"booked": r.workflow_state == "Open",
 				}
 			)
 		return result
@@ -1469,6 +1524,8 @@ def check_in_visitor(name=None, transport=None, plate=None, colour=None, organiz
 	(re-check-ins do not re-text). `otp_enabled is None` counts as enabled.
 	Non-numeric `passengers` is silently ignored.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	try:
 		name = _s(name)
 		sent_transport = _form_has("transport")
@@ -1502,16 +1559,12 @@ def check_in_visitor(name=None, transport=None, plate=None, colour=None, organiz
 						 ". Visitor must be approved by host first."
 			}
 
-		# A contractor crew gets its badges before it goes in - each person
-		# then moves between the company's farms on their own badge.
+		# A contractor crew goes in on badges - each person then moves between
+		# the company's farms on their own badge. Badges are handed out here
+		# (next free numbers) rather than refusing the check-in: guards were
+		# not issuing them first, so contractor visits sat at "Approved by
+		# Host" and could not be checked in at all.
 		from upande_security.api import contractor_badge
-
-		unbadged = contractor_badge.crew_without_badges(name)
-		if unbadged:
-			return {
-				"error": "Give each person a contractor badge before checking in. No badge yet: "
-				+ ", ".join(unbadged)
-			}
 
 		now = frappe.utils.now_datetime()
 		updates = {
@@ -1546,8 +1599,12 @@ def check_in_visitor(name=None, transport=None, plate=None, colour=None, organiz
 			updates["custom_farmunit"] = resolved_farm
 
 		frappe.db.set_value("Appointment", name, updates)
+		crew_badges = contractor_badge.badge_crew_at_check_in(name)
 		frappe.db.commit()
 		watchlist.track("Appointment", name, "Visitor Check-in")
+		# CCTV (switched off unless enabled): confirm the gate camera's vehicle visit.
+		from upande_security.cctv.vehicles import link_checkin
+		link_checkin(name)
 
 		try:
 			# Badge holders are now inside this farm: their next scan here is
@@ -1578,20 +1635,23 @@ def check_in_visitor(name=None, transport=None, plate=None, colour=None, organiz
 						if not otp_template:
 							otp_template = "Welcome to {company}! Your visit code is {code}."
 						otp_message = otp_template.replace("{company}", otp_company).replace("{code}", otp_code).replace("{visitor}", otp_row.customer_name or "")
-						frappe.call(
-							"frappe.core.doctype.sms_settings.sms_settings.send_sms",
-							receiver_list=[otp_digits],
-							msg=otp_message,
-							success_msg=False,
-						)
+						send_system_sms([otp_digits], otp_message)
 		except Exception:
 			pass
 
-		return {
+		result = {
 			"name": name,
 			"custom_reporting_status": "Checked in",
 			"custom_check_in_time": str(now),
 		}
+		if crew_badges["badges"]:
+			result["contractor_badges"] = crew_badges["badges"]
+		if crew_badges["still_without"]:
+			result["badge_warning"] = (
+				"No contractor badge left for: " + ", ".join(crew_badges["still_without"])
+				+ ". Checked in anyway - return badges to the pool or issue one by hand."
+			)
+		return result
 	except Exception as e:
 		frappe.db.rollback()
 		frappe.log_error("check_in_visitor", str(e))
@@ -1614,6 +1674,8 @@ def check_out_visitor(name=None):
 	fail a checkout. NOTE it is gated by the SAME flag as the OTP
 	(feature_visitor_sms_otp), not a separate thank-you flag.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	try:
 		name = str(name or "").strip()
 		if not name:
@@ -1645,6 +1707,11 @@ def check_out_visitor(name=None):
 				existing.custom_visitor_badge,
 				{"status": "Available", "current_appointment": None},
 			)
+		# A contractor visit checked out here (not via contractor_gate_checkout)
+		# must hand its contractor badges back too, or the pool drains.
+		from upande_security.api.contractor_badge import release_badges_for_visit
+
+		release_badges_for_visit(name)
 		frappe.db.commit()
 		watchlist.track("Appointment", name, "Visitor Check-out")
 
@@ -1664,12 +1731,7 @@ def check_out_visitor(name=None):
 						if not ty_template:
 							ty_template = "Thanks for visiting {company}, welcome again!"
 						ty_message = ty_template.replace("{company}", ty_company).replace("{visitor}", ty_row.customer_name or "")
-						frappe.call(
-							"frappe.core.doctype.sms_settings.sms_settings.send_sms",
-							receiver_list=[ty_digits],
-							msg=ty_message,
-							success_msg=False,
-						)
+						send_system_sms([ty_digits], ty_message)
 		except Exception:
 			pass
 
@@ -1704,6 +1766,8 @@ def create_walk_in(customer_name=None, id_number=None, phone=None, email=None, h
 	The OTP SMS is sent after commit and cannot fail the call. Unlike
 	check_in_visitor it does not check whether an OTP already exists.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	lock = None
 	try:
 		customer_name = _s(customer_name)
@@ -1752,6 +1816,8 @@ def create_walk_in(customer_name=None, id_number=None, phone=None, email=None, h
 
 		now = frappe.utils.now_datetime()
 		doc = frappe.new_doc("Appointment")
+		# Created at the gate: the visitor gets the welcome code at check-in, not a booking SMS.
+		doc.flags.skip_booking_sms = True
 		doc.flags.ignore_mandatory = True
 		doc.customer_name = customer_name
 		doc.custom_id_number = id_number
@@ -1803,12 +1869,7 @@ def create_walk_in(customer_name=None, id_number=None, phone=None, email=None, h
 					if not otp_template:
 						otp_template = "Welcome to {company}! Your visit code is {code}."
 					otp_message = otp_template.replace("{company}", otp_company).replace("{code}", otp_code).replace("{visitor}", doc.customer_name or "")
-					frappe.call(
-						"frappe.core.doctype.sms_settings.sms_settings.send_sms",
-						receiver_list=[otp_digits],
-						msg=otp_message,
-						success_msg=False,
-					)
+					send_system_sms([otp_digits], otp_message)
 		except Exception:
 			pass
 
@@ -1856,6 +1917,8 @@ def create_walk_in_notify(customer_name=None, id_number=None, phone=None, email=
 	Upande's own dev team on real walk-ins. The email send is best-effort:
 	failure leaves notified=0 but the appointment still stands.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	lock = None
 	try:
 		customer_name = _s(customer_name)
@@ -1924,6 +1987,8 @@ def create_walk_in_notify(customer_name=None, id_number=None, phone=None, email=
 		)
 
 		doc = frappe.new_doc("Appointment")
+		# Created at the gate: the visitor gets the welcome code at check-in, not a booking SMS.
+		doc.flags.skip_booking_sms = True
 		doc.flags.ignore_mandatory = True
 		doc.customer_name = customer_name
 		doc.custom_id_number = id_number
@@ -2109,6 +2174,8 @@ def gate_temp_exit(reference_doctype=None, reference_name=None, direction=None):
 	prod sandbox cannot use strftime). A duration that cannot be computed
 	becomes the literal text "None" in the log line, by design of the original.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	try:
 		if frappe.db.get_single_value("Security Ops Settings", "feature_gate_temp_exit") == 0:
 			raise Exception("This feature is not enabled on this instance.")
@@ -2520,6 +2587,8 @@ def check_out_taxi_driver(name=None):
 	whenever they actually leave. Only valid when custom_mode_of_transport is
 	"Taxi", and refuses a second departure. Writes via raw frappe.db.set_value.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	try:
 		if frappe.db.get_single_value("Security Ops Settings", "feature_taxi_driver_checkout") == 0:
 			raise Exception("This feature is not enabled on this instance.")
@@ -2733,6 +2802,8 @@ def contractor_gate_checkout():
 	Reads `appointment_name` off form_dict rather than taking it as a
 	parameter, so a missing key throws the same message it always did.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	appt_name = (frappe.form_dict.get("appointment_name") or "").strip()
 	if not appt_name:
 		frappe.throw("appointment_name is required")
@@ -2786,7 +2857,15 @@ def check_out_contractor_visit(appt_name):
 	frappe.db.set_value(
 		"Appointment",
 		appt_name,
-		{"custom_check_out_time": now_str, "custom_reporting_status": "Checked out"},
+		# workflow_state/status set directly, like check_out_visitor (no
+		# apply_workflow, see above) - otherwise a contractor checked out at
+		# the gate still read "Approved by Host"/"Visitor Checked In".
+		{
+			"custom_check_out_time": now_str,
+			"custom_reporting_status": "Checked out",
+			"workflow_state": "Visitor Checked Out",
+			"status": "Closed",
+		},
 		update_modified=True,
 	)
 
@@ -2852,6 +2931,8 @@ def contractor_gate_checkin(
 	Values are used with .strip() exactly as before, so a non-string (e.g. numeric
 	phone) raises AttributeError, as it did in the sandbox.
 	"""
+	from upande_security.api.gate_movement import require_check_in_out
+	require_check_in_out()
 	appt_name = (appointment_name or '').strip() or None
 	contractor_ref = (contractor_ref or '').strip() or None
 	contractor_name = (contractor_name or '').strip()
@@ -2908,6 +2989,8 @@ def contractor_gate_checkin(
 				detail_str = detail_str + ' [' + contractor_ref + ']'
 
 			doc = frappe.new_doc('Appointment')
+			# Created at the gate: the visitor gets the welcome code at check-in, not a booking SMS.
+			doc.flags.skip_booking_sms = True
 			doc.customer_name = contractor_name
 			doc.customer_email = ''
 			doc.scheduled_time = now_str
@@ -2924,6 +3007,7 @@ def contractor_gate_checkin(
 			updates = {
 				'customer_details': detail_str,
 				'custom_visitor_type': 'Contractor',
+				'workflow_state': 'Visitor Checked In',
 				'custom_reporting_status': 'Checked in',
 				'custom_check_in_time': now_str,
 				'custom_mode_of_transport': transport,
@@ -2971,6 +3055,10 @@ def contractor_gate_checkin(
 
 			updates = {
 				'custom_visitor_type': 'Contractor',
+				# Set directly like check_in_visitor does (no apply_workflow, so
+				# no save() or on_update hooks) - without it the visit stayed
+				# "Approved by Host" after the contractor was in.
+				'workflow_state': 'Visitor Checked In',
 				'custom_check_in_time': now_str,
 				'custom_reporting_status': 'Checked in',
 				'custom_mode_of_transport': transport,
@@ -2990,14 +3078,25 @@ def contractor_gate_checkin(
 			if contractor_ref:
 				frappe.db.set_value('Appointment', appt_name, 'custom_contractor_ref', contractor_ref, update_modified=False)
 
+		from upande_security.api.contractor_badge import badge_crew_at_check_in
+
+		crew_badges = badge_crew_at_check_in(appt_name)
 		frappe.db.commit()
 		watchlist.track("Appointment", appt_name, "Visitor Check-in")
 
-		return {
+		result = {
 			'success': True,
 			'appointment_name': appt_name,
 			'check_in_time': now_str,
 		}
+		if crew_badges['badges']:
+			result['contractor_badges'] = crew_badges['badges']
+		if crew_badges['still_without']:
+			result['badge_warning'] = (
+				'No contractor badge left for: ' + ', '.join(crew_badges['still_without'])
+				+ '. Checked in anyway - return badges to the pool or issue one by hand.'
+			)
+		return result
 
 	except Exception as e:
 		frappe.log_error(
@@ -3125,6 +3224,8 @@ def create_contractor_notify(
 		now_str = str(frappe.utils.now_datetime())
 
 		doc = frappe.new_doc("Appointment")
+		# Created at the gate: the visitor gets the welcome code at check-in, not a booking SMS.
+		doc.flags.skip_booking_sms = True
 		doc.customer_name = contractor_name
 		doc.customer_email = ""
 		doc.custom_meet_with = host
@@ -3369,7 +3470,7 @@ def issue_visitor_badge(name=None, badge_number=None):
 			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 			if user_full:
 				guard = frappe.db.get_value(
-					"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+					"Security Guard", guard_filters(current_user, user_full), ["company", "farm"], as_dict=True
 				)
 				if guard:
 					company = guard.company or ""
@@ -3858,7 +3959,7 @@ def issue_supplier_badge(name=None, badge_number=None):
 						user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 						if user_full:
 							guard_company = frappe.db.get_value(
-								"Security Guard", {"full_name": user_full}, "company"
+								"Security Guard", guard_filters(current_user, user_full), "company"
 							)
 							if guard_company:
 								company = guard_company
@@ -4195,9 +4296,11 @@ def create_staff_attendance(employee=None, vehicle_plate=None, entry_gate=None, 
 				"department",
 				"default_shift",
 				"custom_farm",
-				"employee_category",
 				"status",
-			],
+			]
+			# employee_category is a site-level custom field (no app ships it);
+			# a site without it must still be able to sign staff in.
+			+ (["employee_category"] if frappe.get_meta("Employee").has_field("employee_category") else []),
 			as_dict=True,
 		)
 		if not emp:
@@ -4292,7 +4395,7 @@ def create_staff_attendance(employee=None, vehicle_plate=None, entry_gate=None, 
 			doc.shift = emp.default_shift
 		if emp.custom_farm:
 			doc.custom_farm = emp.custom_farm
-		if emp.employee_category:
+		if emp.get("employee_category"):
 			doc.custom_employee_category = emp.employee_category
 		if vehicle_plate:
 			doc.custom_vehicle_number_plate = vehicle_plate
@@ -4932,7 +5035,7 @@ def file_patrol_report(
 			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 			guard_name = None
 			if user_full:
-				guard_name = frappe.db.get_value("Security Guard", {"full_name": user_full}, "name")
+				guard_name = frappe.db.get_value("Security Guard", guard_filters(current_user, user_full), "name")
 			if guard_name:
 				personel = "External Guard"
 				external_guard = guard_name
@@ -5112,7 +5215,7 @@ def get_patrol_report(name=None):
 					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 					if user_full:
 						guard = frappe.db.get_value(
-							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+							"Security Guard", guard_filters(current_user, user_full), ["company", "farm"], as_dict=True
 						)
 						if guard:
 							if guard.company:
@@ -5237,7 +5340,7 @@ def list_patrol_reports(from_date=None, to_date=None, status=None, report_type=N
 					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 					if user_full:
 						guard = frappe.db.get_value(
-							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+							"Security Guard", guard_filters(current_user, user_full), ["company", "farm"], as_dict=True
 						)
 						if guard:
 							if guard.company:
@@ -5400,11 +5503,10 @@ def list_incident_categories():
 def list_incidents(from_date=None, to_date=None, limit=None):
 	"""Incident Reports for the dashboard, optionally within a date range.
 
-	Scoping is indirect: Incident Report carries no company or farm field,
-	so the scope is inferred from whoever reported it, by joining Employee
-	on user_id = reported_by. System Manager sees everything; a Security
-	Head sees what their User Permissions grant; anyone else sees their own
-	company/farm.
+	System Manager sees everything; a Security Head sees what their User
+	Permissions grant (by the reporter's company/farm or the incident's
+	farm); anyone else - guards included - sees only the incidents they
+	reported themselves.
 
 	A caller with no resolvable company or farm gets `1=0` - nothing -
 	rather than falling through to every incident on the instance.
@@ -5432,7 +5534,7 @@ def list_incidents(from_date=None, to_date=None, limit=None):
 		roles = [row[0] for row in role_rows if row and row[0]]
 
 		is_system_manager = "System Manager" in roles
-		is_security_head = "Security Head" in roles
+		is_security_head = "Security Head" in roles or "Security Manager" in roles
 
 		scope_companies = []
 		scope_farms = []
@@ -5463,7 +5565,7 @@ def list_incidents(from_date=None, to_date=None, limit=None):
 					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 					if user_full:
 						guard = frappe.db.get_value(
-							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+							"Security Guard", guard_filters(current_user, user_full), ["company", "farm"], as_dict=True
 						)
 						if guard:
 							if guard.company:
@@ -5480,33 +5582,39 @@ def list_incidents(from_date=None, to_date=None, limit=None):
 			where_parts.append("DATE(i.incident_datetime) <= %(to_date)s")
 			params["to_date"] = to_date
 
-		if not is_system_manager:
+		if not is_system_manager and not is_security_head:
+			# Guards and other staff see only what they reported themselves;
+			# other people's incidents (and their reporters) stay with the
+			# Security Heads. Anonymous reports carry no reporter, so they
+			# are not listed back to anyone but the heads.
+			where_parts.append("i.reported_by = %(me)s")
+			params["me"] = current_user
+		elif not is_system_manager:
 			# Placeholders are generated, values are still bound - the IN
 			# list length varies, the content never reaches the SQL text.
 			conditions = []
 			for idx, value in enumerate(scope_companies):
 				params["c" + str(idx)] = value
 			if scope_companies:
-				conditions.append(
-					"e.company IN ("
-					+ ", ".join("%(c" + str(i) + ")s" for i in range(len(scope_companies)))
-					+ ")"
-				)
+				comp_list = ", ".join("%(c" + str(i) + ")s" for i in range(len(scope_companies)))
+				conditions.append("e.company IN (" + comp_list + ")")
+				# The incident's own farm: reports with no Employee behind
+				# them (external guards, anonymous) are still seen.
+				conditions.append("fm.company IN (" + comp_list + ")")
 			for idx, value in enumerate(scope_farms):
 				params["f" + str(idx)] = value
 			if scope_farms:
-				conditions.append(
-					"e.custom_farm IN ("
-					+ ", ".join("%(f" + str(i) + ")s" for i in range(len(scope_farms)))
-					+ ")"
-				)
+				farm_list = ", ".join("%(f" + str(i) + ")s" for i in range(len(scope_farms)))
+				conditions.append("e.custom_farm IN (" + farm_list + ")")
+				conditions.append("i.farm IN (" + farm_list + ")")
 			where_parts.append("(" + " OR ".join(conditions) + ")" if conditions else "1=0")
 
 		rows = frappe.db.sql(
 			"SELECT i.name, i.incident_datetime, i.location, i.nature_of_incident, i.severity, "
-			"i.description, i.status, i.reported_datetime, i.reported_by "
+			"i.description, i.status, i.reported_datetime, i.reported_by, i.reporter_name, i.is_anonymous "
 			"FROM `tabIncident Report` i "
 			"LEFT JOIN `tabEmployee` e ON e.user_id = i.reported_by "
+			"LEFT JOIN `tabFarm` fm ON fm.name = i.farm "
 			"WHERE " + " AND ".join(where_parts) + " "
 			"ORDER BY i.incident_datetime DESC "
 			"LIMIT %(row_limit)s",
@@ -5524,6 +5632,8 @@ def list_incidents(from_date=None, to_date=None, limit=None):
 				"status": r.status or "",
 				"reported_datetime": str(r.reported_datetime) if r.reported_datetime else "",
 				"reported_by": r.reported_by or "",
+				"reporter_name": "Anonymous" if r.is_anonymous else (r.reporter_name or ""),
+				"is_anonymous": 1 if r.is_anonymous else 0,
 			}
 			for r in rows
 		]
@@ -5625,8 +5735,20 @@ def create_incident(
 	body_part_affected=None,
 	nature_of_injury=None,
 	injury_current_location=None,
+	notify=None,
+	anonymous=None,
 ):
 	"""Create an Incident Report from the mobile app.
+
+	anonymous: true files the report with nobody's name on it. Nothing ties
+	it to the reporter: reported_by stays empty, reporter_name reads
+	"Anonymous", the record is inserted as Administrator (so owner,
+	modified_by and the version history name nobody), and the photos the
+	guard uploaded for it are handed to Administrator too. It is not shown
+	in the guard's own "my incidents". Who filed it cannot be recovered.
+
+	notify: optional list (or JSON list) of Employee IDs the reporter picked to
+	be told - see api/incident_notify.py, which notifies them on save.
 
 	Every input is normalised to a stripped string (None -> ""), including
 	is_fatal, which is true only for "1"/"true"/"True" - a JSON boolean true
@@ -5677,6 +5799,7 @@ def create_incident(
 		user = frappe.session.user
 		full_name = frappe.db.get_value("User", user, "full_name") or user
 		now = frappe.utils.now_datetime()
+		is_anonymous = s(anonymous) in ("1", "true", "True")
 
 		doc = frappe.new_doc("Incident Report")
 		doc.incident_datetime = incident_datetime
@@ -5687,8 +5810,14 @@ def create_incident(
 		doc.nature_of_incident = nature_of_incident
 		doc.severity = severity
 		doc.description = description
-		doc.reported_by = user
-		doc.reporter_name = full_name
+		if is_anonymous:
+			doc.is_anonymous = 1
+			# Clear the field's own default (the current user) as well.
+			doc.reported_by = None
+			doc.reporter_name = "Anonymous"
+		else:
+			doc.reported_by = user
+			doc.reporter_name = full_name
 		doc.reported_datetime = now
 		doc.status = "Open"
 		if attachment_1:
@@ -5699,6 +5828,11 @@ def create_incident(
 			doc.attachment_3 = attachment_3
 		if attachment_4:
 			doc.attachment_4 = attachment_4
+		if notify:
+			picked = frappe.parse_json(notify) if isinstance(notify, str) else notify
+			for employee in dict.fromkeys(picked or []):
+				if employee and frappe.db.exists("Employee", employee):
+					doc.append("notify_persons", {"employee": employee})
 
 		doshs_deadline = ""
 		if nature_of_incident == "Workplace Injury":
@@ -5727,7 +5861,26 @@ def create_incident(
 			except Exception:
 				doshs_deadline = ""
 
-		doc.insert(ignore_permissions=True)
+		if is_anonymous:
+			# Inserted as Administrator so owner, modified_by and the Version
+			# row name nobody; the photos were uploaded as the guard, so hand
+			# their File records over too.
+			frappe.set_user("Administrator")
+			try:
+				doc.insert(ignore_permissions=True)
+				# insert fills the empty Reported By with its default (now
+				# Administrator) and fetches that name; put it back.
+				frappe.db.set_value("Incident Report", doc.name, {"reported_by": None, "reporter_name": "Anonymous"},
+					update_modified=False)
+				for url in (attachment_1, attachment_2, attachment_3, attachment_4):
+					if url:
+						for f in frappe.get_all("File", filters={"file_url": url}, pluck="name"):
+							frappe.db.set_value("File", f, {"owner": "Administrator", "modified_by": "Administrator"},
+								update_modified=False)
+			finally:
+				frappe.set_user(user)
+		else:
+			doc.insert(ignore_permissions=True)
 		frappe.db.commit()
 		return {
 			"name": doc.name,
@@ -5736,8 +5889,9 @@ def create_incident(
 			"nature_of_incident": nature_of_incident,
 			"severity": severity,
 			"description": description,
-			"reported_by": user,
-			"reporter_name": full_name,
+			"reported_by": "" if is_anonymous else user,
+			"reporter_name": "Anonymous" if is_anonymous else full_name,
+			"is_anonymous": 1 if is_anonymous else 0,
 			"status": "Open",
 			"doshs_deadline": doshs_deadline,
 		}
@@ -5861,8 +6015,8 @@ def get_incident_report(name=None):
 
 	Hierarchy mirrors list_incidents: System Manager sees everything; the
 	reporter always sees their own; a Security Head is scoped to their own User
-	Permission grants; anyone else only their own company/farm. Unlike Patrol
-	Report, Incident Report has no farm/company column, so the company/farm of
+	Permission grants; anyone else only what they reported themselves. Unlike Patrol
+	Report, the company/farm of
 	the incident is INFERRED from the reporter's Employee row (company,
 	custom_farm). A reporter with no Employee record therefore yields no
 	company/farm and only owner/System Manager access applies.
@@ -5893,6 +6047,8 @@ def get_incident_report(name=None):
 				"reported_by",
 				"reporter_name",
 				"reported_datetime",
+				"farm",
+				"is_anonymous",
 				"activity_at_time_of_injury",
 				"body_part_affected",
 				"nature_of_injury",
@@ -5939,11 +6095,11 @@ def get_incident_report(name=None):
 				roles.append(row[0])
 
 		is_system_manager = "System Manager" in roles
-		is_security_head = "Security Head" in roles
+		is_security_head = "Security Head" in roles or "Security Manager" in roles
 
 		allowed = is_system_manager or r.reported_by == current_user
 
-		if not allowed:
+		if not allowed and is_security_head:
 			reporter_employee = frappe.db.get_value(
 				"Employee", {"user_id": r.reported_by}, ["company", "custom_farm"], as_dict=True
 			)
@@ -5977,7 +6133,7 @@ def get_incident_report(name=None):
 					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 					if user_full:
 						guard = frappe.db.get_value(
-							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
+							"Security Guard", guard_filters(current_user, user_full), ["company", "farm"], as_dict=True
 						)
 						if guard:
 							if guard.company:
@@ -5985,9 +6141,16 @@ def get_incident_report(name=None):
 							if guard.farm:
 								scope_farms.append(guard.farm)
 
+			incident_company = frappe.db.get_value("Farm", r.farm, "company") if r.farm else None
 			if reporter_company and reporter_company in scope_companies:
 				allowed = True
 			elif reporter_farm and reporter_farm in scope_farms:
+				allowed = True
+			# The incident's own farm: reports with no Employee behind them
+			# (external guards, anonymous) are still reachable.
+			elif r.farm and r.farm in scope_farms:
+				allowed = True
+			elif incident_company and incident_company in scope_companies:
 				allowed = True
 
 		if not allowed:
@@ -5996,12 +6159,12 @@ def get_incident_report(name=None):
 		witnesses = frappe.get_all(
 			"Incident Person",
 			filters={"parent": name, "parentfield": "witnesses"},
-			fields=["person_name", "person_type", "contact", "id_number", "notes"],
+			fields=["person_name", "person_type", "contact", "id_number", "notes", "statement"],
 		)
 		victims = frappe.get_all(
 			"Incident Person",
 			filters={"parent": name, "parentfield": "victims"},
-			fields=["person_name", "person_type", "contact", "id_number", "notes"],
+			fields=["person_name", "person_type", "contact", "id_number", "notes", "statement"],
 		)
 		return {
 			"name": r.name,
@@ -6013,6 +6176,7 @@ def get_incident_report(name=None):
 			"status": r.status or "",
 			"reported_by": r.reported_by or "",
 			"reporter_name": r.reporter_name or "",
+			"is_anonymous": 1 if r.is_anonymous else 0,
 			"reported_datetime": str(r.reported_datetime) if r.reported_datetime else "",
 			"activity_at_time_of_injury": r.activity_at_time_of_injury or "",
 			"body_part_affected": r.body_part_affected or "",
@@ -6062,8 +6226,8 @@ def update_workplace_injury(name=None):
 	`name` is a named parameter.
 
 	Writes with frappe.db.set_value: NO validate(), no on_update hooks, no
-	workflow, and no permission check -- any authenticated caller can update any
-	Workplace Injury incident (preserved from the original). Closing the case
+	workflow; only System Manager, Security Head and Security Manager may call
+	it. Closing the case
 	(injury_case_status == "Closed") also sets the parent status to "Resolved"
 	so the general incident list reflects it.
 
@@ -6078,6 +6242,9 @@ def update_workplace_injury(name=None):
 		data = frappe.local.form_dict
 
 		name = str(name or "").strip()
+
+		if not _can_read_all_incidents():
+			return {"error": "You do not have access to this action."}
 
 		if not name:
 			return {"error": "name is required"}
@@ -6209,7 +6376,7 @@ def check_in_shift():
 			# a shared gate account, so fall back to matching on full name.
 			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 			if user_full:
-				external_guard = frappe.db.get_value("Security Guard", {"full_name": user_full}, "name")
+				external_guard = frappe.db.get_value("Security Guard", guard_filters(current_user, user_full), "name")
 
 		if is_internal:
 			return {"error": "Employee guards check in via attendance, not the app"}
@@ -6265,7 +6432,7 @@ def my_current_shift():
 			# a shared gate account, so fall back to matching on full name.
 			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 			if user_full:
-				guard_name = frappe.db.get_value("Security Guard", {"full_name": user_full}, "name")
+				guard_name = frappe.db.get_value("Security Guard", guard_filters(current_user, user_full), "name")
 				if guard_name:
 					external_guard = guard_name
 					guard_type = "External"
@@ -6796,7 +6963,7 @@ def _asset_scanner():
 	guard = None
 	if user_full:
 		guard = frappe.db.get_value(
-			"Security Guard", {"full_name": user_full}, ["name", "farm", "company"], as_dict=True
+			"Security Guard", guard_filters(frappe.session.user, user_full), ["name", "farm", "company"], as_dict=True
 		)
 	if guard:
 		return "External Guard", None, guard.name, guard.farm, guard.company
@@ -7378,24 +7545,20 @@ def submit_staff_sticker_request(
 def daily_summary(date=None):
 	"""Gate-guard 'Summary' tab: one day's appointments plus check-in/out counts.
 
-	Read-only. `date` is YYYY-MM-DD and defaults to today. The day is selected
-	on Appointment.scheduled_time, NOT on check-in time, so a visitor who was
-	scheduled yesterday but checked in today is not counted here.
+	Read-only. `date` is YYYY-MM-DD and defaults to today. A visit belongs to
+	the day when it was scheduled that day OR checked in or out that day, and
+	everyone still inside is listed whatever day they were booked for - so a
+	visitor booked for another date who came through the gate today counts.
+	total_checked_in / total_checked_out count gate movements that happened
+	on the day (by check-in / check-out time), not visits scheduled for it.
 
-	Access scoping (this endpoint is the only thing standing between a guard
-	and other companies' visitor data, so the order matters):
-	  - System Manager: everything.
-	  - Security Head: whatever their own User Permission rows (Company and/or
-		Farm) grant, which can be broader or narrower than a single farm.
-	  - Anyone else (gate guard): their own company/farm, resolved the same way
-		as get_security_head_contact -- Employee first, then Security Guard
-		matched by full name.
-	A user with no resolvable company/farm gets `AND 1=0` (empty), never
-	"everything". Rows are filtered on the stamped custom_company /
-	custom_farmunit columns on Appointment.
+	Access scoping is visit_scope: System Manager everything, Security Head
+	their User Permission companies/farms, a guard only the farm they are at
+	(GPS at sign-in, else roster, else their record) - never "everything" when
+	nothing resolves. A visit's farm is its gate farm, else its host's farm.
 
-	still_inside = checked in but not checked out, within the day's rows only
-	(and the 200-row LIMIT), so it is a day-view figure, not a live headcount.
+	still_inside = checked in (workflow "Visitor Checked In") and not checked
+	out, across all dates: the live headcount, not just today's bookings.
 	"""
 	try:
 		date_str = ""
@@ -7409,66 +7572,9 @@ def daily_summary(date=None):
 		start = date_str + " 00:00:00"
 		end = date_str + " 23:59:59"
 
-		current_user = frappe.session.user
-		roles = _user_roles(current_user)
-
-		is_system_manager = "System Manager" in roles
-		is_security_head = "Security Head" in roles
-
-		scope_companies = []
-		scope_farms = []
-
-		if not is_system_manager:
-			if is_security_head:
-				perm_rows = frappe.db.sql(
-					"SELECT allow, for_value FROM `tabUser Permission` "
-					"WHERE user = %s AND allow IN ('Company', 'Farm')",
-					(current_user,),
-					as_dict=True,
-				)
-				for p in perm_rows:
-					if p.allow == "Company" and p.for_value:
-						scope_companies.append(p.for_value)
-					elif p.allow == "Farm" and p.for_value:
-						scope_farms.append(p.for_value)
-			else:
-				employee = frappe.db.get_value(
-					"Employee", {"user_id": current_user}, ["company", "custom_farm"], as_dict=True
-				)
-				if employee:
-					if employee.company:
-						scope_companies.append(employee.company)
-					if employee.custom_farm:
-						scope_farms.append(employee.custom_farm)
-				else:
-					user_full = frappe.db.get_value("User", current_user, "full_name") or ""
-					if user_full:
-						guard = frappe.db.get_value(
-							"Security Guard", {"full_name": user_full}, ["company", "farm"], as_dict=True
-						)
-						if guard:
-							if guard.company:
-								scope_companies.append(guard.company)
-							if guard.farm:
-								scope_farms.append(guard.farm)
-
-		# Only placeholders are generated dynamically; every value is bound.
-		scope_sql = ""
-		scope_params = []
-		if not is_system_manager:
-			conditions = []
-			if scope_companies:
-				placeholders = ", ".join(["%s"] * len(scope_companies))
-				conditions.append("a.custom_company IN (" + placeholders + ")")
-				scope_params = scope_params + scope_companies
-			if scope_farms:
-				placeholders = ", ".join(["%s"] * len(scope_farms))
-				conditions.append("a.custom_farmunit IN (" + placeholders + ")")
-				scope_params = scope_params + scope_farms
-			if conditions:
-				scope_sql = " AND (" + " OR ".join(conditions) + ")"
-			else:
-				scope_sql = " AND 1=0"
+		# Who sees which visits: visit_scope (System Manager all, Security
+		# Head their User Permissions, a guard the farm they are at).
+		scope_sql, scope_params = visit_scope("a")
 
 		rows = frappe.db.sql(
 			"""
@@ -7484,14 +7590,21 @@ def daily_summary(date=None):
 				   a.customer_details
 			FROM `tabAppointment` a
 			LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with
-			WHERE a.scheduled_time BETWEEN %s AND %s
+			WHERE (
+				a.scheduled_time BETWEEN %s AND %s
+				OR a.custom_check_in_time BETWEEN %s AND %s
+				OR a.custom_check_out_time BETWEEN %s AND %s
+				OR (a.workflow_state = 'Visitor Checked In'
+					AND a.custom_check_in_time IS NOT NULL
+					AND a.custom_check_out_time IS NULL)
+			)
 			"""
 			+ scope_sql
 			+ """
 			ORDER BY a.custom_check_in_time DESC, a.scheduled_time DESC
-			LIMIT 200
+			LIMIT 300
 			""",
-			[start, end] + scope_params,
+			[start, end, start, end, start, end] + scope_params,
 			as_dict=True,
 		)
 
@@ -7525,12 +7638,19 @@ def daily_summary(date=None):
 		checked_out = 0
 		still_inside = []
 		for a in all_records:
-			if a["custom_check_in_time"]:
+			# Counted on the day the gate movement happened.
+			if start <= a["custom_check_in_time"][:19] <= end:
 				checked_in = checked_in + 1
-				if not a["custom_check_out_time"]:
-					still_inside.append(a)
-			if a["custom_check_out_time"]:
+			if start <= a["custom_check_out_time"][:19] <= end:
 				checked_out = checked_out + 1
+			# Inside means the workflow says so too: a visit checked out
+			# through the workflow without a check-out time is not here.
+			if (
+				a["custom_check_in_time"]
+				and not a["custom_check_out_time"]
+				and a["workflow_state"] == "Visitor Checked In"
+			):
+				still_inside.append(a)
 
 		return {
 			"date": date_str,
@@ -7683,6 +7803,15 @@ def gate_activity():
 	except Exception as e:
 		frappe.log_error("gate_activity", str(e))
 		return {"error": str(e)}
+INCIDENT_READER_ROLES = ("System Manager", "Security Head", "Security Manager")
+
+
+def _can_read_all_incidents(user=None):
+	"""True for the roles that may see other people's incident reports."""
+	roles = set(frappe.get_roles(user or frappe.session.user))
+	return bool(roles & set(INCIDENT_READER_ROLES))
+
+
 @frappe.whitelist()
 def security_report(tab=None, from_date=None, to_date=None, farm=None, location=None):
 	"""Command Center / dashboard report, one payload shape for seven tabs.
@@ -7701,12 +7830,22 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 	  - Overstay watchlists: visitors/contractors inside > 8h, vehicles > 12h.
 	  - Overview "On Premises" = visitors/contractors inside + vehicles inside
 		(all-time, unfiltered); "Open Incidents" is likewise all-time.
-	  - Patrol distance is a haversine sum over consecutive GPS points per
-		patrol, ignoring jumps >= 0.5 degree lat/lng (GPS glitches).
+	  - Patrols follow the Patrol Map's rules (api/patrol_report.py): On Duty,
+		unusable positions and fixes worse than 100 m left out; guard = the
+		internal guard, else the external guard, else the sending account.
+		Distance is a haversine sum over consecutive points of one guard's
+		one patrol, counting only steps at most 10 min apart and at most
+		25 km/h (patrol_rules) - longer gaps are the phone asleep, faster
+		steps GPS jumps. GPS Points / Distance / Guards / Routes and By Guard
+		count every qualifying point; only extra.points (the map's points)
+		is thinned to 3000. Requires read on Patrol GPS Log, and on the Farm
+		when `farm` is given; without a farm a user limited to some farms
+		sees only those. At most 31 days.
 
-	Filters: `farm` only applies to the visitors/contractors tabs (via
-	Appointment.custom_farmunit); `location` only to the incidents tab. The
-	staff, vehicles, patrols and overview tabs ignore both. Pre-existing.
+	Filters: `farm` applies to the visitors/contractors tabs (via
+	Appointment.custom_farmunit) and the patrols tab (by the Patrol Map's
+	boundary rules); `location` only to the incidents tab. The staff, vehicles
+	and overview tabs ignore both.
 
 	Only placeholders / fixed constants are concatenated into SQL; every
 	user-supplied value is bound. scalar() swallows any query error and
@@ -7720,6 +7859,10 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 			return str(v).strip()
 
 		tab = s(tab) or "overview"
+		if tab == "incidents" and not _can_read_all_incidents():
+			# The incidents tab lists descriptions and reporters; it is for
+			# the Security Heads, not every signed-in user.
+			frappe.throw("Only Security Heads can view the incident report.", frappe.PermissionError)
 		fromd = s(from_date) or str(frappe.utils.nowdate())
 		tod = s(to_date) or str(frappe.utils.nowdate())
 		farm = s(farm)
@@ -7770,12 +7913,17 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 			return fl
 
 		VIS = "(COALESCE(a.custom_visitor_type,'') <> 'Contractor')"
+		# Inside now: checked in, no check-out time, and the workflow agrees.
+		# Visits checked out through the workflow without a check-out time
+		# (old customer bookings, Desk actions) otherwise sit here as
+		# overstays for months.
+		INSIDE = " AND a.custom_check_in_time IS NOT NULL AND a.custom_check_out_time IS NULL AND a.workflow_state = 'Visitor Checked In'"
 		CON = "a.custom_visitor_type = 'Contractor'"
 
 		def appt_kpis(who):
 			ci = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE " + who + FARM_SQL + " AND a.custom_check_in_time BETWEEN %s AND %s", tuple(FARM_P + [start, end]))
 			co = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE " + who + FARM_SQL + " AND a.custom_check_out_time BETWEEN %s AND %s", tuple(FARM_P + [start, end]))
-			inside = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE " + who + FARM_SQL + " AND a.custom_check_in_time IS NOT NULL AND a.custom_check_out_time IS NULL", tuple(FARM_P))
+			inside = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE " + who + FARM_SQL + INSIDE, tuple(FARM_P))
 			avg = scalar("SELECT ROUND(AVG(TIMESTAMPDIFF(MINUTE, a.custom_check_in_time, a.custom_check_out_time))) FROM `tabAppointment` a WHERE " + who + FARM_SQL + " AND a.custom_check_out_time BETWEEN %s AND %s", tuple(FARM_P + [start, end]))
 			return [ci, co, inside, avg]
 
@@ -7788,14 +7936,16 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 
 		def overstay_rows(who):
 			rows = []
-			r = frappe.db.sql("SELECT a.customer_name, COALESCE(NULLIF(e.employee_name,''), a.custom_meet_with, '—'), a.custom_check_in_time FROM `tabAppointment` a LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with WHERE " + who + FARM_SQL + " AND a.custom_check_in_time IS NOT NULL AND a.custom_check_out_time IS NULL AND a.custom_check_in_time < %s ORDER BY a.custom_check_in_time ASC LIMIT 25", tuple(FARM_P + [frappe.utils.add_to_date(now, hours=-8)]))
+			r = frappe.db.sql("SELECT a.customer_name, COALESCE(NULLIF(e.employee_name,''), a.custom_meet_with, '—'), a.custom_check_in_time, a.name FROM `tabAppointment` a LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with WHERE " + who + FARM_SQL + INSIDE + " AND a.custom_check_in_time < %s ORDER BY a.custom_check_in_time ASC LIMIT 25", tuple(FARM_P + [frappe.utils.add_to_date(now, hours=-8)]))
 			for row in r:
 				hrs = 0
 				try:
 					hrs = round(frappe.utils.time_diff_in_hours(now, row[2]), 1)
 				except Exception:
 					hrs = 0
-				rows.append({"label": (row[0] or "—") + " · " + str(row[1]), "detail": str(hrs) + "h inside"})
+				# name lets the app check a stale one out from the list.
+				rows.append({"label": (row[0] or "—") + " · " + str(row[1]), "detail": str(hrs) + "h inside", "name": row[3],
+					"action": "contractor_check_out" if who == CON else "check_out"})
 			return rows
 
 		if tab == "visitors":
@@ -7896,9 +8046,9 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 
 			def people(nm, pf):
 				out = []
-				pr = frappe.db.sql("SELECT person_name, person_type, id_number, contact, notes FROM `tabIncident Person` WHERE parent = %s AND parentfield = %s ORDER BY idx", (nm, pf))
+				pr = frappe.db.sql("SELECT person_name, person_type, id_number, contact, notes, statement FROM `tabIncident Person` WHERE parent = %s AND parentfield = %s ORDER BY idx", (nm, pf))
 				for p in pr:
-					out.append({"name": p[0] or "—", "type": p[1] or "", "id_number": p[2] or "", "contact": p[3] or "", "notes": p[4] or ""})
+					out.append({"name": p[0] or "—", "type": p[1] or "", "id_number": p[2] or "", "contact": p[3] or "", "notes": p[4] or "", "statement": p[5] or ""})
 				return out
 
 			details = []
@@ -7936,27 +8086,33 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 			extra["locations"] = ll
 
 		elif tab == "patrols":
-			points = scalar("SELECT COUNT(*) FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty'", (start, end))
-			routes = scalar("SELECT COUNT(DISTINCT patrol) FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty'", (start, end))
-			guards = scalar("SELECT COUNT(DISTINCT COALESCE(internal_guard, external_guard)) FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty' AND COALESCE(internal_guard, external_guard) IS NOT NULL AND COALESCE(internal_guard, external_guard) != ''", (start, end))
-			dist = scalar("SELECT ROUND(SUM(6371 * ACOS(LEAST(1, GREATEST(-1, COS(RADIANS(plat)) * COS(RADIANS(lat)) * COS(RADIANS(lng) - RADIANS(plng)) + SIN(RADIANS(plat)) * SIN(RADIANS(lat)))))), 1) FROM (SELECT CAST(latitude AS DECIMAL(12,7)) lat, CAST(longitude AS DECIMAL(12,7)) lng, LAG(CAST(latitude AS DECIMAL(12,7))) OVER (PARTITION BY patrol ORDER BY captured_at) plat, LAG(CAST(longitude AS DECIMAL(12,7))) OVER (PARTITION BY patrol ORDER BY captured_at) plng FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty' AND latitude != '' AND longitude != '') t WHERE plat IS NOT NULL AND ABS(lat - plat) < 0.5 AND ABS(lng - plng) < 0.5", (start, end))
-			kpi("GPS Points", points, "logged")
-			kpi("Distance", (str(dist) + " km") if dist else "—", "patrolled")
-			kpi("Guards", guards, "patrolling")
-			kpi("Routes", routes, "distinct")
-			prows = []
-			r = frappe.db.sql("SELECT COALESCE(NULLIF(COALESCE(internal_guard, external_guard),''),'—') g, COUNT(*) c, COUNT(DISTINCT patrol) rt, MAX(captured_at) m FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty' GROUP BY g ORDER BY c DESC LIMIT 15", (start, end))
-			for row in r:
-				prows.append({"guard": row[0], "count": row[1], "routes": row[2], "last": str(row[3])})
+			# The Patrol Map's rules (see patrol_report): which points count,
+			# who they belong to, the farm boundary, the step rule for distance.
+			# Counted in the database over every qualifying point; only the
+			# points sent for drawing are thinned.
+			from upande_security.api.patrol_report import guard_names, patrols_report
+
+			rep = patrols_report(fromd, tod, farm or None)
+			names = guard_names(rep["guards"])
+			km = rep["metres"] / 1000.0
+			kpi("GPS Points", rep["points"], "logged")
+			kpi("Distance", (str(round(km, 1)) + " km") if km else "—", "patrolled")
+			kpi("Guards", len(rep["guards"]), "patrolling")
+			kpi("Routes", rep["routes"], "distinct")
+			prows = [
+				{"guard": names[g], "count": v["points"], "routes": len(v["patrols"]), "last": v["last"]}
+				for g, v in sorted(rep["guards"].items(), key=lambda kv: (-kv[1]["points"], names[kv[0]]))[:15]
+			]
 			add_table("By Guard", [{"key": "guard", "label": "Guard"}, {"key": "count", "label": "Points", "align": "right"}, {"key": "routes", "label": "Routes", "align": "right"}, {"key": "last", "label": "Last Seen"}], prows)
-			pts = []
-			r = frappe.db.sql("SELECT latitude, longitude, captured_at, COALESCE(internal_guard, external_guard), patrol FROM `tabPatrol GPS Log` WHERE captured_at BETWEEN %s AND %s AND IFNULL(tracking_mode, 'Patrol') != 'On Duty' AND latitude != '' AND longitude != '' ORDER BY captured_at DESC LIMIT 3000", (start, end))
-			for row in r:
-				pts.append({"lat": row[0], "lng": row[1], "at": str(row[2]), "guard": row[3] or "", "patrol": row[4] or ""})
-			extra["points"] = pts
+			extra["points"] = [
+				{"lat": lat, "lng": lng, "at": at, "guard": names.get(g) or g, "patrol": patrol}
+				for lat, lng, at, g, patrol in rep["draw"]
+			]
+			extra["boundaries"] = rep["boundaries"]
+			extra["farms"] = rep["farms"]
 
 		else:
-			vis_inside = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE a.custom_check_in_time IS NOT NULL AND a.custom_check_out_time IS NULL", ())
+			vis_inside = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE a.custom_check_in_time IS NOT NULL AND a.custom_check_out_time IS NULL AND a.workflow_state = 'Visitor Checked In'", ())
 			veh_inside = scalar("SELECT COUNT(*) FROM `tabTractor Daily Task` tdt JOIN `tabTimesheet` ts ON tdt.timesheet = ts.name WHERE ts.docstatus = 0", ())
 			entries = scalar("SELECT COUNT(*) FROM `tabAppointment` a WHERE a.custom_check_in_time BETWEEN %s AND %s", (start, end))
 			open_inc = scalar("SELECT COUNT(*) FROM `tabIncident Report` WHERE status = 'Open'", ())
@@ -7978,6 +8134,9 @@ def security_report(tab=None, from_date=None, to_date=None, farm=None, location=
 		for kk in extra:
 			msg[kk] = extra[kk]
 		return msg
+	except (frappe.PermissionError, frappe.ValidationError):
+		# Not a broken query: the caller is refused, or asked for too much.
+		raise
 	except Exception as e:
 		frappe.log_error("security_report", str(e))
 		return {"error": str(e)}

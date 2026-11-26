@@ -1,0 +1,56 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-11-21 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "label",
+  "pattern",
+  "vehicle_class",
+  "example"
+ ],
+ "fields": [
+  {
+   "fieldname": "label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Label",
+   "reqd": 1
+  },
+  {
+   "fieldname": "pattern",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Pattern (regex on the normalised plate)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_class",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Vehicle Class",
+   "options": "Car\nMotorcycle\nTrailer\nGovernment\nDiplomatic\nOther"
+  },
+  {
+   "fieldname": "example",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Example"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-21 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CCTV",
+ "name": "CCTV Plate Format",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

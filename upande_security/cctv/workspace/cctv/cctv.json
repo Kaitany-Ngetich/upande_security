@@ -1,0 +1,516 @@
+{
+ "app": "upande_security",
+ "charts": [],
+ "content": "[{\"id\": \"cctvHdr01\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>CCTV</b></span>\", \"col\": 12}}, {\"id\": \"cctvSc00\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Alert console\", \"col\": 4}}, {\"id\": \"cctvSc01\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Live view\", \"col\": 4}}, {\"id\": \"cctvSc02\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Vehicles on site\", \"col\": 4}}, {\"id\": \"cctvSc03\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Plate review\", \"col\": 4}}, {\"id\": \"cctvSc04\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Camera health\", \"col\": 4}}, {\"id\": \"cctvSc05\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Muster list\", \"col\": 4}}, {\"id\": \"cctvScX0\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"People on site\", \"col\": 4}}, {\"id\": \"cctvScX1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Site map\", \"col\": 4}}, {\"id\": \"cctvSp01\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"cctvHdr02\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Setup, records and reports</b></span>\", \"col\": 12}}, {\"id\": \"cctvCd00\", \"type\": \"card\", \"data\": {\"card_name\": \"Setup\", \"col\": 4}}, {\"id\": \"cctvCd01\", \"type\": \"card\", \"data\": {\"card_name\": \"Records\", \"col\": 4}}, {\"id\": \"cctvCd02\", \"type\": \"card\", \"data\": {\"card_name\": \"Vehicle reports\", \"col\": 4}}, {\"id\": \"cctvCd03\", \"type\": \"card\", \"data\": {\"card_name\": \"Alert reports\", \"col\": 4}}, {\"id\": \"cctvCd04\", \"type\": \"card\", \"data\": {\"card_name\": \"People and audit\", \"col\": 4}}]",
+ "creation": "2026-11-21 18:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "camera",
+ "idx": 0,
+ "indicator_color": "",
+ "is_hidden": 0,
+ "label": "CCTV",
+ "link_type": "DocType",
+ "links": [
+  {
+   "type": "Card Break",
+   "label": "Setup",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 10,
+   "is_query_report": 0,
+   "link_type": null,
+   "link_to": null
+  },
+  {
+   "type": "Link",
+   "label": "Site Survey",
+   "link_type": "DocType",
+   "link_to": "CCTV Site Survey",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Settings",
+   "link_type": "DocType",
+   "link_to": "CCTV Settings",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Site Agent",
+   "link_type": "DocType",
+   "link_to": "CCTV Site Agent",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Server",
+   "link_type": "DocType",
+   "link_to": "CCTV Server",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Camera",
+   "link_type": "DocType",
+   "link_to": "CCTV Camera",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Security Zone",
+   "link_type": "DocType",
+   "link_to": "Security Zone",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Alert Rule",
+   "link_type": "DocType",
+   "link_to": "CCTV Alert Rule",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Camera Link",
+   "link_type": "DocType",
+   "link_to": "CCTV Camera Link",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Engine Model",
+   "link_type": "DocType",
+   "link_to": "CCTV Engine Model",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Agent Command",
+   "link_type": "DocType",
+   "link_to": "CCTV Agent Command",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Card Break",
+   "label": "Records",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 6,
+   "is_query_report": 0,
+   "link_type": null,
+   "link_to": null
+  },
+  {
+   "type": "Link",
+   "label": "Alert",
+   "link_type": "DocType",
+   "link_to": "CCTV Alert",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Vehicle Visit",
+   "link_type": "DocType",
+   "link_to": "CCTV Vehicle Visit",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Review Item",
+   "link_type": "DocType",
+   "link_to": "CCTV Review Item",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Known Vehicle",
+   "link_type": "DocType",
+   "link_to": "CCTV Known Vehicle",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Vehicle Sighting",
+   "link_type": "DocType",
+   "link_to": "CCTV Vehicle Sighting",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Event",
+   "link_type": "DocType",
+   "link_to": "CCTV Event",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Card Break",
+   "label": "Vehicle reports",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 7,
+   "is_query_report": 0,
+   "link_type": null,
+   "link_to": null
+  },
+  {
+   "type": "Link",
+   "label": "Vehicle Visit Log",
+   "link_type": "Report",
+   "link_to": "CCTV Vehicle Visit Log",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Visit Duration by Party",
+   "link_type": "Report",
+   "link_to": "CCTV Visit Duration by Party",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Overstays",
+   "link_type": "Report",
+   "link_to": "CCTV Overstays",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Arrival Punctuality",
+   "link_type": "Report",
+   "link_to": "CCTV Arrival Punctuality",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Plate Read Accuracy",
+   "link_type": "Report",
+   "link_to": "CCTV Plate Read Accuracy",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Parking Activity",
+   "link_type": "Report",
+   "link_to": "CCTV Parking Activity",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Dock Turnaround",
+   "link_type": "Report",
+   "link_to": "CCTV Dock Turnaround",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
+   "type": "Card Break",
+   "label": "Alert reports",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 3,
+   "is_query_report": 0,
+   "link_type": null,
+   "link_to": null
+  },
+  {
+   "type": "Link",
+   "label": "Alert Summary",
+   "link_type": "Report",
+   "link_to": "CCTV Alert Summary",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Alert Response Times",
+   "link_type": "Report",
+   "link_to": "CCTV Alert Response Times",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "False Alarms",
+   "link_type": "Report",
+   "link_to": "CCTV False Alarms",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
+   "type": "Card Break",
+   "label": "People and audit",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 7,
+   "is_query_report": 0,
+   "link_type": null,
+   "link_to": null
+  },
+  {
+   "type": "Link",
+   "label": "Guard Patrol Verification",
+   "link_type": "Report",
+   "link_to": "CCTV Guard Patrol Verification",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Muster List",
+   "link_type": "Report",
+   "link_to": "CCTV Muster List",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Person Profile",
+   "link_type": "DocType",
+   "link_to": "CCTV Person Profile",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Access Audit",
+   "link_type": "Report",
+   "link_to": "CCTV Access Audit",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 1,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Live View Log",
+   "link_type": "DocType",
+   "link_to": "CCTV Live View Log",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Playback Log",
+   "link_type": "DocType",
+   "link_to": "CCTV Playback Log",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  },
+  {
+   "type": "Link",
+   "label": "Track",
+   "link_type": "DocType",
+   "link_to": "CCTV Track",
+   "hidden": 0,
+   "onboard": 0,
+   "link_count": 0,
+   "is_query_report": 0,
+   "dependencies": ""
+  }
+ ],
+ "modified": "2026-11-22 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CCTV",
+ "name": "CCTV",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Security Head"
+  },
+  {
+   "role": "Security Manager"
+  },
+  {
+   "role": "CCTV Operator"
+  }
+ ],
+ "sequence_id": 56.0,
+ "shortcuts": [
+  {
+   "type": "URL",
+   "label": "Alert console",
+   "url": "/security-dashboard-v2#/cctv-alerts",
+   "color": "Red",
+   "doc_view": ""
+  },
+  {
+   "type": "URL",
+   "label": "Live view",
+   "url": "/security-dashboard-v2#/cctv-live",
+   "color": "Blue",
+   "doc_view": ""
+  },
+  {
+   "type": "URL",
+   "label": "Vehicles on site",
+   "url": "/security-dashboard-v2#/cctv-vehicles",
+   "color": "Green",
+   "doc_view": ""
+  },
+  {
+   "type": "URL",
+   "label": "Plate review",
+   "url": "/security-dashboard-v2#/cctv-review",
+   "color": "Orange",
+   "doc_view": ""
+  },
+  {
+   "type": "URL",
+   "label": "Camera health",
+   "url": "/security-dashboard-v2#/cctv-health",
+   "color": "Grey",
+   "doc_view": ""
+  },
+  {
+   "type": "Report",
+   "label": "Muster list",
+   "link_to": "CCTV Muster List",
+   "color": "Purple",
+   "doc_view": ""
+  },
+  {
+   "type": "URL",
+   "label": "People on site",
+   "url": "/security-dashboard-v2#/cctv-presence",
+   "color": "Cyan",
+   "doc_view": ""
+  },
+  {
+   "type": "URL",
+   "label": "Site map",
+   "url": "/security-dashboard-v2#/cctv-map",
+   "color": "Yellow",
+   "doc_view": ""
+  }
+ ],
+ "title": "CCTV",
+ "type": "Workspace"
+}

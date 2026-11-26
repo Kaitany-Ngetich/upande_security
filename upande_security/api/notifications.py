@@ -28,6 +28,8 @@ import urllib.request
 
 import frappe
 
+from upande_security.api.guard_lookup import guard_filters
+
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 VISITOR_APPROVED_CHANNEL_ID = "visitor-approved"
 
@@ -86,7 +88,7 @@ def _resolve_owner_push_token(owner):
 
 	user_full = frappe.db.get_value("User", owner, "full_name")
 	if user_full:
-		guard_name = frappe.db.get_value("Security Guard", {"full_name": user_full}, "name")
+		guard_name = frappe.db.get_value("Security Guard", guard_filters(owner, user_full), "name")
 		if guard_name:
 			return frappe.db.get_value(
 				"Guard Device Token",

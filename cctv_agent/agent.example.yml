@@ -1,0 +1,30 @@
+# Copy to agent.yml on the site box. Recorders, cameras and credentials are
+# NOT listed here - they are managed in ERPNext (CCTV Server / CCTV Camera)
+# and pulled by the agent.
+
+agent:
+  id: kapkolia-agent                 # = CCTV Site Agent.agent_id in ERPNext
+  erp_url: https://erp.example.com
+  api_key_file: /run/secrets/erp_api_key       # API key of a user with ONLY the CCTV Agent role
+  api_secret_file: /run/secrets/erp_api_secret
+  hmac_secret_file: /run/secrets/agent_hmac    # = CCTV Site Agent > Signing Secret
+  site_timezone: Africa/Nairobi
+  batch_size: 100
+  batch_interval_ms: 1000
+  heartbeat_seconds: 30
+  config_poll_seconds: 60
+  health_seconds: 60
+  upload_snapshots: true
+
+buffer:
+  path: /data/buffer.db
+  max_size_mb: 20480
+  site_config_cache: /data/site_config.json
+
+gateway:
+  api: http://127.0.0.1:9997
+  auth_listen: 127.0.0.1:8765
+  rtsp_port: 8554
+  transcode_h265: false              # true if recorders only offer H.265 (CPU cost)
+
+log_level: INFO

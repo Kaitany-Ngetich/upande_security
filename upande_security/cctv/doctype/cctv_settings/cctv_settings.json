@@ -1,0 +1,485 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-11-21 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_switch",
+  "enabled",
+  "live_view_enabled",
+  "alerts_enabled",
+  "cb_switch",
+  "anpr_enabled",
+  "presence_enabled",
+  "face_recognition_enabled",
+  "legal_approval_reference",
+  "sb_playback",
+  "pre_roll_seconds",
+  "post_roll_seconds",
+  "live_token_ttl_seconds",
+  "playback_token_ttl_seconds",
+  "cb_playback",
+  "gateway_jwt_secret",
+  "require_agent_signature",
+  "max_clock_skew_seconds",
+  "sb_push",
+  "push_enabled",
+  "cb_push",
+  "push_rate_limit_per_minute",
+  "push_max_body_mb",
+  "sb_plates",
+  "match_tolerance_minutes",
+  "auto_match_confidence",
+  "min_read_confidence",
+  "cb_plates",
+  "fuzzy_matching",
+  "duplicate_window_seconds",
+  "default_visit_minutes",
+  "overstay_grace_minutes",
+  "review_sla_minutes",
+  "plate_formats",
+  "sb_retention",
+  "retention_events_days",
+  "retention_sightings_days",
+  "cb_retention",
+  "retention_snapshots_days",
+  "retention_audit_days",
+  "sb_channels",
+  "telegram_bot_token",
+  "telegram_chat_id",
+  "cb_channels",
+  "whatsapp_note",
+  "sb_cmd",
+  "command_ttl_minutes",
+  "evidence_max_minutes",
+  "cb_cmd",
+  "presence_stale_hours",
+  "face_match_threshold",
+  "sb_patrol",
+  "patrol_link_enabled",
+  "guard_match_radius_m",
+  "cb_patrol",
+  "guard_match_window_seconds",
+  "guard_match_hold_seconds",
+  "sb_lic",
+  "enforce_entitlements",
+  "entitlements"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_switch",
+   "fieldtype": "Section Break",
+   "label": "Switches"
+  },
+  {
+   "default": "0",
+   "description": "Master switch. Off: nothing in the CCTV module runs, events are refused.",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "CCTV Module Enabled"
+  },
+  {
+   "default": "0",
+   "fieldname": "live_view_enabled",
+   "fieldtype": "Check",
+   "label": "Live View Enabled"
+  },
+  {
+   "default": "0",
+   "fieldname": "alerts_enabled",
+   "fieldtype": "Check",
+   "label": "Alerts Enabled"
+  },
+  {
+   "fieldname": "cb_switch",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "anpr_enabled",
+   "fieldtype": "Check",
+   "label": "Plate Recognition (ANPR) Enabled"
+  },
+  {
+   "default": "0",
+   "fieldname": "presence_enabled",
+   "fieldtype": "Check",
+   "label": "People Presence Enabled"
+  },
+  {
+   "default": "0",
+   "description": "Biometric. Only after the legal review and the consent workflow are in place.",
+   "fieldname": "face_recognition_enabled",
+   "fieldtype": "Check",
+   "label": "Face Recognition Enabled",
+   "permlevel": 1
+  },
+  {
+   "description": "DPIA / legal sign-off reference. Face recognition will not switch on without it.",
+   "fieldname": "legal_approval_reference",
+   "fieldtype": "Data",
+   "label": "Legal Approval Reference",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "sb_playback",
+   "fieldtype": "Section Break",
+   "label": "Playback and Tokens"
+  },
+  {
+   "default": "15",
+   "fieldname": "pre_roll_seconds",
+   "fieldtype": "Int",
+   "label": "Pre Roll Seconds"
+  },
+  {
+   "default": "60",
+   "fieldname": "post_roll_seconds",
+   "fieldtype": "Int",
+   "label": "Post Roll Seconds"
+  },
+  {
+   "default": "300",
+   "fieldname": "live_token_ttl_seconds",
+   "fieldtype": "Int",
+   "label": "Live Token Ttl Seconds"
+  },
+  {
+   "default": "900",
+   "fieldname": "playback_token_ttl_seconds",
+   "fieldtype": "Int",
+   "label": "Playback Token Ttl Seconds"
+  },
+  {
+   "fieldname": "cb_playback",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Shared with MediaMTX to verify viewing tokens. Never sent to the browser.",
+   "fieldname": "gateway_jwt_secret",
+   "fieldtype": "Password",
+   "label": "Gateway Token Secret"
+  },
+  {
+   "default": "1",
+   "fieldname": "require_agent_signature",
+   "fieldtype": "Check",
+   "label": "Require Agent Signature"
+  },
+  {
+   "default": "300",
+   "fieldname": "max_clock_skew_seconds",
+   "fieldtype": "Int",
+   "label": "Max Clock Skew Seconds"
+  },
+  {
+   "fieldname": "sb_plates",
+   "fieldtype": "Section Break",
+   "label": "Plate Matching"
+  },
+  {
+   "default": "120",
+   "description": "How early or late a vehicle may arrive and still match its appointment.",
+   "fieldname": "match_tolerance_minutes",
+   "fieldtype": "Int",
+   "label": "Match Tolerance Minutes"
+  },
+  {
+   "default": "85",
+   "description": "Reads at or above this match on their own; below it a guard confirms.",
+   "fieldname": "auto_match_confidence",
+   "fieldtype": "Percent",
+   "label": "Auto Match Confidence"
+  },
+  {
+   "default": "50",
+   "description": "Reads below this are kept as unidentified sightings only.",
+   "fieldname": "min_read_confidence",
+   "fieldtype": "Percent",
+   "label": "Min Read Confidence"
+  },
+  {
+   "fieldname": "cb_plates",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Treat 0/O, 1/I, 8/B, 5/S, 2/Z as the same.",
+   "fieldname": "fuzzy_matching",
+   "fieldtype": "Check",
+   "label": "Fuzzy Matching"
+  },
+  {
+   "default": "60",
+   "description": "Same plate at the same camera within this window is one read.",
+   "fieldname": "duplicate_window_seconds",
+   "fieldtype": "Int",
+   "label": "Duplicate Window Seconds"
+  },
+  {
+   "default": "240",
+   "description": "Expected stay when an appointment has no Expected Exit.",
+   "fieldname": "default_visit_minutes",
+   "fieldtype": "Int",
+   "label": "Default Visit Minutes"
+  },
+  {
+   "default": "30",
+   "fieldname": "overstay_grace_minutes",
+   "fieldtype": "Int",
+   "label": "Overstay Grace Minutes"
+  },
+  {
+   "default": "5",
+   "fieldname": "review_sla_minutes",
+   "fieldtype": "Int",
+   "label": "Review Sla Minutes"
+  },
+  {
+   "fieldname": "plate_formats",
+   "fieldtype": "Table",
+   "label": "Plate Formats",
+   "options": "CCTV Plate Format"
+  },
+  {
+   "fieldname": "sb_retention",
+   "fieldtype": "Section Break",
+   "label": "Retention (days)"
+  },
+  {
+   "default": "30",
+   "fieldname": "retention_events_days",
+   "fieldtype": "Int",
+   "label": "Camera Events"
+  },
+  {
+   "default": "60",
+   "fieldname": "retention_sightings_days",
+   "fieldtype": "Int",
+   "label": "Sightings"
+  },
+  {
+   "fieldname": "cb_retention",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "60",
+   "fieldname": "retention_snapshots_days",
+   "fieldtype": "Int",
+   "label": "Snapshots"
+  },
+  {
+   "default": "365",
+   "fieldname": "retention_audit_days",
+   "fieldtype": "Int",
+   "label": "Audit Logs"
+  },
+  {
+   "fieldname": "sb_channels",
+   "fieldtype": "Section Break",
+   "label": "Notification Channels"
+  },
+  {
+   "fieldname": "telegram_bot_token",
+   "fieldtype": "Password",
+   "label": "Telegram Bot Token"
+  },
+  {
+   "description": "Group or channel that receives Telegram alerts.",
+   "fieldname": "telegram_chat_id",
+   "fieldtype": "Data",
+   "label": "Telegram Chat ID"
+  },
+  {
+   "fieldname": "cb_channels",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "whatsapp_note",
+   "fieldtype": "HTML",
+   "options": "<p class='text-muted small'>SMS uses SMS Settings. WhatsApp uses the frappe_whatsapp app when installed. Push uses the guards' Security app.</p>"
+  },
+  {
+   "fieldname": "sb_cmd",
+   "fieldtype": "Section Break",
+   "label": "Site Agent Commands and Presence"
+  },
+  {
+   "default": "30",
+   "fieldname": "command_ttl_minutes",
+   "fieldtype": "Int",
+   "label": "Command Expires After (minutes)"
+  },
+  {
+   "default": "10",
+   "fieldname": "evidence_max_minutes",
+   "fieldtype": "Int",
+   "label": "Longest Evidence Clip (minutes)"
+  },
+  {
+   "fieldname": "cb_cmd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "12",
+   "fieldname": "presence_stale_hours",
+   "fieldtype": "Int",
+   "label": "Presence: Forget After (hours)"
+  },
+  {
+   "default": "60",
+   "fieldname": "face_match_threshold",
+   "fieldtype": "Percent",
+   "label": "Face Match Threshold",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "sb_patrol",
+   "fieldtype": "Section Break",
+   "label": "Guards on Patrol"
+  },
+  {
+   "default": "1",
+   "description": "A person seen where an on-duty guard was (GPS or checkpoint scan) is that guard: no alert if the zone allows them, and the pass is kept as patrol proof.",
+   "fieldname": "patrol_link_enabled",
+   "fieldtype": "Check",
+   "label": "Recognise Guards on Patrol"
+  },
+  {
+   "default": "40",
+   "fieldname": "guard_match_radius_m",
+   "fieldtype": "Int",
+   "label": "Guard Match Distance (m)"
+  },
+  {
+   "fieldname": "cb_patrol",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "90",
+   "fieldname": "guard_match_window_seconds",
+   "fieldtype": "Int",
+   "label": "Guard Match Time Window (s)"
+  },
+  {
+   "default": "60",
+   "description": "Wait this long for a late guard GPS point or checkpoint scan before notifying. 0 = notify at once.",
+   "fieldname": "guard_match_hold_seconds",
+   "fieldtype": "Int",
+   "label": "Hold Unidentified-Person Alerts (s)"
+  },
+  {
+   "fieldname": "sb_lic",
+   "fieldtype": "Section Break",
+   "label": "Sites and Licences"
+  },
+  {
+   "default": "0",
+   "description": "On: a site gets only the features ticked for it below.",
+   "fieldname": "enforce_entitlements",
+   "fieldtype": "Check",
+   "label": "Limit Features per Site"
+  },
+  {
+   "fieldname": "entitlements",
+   "fieldtype": "Table",
+   "label": "Site Entitlements",
+   "options": "CCTV Site Entitlement"
+  },
+  {
+   "fieldname": "sb_push",
+   "fieldtype": "Section Break",
+   "label": "Direct Push (recorders without a site agent)"
+  },
+  {
+   "fieldname": "push_enabled",
+   "fieldtype": "Check",
+   "label": "Accept Direct Push from Recorders",
+   "default": "0",
+   "description": "Fallback for sites without a site agent: recorders set to Direct Push may send their alarms straight to ERPNext. The site agent remains the full-featured path."
+  },
+  {
+   "fieldname": "cb_push",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "push_rate_limit_per_minute",
+   "fieldtype": "Int",
+   "label": "Push Requests per Minute (per recorder)",
+   "default": "600"
+  },
+  {
+   "fieldname": "push_max_body_mb",
+   "fieldtype": "Int",
+   "label": "Max Push Size (MB)",
+   "default": "8"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-11-22 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CCTV",
+ "name": "CCTV Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "permlevel": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Manager",
+   "share": 0,
+   "write": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

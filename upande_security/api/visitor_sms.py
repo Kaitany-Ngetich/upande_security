@@ -1,18 +1,23 @@
 # Copyright (c) 2026, dev@upande.com and contributors
 # For license information, please see license.txt
 
-"""Visitor-facing SMS: an informational OTP + welcome message sent to the
-visitor's own phone the moment they're actually checked in at the gate,
-and a thank-you SMS the moment they're checked out.
+"""Visitor-facing SMS: a visit code sent to the visitor's own phone when a
+visit is booked (send_booking_code), a welcome code at check-in for visits
+that never got one (walk-ins - send_checkin_otp), and a thank-you SMS at
+check-out.
 
-Deliberately tied to check-in, not booking - a scheduled visit might sit
-booked for days and never arrive, or get rescheduled; the SMS only means
-anything once the visitor is actually walking in. Also deliberately
-informational only, not a verification gate - the guard never asks for or
-checks this code against anything.
+A booked visitor shows their code at the gate and the guard finds the visit
+by it (search_visitor_appointment matches custom_visitor_otp exactly). One
+code per visit: check-in only sends a code when the visit has none, so a
+booked visitor is never sent a second, different one. A reschedule resends
+the same code with the new date.
 
-Reuses Frappe's own generic SMS gateway
-(frappe.core.doctype.sms_settings.sms_settings.send_sms) rather than a
+Gate-created appointments (walk-ins, contractor check-ins and their
+notify-host variants) set doc.flags.skip_booking_sms: the visitor is
+standing at the gate, and gets the welcome code at check-in instead.
+
+Reuses Frappe's own generic SMS gateway (SMS Settings, through
+send_system_sms below) rather than a
 bespoke HTTP call to one specific provider - this app has no opinion on
 which SMS gateway a given Kaitet Group instance wires up, and send_sms()
 already no-ops cleanly (a msgprint, not an exception) if Security Ops
@@ -57,10 +62,24 @@ def _normalize_kenyan_number(raw):
 	return digits
 
 
-def _send(number, message):
-	from frappe.core.doctype.sms_settings.sms_settings import send_sms
+def send_system_sms(numbers, message):
+	"""Send an SMS on the app's own behalf - visit codes, thank-yous, incident
+	alerts - whoever's action triggered it.
 
-	send_sms([number], message, success_msg=False)
+	Frappe 16's whitelisted send_sms() refuses users who aren't System Manager
+	or in SMS Settings' Allowed Roles, so a secretary booking a visit or a
+	guard checking one in had their visitor's SMS refused ("You are not
+	permitted to send SMS"). That check guards the public endpoint; these
+	messages are server-composed, so they use the unchecked _send_sms() where
+	this Frappe has it (16+), and send_sms() before that (15 has no check)."""
+	from frappe.core.doctype.sms_settings import sms_settings
+
+	send = sms_settings._send_sms if hasattr(sms_settings, "_send_sms") else sms_settings.send_sms
+	send(numbers, message, success_msg=False)
+
+
+def _send(number, message):
+	send_system_sms([number], message)
 
 
 def send_checkin_otp(appointment_name):
@@ -97,6 +116,66 @@ def send_checkin_otp(appointment_name):
 		frappe.log_error("send_checkin_otp", str(e))
 
 
+BOOKING_TEMPLATE = "Hello {visitor}, your visit to {company} on {date} is booked. Show this code at the gate: {code}"
+
+
+def on_appointment_insert(doc, method=None):
+	"""Appointment after_insert: a scheduled visit gets its code by SMS.
+	Queued to run after the commit, so a booking that rolls back sends
+	nothing, and a slow SMS gateway never holds up the save."""
+	if doc.flags.skip_booking_sms or not is_feature_enabled("feature_visitor_sms_otp"):
+		return
+	frappe.enqueue(
+		"upande_security.api.visitor_sms.send_booking_code",
+		appointment_name=doc.name,
+		enqueue_after_commit=True,
+	)
+
+
+def send_booking_code(appointment_name, resend=False):
+	"""Give the visit its code (once) and SMS it with the booked date.
+	resend=True sends the existing code again - used after a reschedule."""
+	if not is_feature_enabled("feature_visitor_sms_otp"):
+		return
+	try:
+		row = frappe.db.get_value(
+			"Appointment",
+			appointment_name,
+			["customer_name", "customer_phone_number", "custom_meet_with_company", "custom_visitor_otp",
+			 "scheduled_time", "workflow_state"],
+			as_dict=True,
+		)
+		if not row or (row.custom_visitor_otp and not resend):
+			return
+		if row.workflow_state in ("Visitor Checked In", "Visitor Checked Out"):
+			return
+		number = _normalize_kenyan_number(row.customer_phone_number)
+		if not number:
+			return
+
+		code = row.custom_visitor_otp
+		if not code:
+			code = str(random.randint(100000, 999999))
+			frappe.db.set_value("Appointment", appointment_name, "custom_visitor_otp", code, update_modified=False)
+
+		try:
+			template = frappe.db.get_single_value("Security Ops Settings", "visitor_booking_sms_template")
+		except Exception:
+			template = None  # a site not migrated to the template field yet
+		template = template or BOOKING_TEMPLATE
+		when = frappe.utils.format_datetime(row.scheduled_time, "d MMM yyyy, HH:mm") if row.scheduled_time else "your booked day"
+		message = (
+			template.replace("{visitor}", row.customer_name or "")
+			.replace("{company}", row.custom_meet_with_company or "us")
+			.replace("{date}", when)
+			.replace("{code}", code)
+		)
+		_send(number, message)
+		frappe.db.commit()
+	except Exception as e:
+		frappe.log_error("send_booking_code", str(e))
+
+
 def send_checkout_thankyou(appointment_name):
 	"""Same by-name, best-effort shape as send_checkin_otp."""
 	if not is_feature_enabled("feature_visitor_sms_otp"):
@@ -126,6 +205,19 @@ def on_appointment_update(doc, method=None):
 	Server Scripts call send_checkin_otp/send_checkout_thankyou directly
 	(see module docstring); this exists so a host/secretary flipping
 	workflow_state by hand in Desk still triggers the same SMS."""
+	if (
+		doc.has_value_changed("scheduled_time")
+		and not doc.is_new()
+		and doc.custom_visitor_otp
+		and doc.workflow_state not in ("Visitor Checked In", "Visitor Checked Out")
+	):
+		# Rescheduled: the same code, the new date.
+		frappe.enqueue(
+			"upande_security.api.visitor_sms.send_booking_code",
+			appointment_name=doc.name,
+			resend=True,
+			enqueue_after_commit=True,
+		)
 	if not doc.has_value_changed("workflow_state"):
 		return
 	if doc.workflow_state == "Visitor Checked In":

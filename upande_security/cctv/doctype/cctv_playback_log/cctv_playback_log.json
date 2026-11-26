@@ -1,0 +1,135 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-11-21 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "camera",
+  "alert",
+  "source",
+  "range_start",
+  "range_end",
+  "opened_at",
+  "ip_address",
+  "token_id"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "User",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "camera",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Camera",
+   "options": "CCTV Camera",
+   "read_only": 1
+  },
+  {
+   "fieldname": "alert",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Alert",
+   "options": "CCTV Alert",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "Alert\nManual\nVehicle Visit",
+   "read_only": 1
+  },
+  {
+   "fieldname": "range_start",
+   "fieldtype": "Datetime",
+   "label": "Range Start",
+   "read_only": 1
+  },
+  {
+   "fieldname": "range_end",
+   "fieldtype": "Datetime",
+   "label": "Range End",
+   "read_only": 1
+  },
+  {
+   "fieldname": "opened_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Opened At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ip_address",
+   "fieldtype": "Data",
+   "label": "Ip Address",
+   "read_only": 1
+  },
+  {
+   "fieldname": "token_id",
+   "fieldtype": "Data",
+   "label": "Token ID",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-21 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CCTV",
+ "name": "CCTV Playback Log",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 0,
+   "write": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 0,
+   "write": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Manager",
+   "share": 0,
+   "write": 0
+  }
+ ],
+ "sort_field": "opened_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

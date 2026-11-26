@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 359 364" role="img" aria-label="Upande">
+  <title>Upande</title>
+  <!--
+    The Upande mark, redrawn from upande_logo.png as geometry rather than
+    pixels. The raster carried a white disc behind the arrow: invisible on a
+    white page, a pale coin on a warm one. Here the arrow is the whole artwork
+    and everything around it is nothing at all.
+
+    The coordinates are the original's own, shifted so the ink starts at 0,0 —
+    its bars sat at x 169-528, y 165-529 on a 689 canvas. The shaft runs at a
+    true 45 degrees, between the lines x+y=617 and x+y=767 in that space, and
+    stops short of the upright at x=415; the darker wedge in the gap is the
+    shadow the head casts on it, which is what gives the mark its depth.
+  -->
+  <!-- head: the bar across the top -->
+  <path fill="#625d59" d="M0 0 H272 V85 H0 Z" />
+  <!-- head: the upright down the right -->
+  <path fill="#45433f" d="M272 0 H359 V364 H272 Z" />
+  <!-- the shadow the head casts into the notch -->
+  <path fill="#1a1917" d="M246 85 H272 V161 L246 187 Z" />
+  <!-- the shaft -->
+  <path fill="#45433f" d="M198 85 H246 V187 L69 364 H0 V283 Z" />
+</svg>

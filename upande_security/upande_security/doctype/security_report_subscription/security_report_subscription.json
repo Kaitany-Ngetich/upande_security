@@ -1,0 +1,252 @@
+{
+ "actions": [],
+ "creation": "2026-11-04 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "email",
+  "enabled",
+  "column_break_1",
+  "frequency",
+  "send_on",
+  "send_at",
+  "covers",
+  "night_send_at",
+  "column_break_2",
+  "company",
+  "farm",
+  "last_sent_on",
+  "last_night_sent_on",
+  "sections_section",
+  "include_exceptions",
+  "include_visitors",
+  "include_contractors",
+  "include_staff",
+  "column_break_3",
+  "include_vehicles",
+  "include_shifts",
+  "include_patrols",
+  "include_coverage",
+  "column_break_4",
+  "include_incidents",
+  "include_watchlist",
+  "other_records_section",
+  "choose_doctypes",
+  "doctypes"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "options": "User",
+   "label": "Person",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fetch_from": "user.email",
+   "fetch_if_empty": 1,
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "options": "Email",
+   "label": "Email",
+   "in_list_view": 1,
+   "reqd": 1,
+   "columns": 2
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Weekly",
+   "fieldname": "frequency",
+   "fieldtype": "Select",
+   "options": "Daily\nWeekly\nMonthly",
+   "label": "Frequency",
+   "in_list_view": 1,
+   "reqd": 1,
+   "columns": 1
+  },
+  {
+   "default": "Monday",
+   "depends_on": "eval:doc.frequency=='Weekly'",
+   "fieldname": "send_on",
+   "fieldtype": "Select",
+   "options": "Monday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday",
+   "label": "Send On"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "options": "Company",
+   "label": "Company",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "options": "Farm",
+   "label": "Farm",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "last_sent_on",
+   "fieldtype": "Date",
+   "label": "Last Sent On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "last_night_sent_on",
+   "fieldtype": "Date",
+   "label": "Night Report Last Sent On",
+   "read_only": 1,
+   "depends_on": "eval:doc.covers=='Day and night'"
+  },
+  {
+   "fieldname": "sections_section",
+   "fieldtype": "Section Break",
+   "label": "Sections"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_patrols",
+   "fieldtype": "Check",
+   "label": "Patrols (guard ranking)"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_coverage",
+   "fieldtype": "Check",
+   "label": "Patrol coverage maps"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_incidents",
+   "fieldtype": "Check",
+   "label": "Incidents"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_watchlist",
+   "fieldtype": "Check",
+   "label": "Watch list"
+  },
+  {
+   "default": "07:00:00",
+   "fieldname": "send_at",
+   "fieldtype": "Time",
+   "label": "Send At",
+   "in_list_view": 0,
+   "description": "For Day and night: when the day report goes out (18:00 or later)."
+  },
+  {
+   "default": "Full day",
+   "depends_on": "eval:doc.frequency=='Daily'",
+   "fieldname": "covers",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "columns": 1,
+   "label": "Covers",
+   "options": "Full day\nDay\nNight\nDay and night",
+   "description": "Full day: 06:00 to 06:00. Day: 06:00 to 18:00 (send at 18:00 or later). Night: 18:00 to 06:00 (send at 06:00 or later). Day and night: both, as two reports a day - the day report at Send At, the night report at Night Report At."
+  },
+  {
+   "default": "06:00:00",
+   "depends_on": "eval:doc.frequency=='Daily' && doc.covers=='Day and night'",
+   "fieldname": "night_send_at",
+   "fieldtype": "Time",
+   "label": "Night Report At",
+   "description": "When the night report (18:00 to 06:00) goes out - 06:00 or later."
+  },
+  {
+   "default": "0",
+   "fieldname": "include_exceptions",
+   "fieldtype": "Check",
+   "label": "Outsourced guard exceptions",
+   "description": "Outsourced guards who did not clock in, came late or left early, per farm. Tick only this for the daily exceptions report, sent an hour or two after the night shift ends."
+  },
+  {
+   "default": "1",
+   "fieldname": "include_visitors",
+   "fieldtype": "Check",
+   "label": "Visitors"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_contractors",
+   "fieldtype": "Check",
+   "label": "Contractors"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_staff",
+   "fieldtype": "Check",
+   "label": "Staff movements"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_vehicles",
+   "fieldtype": "Check",
+   "label": "Vehicles"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_shifts",
+   "fieldtype": "Check",
+   "label": "Shift attendance"
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "other_records_section",
+   "fieldtype": "Section Break",
+   "label": "Other records"
+  },
+  {
+   "fieldname": "choose_doctypes",
+   "fieldtype": "Button",
+   "label": "Choose records to include"
+  },
+  {
+   "fieldname": "doctypes",
+   "fieldtype": "Small Text",
+   "label": "Records included",
+   "description": "Each doctype listed here gets its own section: its records created in the report's period, for this row's company or farm. Pick them with Choose records to include."
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-11 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Security Report Subscription",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

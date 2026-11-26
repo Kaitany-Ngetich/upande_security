@@ -64,7 +64,6 @@
   },
   {
    "default": "Patrol",
-   "description": "On Duty: position sent while the guard is logged in but not patrolling. Not counted as patrol work.",
    "fieldname": "tracking_mode",
    "fieldtype": "Select",
    "in_standard_filter": 1,
@@ -101,7 +100,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-20 12:00:00.000000",
+ "modified": "2026-11-03 07:52:06.854886",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Patrol GPS Log",

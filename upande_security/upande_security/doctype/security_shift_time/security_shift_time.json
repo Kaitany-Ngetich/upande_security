@@ -1,0 +1,62 @@
+{
+ "actions": [],
+ "creation": "2026-11-02 12:00:00.000000",
+ "description": "Times of one shift type (Security Ops Settings). Farms blank = every farm; with farms picked, the row applies to those farms only.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "shift_type",
+  "start_time",
+  "end_time",
+  "farms",
+  "select_farms"
+ ],
+ "fields": [
+  {
+   "fieldname": "shift_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Shift",
+   "options": "Day\nNight\nFirst\nSecond\nThird",
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Starts",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Ends",
+   "reqd": 1
+  },
+  {
+   "description": "Leave blank for every farm. Pick farms to give them their own times for this shift - a picked farm uses this row instead of the blank one.",
+   "fieldname": "farms",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Farms",
+   "read_only": 1
+  },
+  {
+   "fieldname": "select_farms",
+   "fieldtype": "Button",
+   "label": "Select Farms"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-16 21:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Security",
+ "name": "Security Shift Time",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

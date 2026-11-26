@@ -139,9 +139,11 @@ def record_exit_extras(reference_doctype, reference_name, party, extra_items):
 	bought from the company, a return, a gate pass. Each needs proof: a
 	document number (scanned or typed) or a photo of it. A number that is a
 	Delivery Note or Sales Invoice here must be a submitted one. Recorded as
-	Registered Personal Items "Left with document" on the gate record.
-	Returns the item names recorded."""
+	Registered Personal Items "Left with document" on the gate record, and
+	goods leaving on a Delivery Note also get a Dispatch Check (see
+	_dispatch_checks_for_exit). Returns the item names recorded."""
 	recorded = []
+	by_delivery_note = {}
 	now = frappe.utils.now_datetime()
 	for it in _as_list(extra_items) or []:
 		item = _clean(it.get("item"))
@@ -184,7 +186,50 @@ def record_exit_extras(reference_doctype, reference_name, party, extra_items):
 		)
 		row.insert(ignore_permissions=True)
 		recorded.append(item)
+		if doc_ref and frappe.db.exists("Delivery Note", doc_ref):
+			by_delivery_note.setdefault(doc_ref, []).append(row)
+	_dispatch_checks_for_exit(by_delivery_note, reference_doctype, reference_name, party)
 	return recorded
+
+
+def _dispatch_checks_for_exit(by_delivery_note, reference_doctype, reference_name, party):
+	"""Goods walking out on a Delivery Note are a dispatch like any truck's,
+	so each note also gets a Gate Dispatch Verification (Dispatch Checks) -
+	the same record a guard makes at the truck gate, built by the same code
+	from the note itself, with the person carrying the goods as the driver.
+
+	One check per note, however many items it covered. A note already
+	verified at the truck gate is left alone (_verify_dispatch_one refuses a
+	second Verified record). Never stops the person leaving: if the check
+	cannot be made - Gate Dispatch off, Delivery Note not a configured
+	Dispatch Source - the Registered Personal Items still stand and the
+	reason is logged."""
+	if not by_delivery_note or not is_feature_enabled("feature_gate_dispatch"):
+		return
+	from upande_security.api.gate_dispatch import _verify_dispatch_one
+
+	vehicle = None
+	if reference_doctype == "Appointment" and frappe.get_meta("Appointment").has_field("custom_vehicles_number_plate"):
+		vehicle = frappe.db.get_value("Appointment", reference_name, "custom_vehicles_number_plate")
+
+	who = party.get("carried_by") or ""
+	for note, rows in by_delivery_note.items():
+		declared = ", ".join("{0} x{1}".format(r.item, r.qty) for r in rows)
+		remarks = "Carried out at the gate by {0} ({1}, {2} {3}). Declared: {4}. {5}: {6}.".format(
+			who or "unknown", party.get("party_type") or "", reference_doctype, reference_name,
+			declared, ITEM_DOCTYPE, ", ".join(r.name for r in rows),
+		)
+		try:
+			frappe.db.savepoint("exit_dispatch_check")
+			result = _verify_dispatch_one(
+				note, "Verified", remarks=remarks, vehicle_no=vehicle, driver_name=who, commit=False,
+				farm=party.get("farm"),
+			)
+			if result.get("error") and "already verified" not in result["error"]:
+				frappe.log_error("Exit dispatch check for " + note, result["error"])
+		except Exception:
+			frappe.db.rollback(save_point="exit_dispatch_check")
+			frappe.log_error("Exit dispatch check for " + note, frappe.get_traceback())
 
 
 def _visit_party(appt):

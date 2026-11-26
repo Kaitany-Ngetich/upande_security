@@ -1,0 +1,371 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-11-21 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "plate",
+  "plate_normalized",
+  "status",
+  "farm",
+  "company",
+  "cb1",
+  "party_type",
+  "party_name",
+  "source",
+  "reference_doctype",
+  "reference_name",
+  "appointment",
+  "host",
+  "sb_vehicle",
+  "vehicle_class",
+  "colour",
+  "cb_v",
+  "expected_arrival",
+  "expected_exit",
+  "sb_entry",
+  "entry_time",
+  "entry_camera",
+  "entry_gate",
+  "entry_snapshot",
+  "cb2",
+  "exit_time",
+  "exit_camera",
+  "exit_gate",
+  "exit_snapshot",
+  "sb_now",
+  "total_minutes",
+  "last_seen_time",
+  "last_seen_camera",
+  "last_seen_zone",
+  "cb3",
+  "guard_confirmed",
+  "confirmed_by",
+  "closed_by",
+  "flags_text",
+  "notes"
+ ],
+ "fields": [
+  {
+   "default": "VV-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "VV-.YYYY.-.#####"
+  },
+  {
+   "fieldname": "plate",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Plate",
+   "reqd": 1
+  },
+  {
+   "fieldname": "plate_normalized",
+   "fieldtype": "Data",
+   "label": "Plate Normalized",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "default": "On Premises",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Expected\nOn Premises\nDeparted\nOverstayed\nExit Not Recorded\nClosed Manually\nCancelled"
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Site",
+   "options": "Farm"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "party_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Party Type",
+   "options": "Visitor\nCustomer\nContractor\nSupplier\nFleet\nStaff\nUnknown"
+  },
+  {
+   "fieldname": "party_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Party Name"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "Appointment\nGate Receiving Verification\nGate Dispatch Verification\nGate Vehicle Verification\nStaff Vehicle Sticker\nCCTV Known Vehicle\nUnregistered"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference Doctype",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Name",
+   "options": "reference_doctype",
+   "read_only": 1
+  },
+  {
+   "fieldname": "appointment",
+   "fieldtype": "Link",
+   "label": "Appointment",
+   "options": "Appointment"
+  },
+  {
+   "fieldname": "host",
+   "fieldtype": "Link",
+   "label": "Host",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "sb_vehicle",
+   "fieldtype": "Section Break",
+   "label": "Vehicle"
+  },
+  {
+   "fieldname": "vehicle_class",
+   "fieldtype": "Select",
+   "label": "Vehicle Class",
+   "options": "\nCar\nMotorcycle\nTruck\nBus\nTrailer\nOther"
+  },
+  {
+   "fieldname": "colour",
+   "fieldtype": "Data",
+   "label": "Colour"
+  },
+  {
+   "fieldname": "cb_v",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "expected_arrival",
+   "fieldtype": "Datetime",
+   "label": "Expected Arrival"
+  },
+  {
+   "fieldname": "expected_exit",
+   "fieldtype": "Datetime",
+   "label": "Expected Exit"
+  },
+  {
+   "fieldname": "sb_entry",
+   "fieldtype": "Section Break",
+   "label": "Entry"
+  },
+  {
+   "fieldname": "entry_time",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Entry Time"
+  },
+  {
+   "fieldname": "entry_camera",
+   "fieldtype": "Link",
+   "label": "Entry Camera",
+   "options": "CCTV Camera"
+  },
+  {
+   "fieldname": "entry_gate",
+   "fieldtype": "Data",
+   "label": "Entry Gate"
+  },
+  {
+   "fieldname": "entry_snapshot",
+   "fieldtype": "Attach Image",
+   "label": "Entry Snapshot"
+  },
+  {
+   "fieldname": "cb2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "exit_time",
+   "fieldtype": "Datetime",
+   "label": "Exit Time"
+  },
+  {
+   "fieldname": "exit_camera",
+   "fieldtype": "Link",
+   "label": "Exit Camera",
+   "options": "CCTV Camera"
+  },
+  {
+   "fieldname": "exit_gate",
+   "fieldtype": "Data",
+   "label": "Exit Gate"
+  },
+  {
+   "fieldname": "exit_snapshot",
+   "fieldtype": "Attach Image",
+   "label": "Exit Snapshot"
+  },
+  {
+   "fieldname": "sb_now",
+   "fieldtype": "Section Break",
+   "label": "On Site"
+  },
+  {
+   "fieldname": "total_minutes",
+   "fieldtype": "Int",
+   "label": "Total Minutes",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_seen_time",
+   "fieldtype": "Datetime",
+   "label": "Last Seen Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_seen_camera",
+   "fieldtype": "Link",
+   "label": "Last Seen Camera",
+   "options": "CCTV Camera",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_seen_zone",
+   "fieldtype": "Link",
+   "label": "Last Seen Zone",
+   "options": "Security Zone",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "guard_confirmed",
+   "fieldtype": "Check",
+   "label": "Guard Confirmed"
+  },
+  {
+   "fieldname": "confirmed_by",
+   "fieldtype": "Link",
+   "label": "Confirmed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "closed_by",
+   "fieldtype": "Select",
+   "label": "Closed By",
+   "options": "\nCamera\nGuard\nSystem"
+  },
+  {
+   "fieldname": "flags_text",
+   "fieldtype": "Small Text",
+   "label": "Flags",
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-21 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CCTV",
+ "name": "CCTV Vehicle Visit",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "CCTV Operator",
+   "share": 0,
+   "write": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Gate Guard",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "entry_time",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "plate",
+ "track_changes": 1
+}

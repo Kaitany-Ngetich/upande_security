@@ -1,0 +1,239 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-11-21 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "event_id",
+  "event_type",
+  "event_time",
+  "event_time_utc",
+  "received_at",
+  "cb1",
+  "camera",
+  "farm",
+  "agent",
+  "provider",
+  "model_version",
+  "sb_data",
+  "confidence",
+  "direction",
+  "plate_normalized",
+  "cb2",
+  "snapshot",
+  "payload",
+  "sb_proc",
+  "processed",
+  "processing_error"
+ ],
+ "fields": [
+  {
+   "fieldname": "event_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Event ID",
+   "read_only": 1,
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "event_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Event Type",
+   "options": "plate_read\nvehicle_detected\nperson_detected\nface_match\nface_unknown\nline_crossing\nzone_intrusion\ndoor_state\naccess_event\nmotion\ntamper\nvideo_loss\nrecording_gap\ncamera_status\nother",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "description": "Site local time, after clock-offset correction.",
+   "fieldname": "event_time",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Event Time",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "event_time_utc",
+   "fieldtype": "Data",
+   "label": "Event Time UTC",
+   "read_only": 1
+  },
+  {
+   "fieldname": "received_at",
+   "fieldtype": "Datetime",
+   "label": "Received At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "camera",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Camera",
+   "options": "CCTV Camera",
+   "read_only": 1
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Site",
+   "options": "Farm",
+   "read_only": 1
+  },
+  {
+   "fieldname": "agent",
+   "fieldtype": "Link",
+   "label": "Agent",
+   "options": "CCTV Site Agent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "provider",
+   "fieldtype": "Select",
+   "label": "Provider",
+   "options": "camera_native\nown_engine\nthird_party\nagent\nsimulator",
+   "read_only": 1
+  },
+  {
+   "fieldname": "model_version",
+   "fieldtype": "Data",
+   "label": "Model Version",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_data",
+   "fieldtype": "Section Break",
+   "label": "Data"
+  },
+  {
+   "fieldname": "confidence",
+   "fieldtype": "Percent",
+   "label": "Confidence",
+   "read_only": 1
+  },
+  {
+   "fieldname": "direction",
+   "fieldtype": "Select",
+   "label": "Direction",
+   "options": "\nin\nout\nunknown",
+   "read_only": 1
+  },
+  {
+   "fieldname": "plate_normalized",
+   "fieldtype": "Data",
+   "label": "Plate Normalized",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "cb2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "snapshot",
+   "fieldtype": "Attach Image",
+   "label": "Snapshot",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payload",
+   "fieldtype": "JSON",
+   "label": "Payload",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_proc",
+   "fieldtype": "Section Break",
+   "label": "Processing"
+  },
+  {
+   "fieldname": "processed",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "Processed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "processing_error",
+   "fieldtype": "Small Text",
+   "label": "Processing Error",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-21 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CCTV",
+ "name": "CCTV Event",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Head",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Security Manager",
+   "share": 0,
+   "write": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "CCTV Operator",
+   "share": 0,
+   "write": 0
+  }
+ ],
+ "sort_field": "event_time",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
