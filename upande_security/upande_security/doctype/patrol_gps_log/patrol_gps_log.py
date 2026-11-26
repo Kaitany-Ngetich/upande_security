@@ -1,12 +1,39 @@
 # Copyright (c) 2026, dev@upande.com and contributors
 # For license information, please see license.txt
 
+import time
+
 import frappe
 from frappe.model.document import Document
 
+CLEAR_BATCH = 5000
+CLEAR_BUDGET_SEC = 60
+
 
 class PatrolGPSLog(Document):
-	pass
+	@staticmethod
+	def clear_old_logs(days=90):
+		"""Lets Log Settings list Patrol GPS Log (~200,000 points a day). Log Settings clears every log in one
+		daily job that the default queue stops after a few minutes, so this deletes oldest-first in small
+		committed batches and stops at its time budget: a backlog shrinks over a few nights instead of
+		outliving the job and rolling back."""
+		cutoff = frappe.utils.add_days(frappe.utils.now_datetime(), -int(days))
+		stop = time.monotonic() + CLEAR_BUDGET_SEC
+		cleared = 0
+		while time.monotonic() < stop:
+			names = frappe.get_all(
+				"Patrol GPS Log",
+				filters={"creation": ("<", cutoff)},
+				order_by="creation asc",
+				limit=CLEAR_BATCH,
+				pluck="name",
+			)
+			if not names:
+				break
+			frappe.db.delete("Patrol GPS Log", {"name": ("in", names)})
+			frappe.db.commit()  # nosemgrep: frappe-manual-commit -- each batch stands alone, so a stopped job keeps what it cleared
+			cleared += len(names)
+		return cleared
 
 
 def on_doctype_update():
