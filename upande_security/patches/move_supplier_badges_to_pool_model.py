@@ -22,7 +22,8 @@ would leave it:
 
 Written with db.set_value, so no validate hook or QR regeneration runs.
 
-Idempotent: only touches badges still at "Active".
+Idempotent: only touches badges still at "Active". A site whose Supplier
+Badge table never had the holder columns treats every badge as not held.
 """
 
 import frappe
@@ -32,18 +33,25 @@ def execute():
 	if not frappe.db.table_exists("Supplier Badge"):
 		return
 
+	columns = set(frappe.db.get_table_columns("Supplier Badge"))
+	if "status" not in columns:
+		return
+	holders = [field for field in ("current_appointment", "current_receiving") if field in columns]
+
 	for badge in frappe.get_all(
 		"Supplier Badge",
 		filters={"status": "Active"},
-		fields=["name", "current_appointment", "current_receiving"],
+		fields=["name", *holders],
 	):
-		if badge.current_appointment or badge.current_receiving:
+		if any(badge.get(field) for field in holders):
 			frappe.db.set_value("Supplier Badge", badge.name, "status", "Issued", update_modified=False)
 		else:
 			frappe.db.set_value(
 				"Supplier Badge",
 				badge.name,
-				{"status": "Available", "supplier": None},
+				{"status": "Available", "supplier": None}
+				if "supplier" in columns
+				else {"status": "Available"},
 				update_modified=False,
 			)
 
