@@ -58,6 +58,8 @@ bench get-app "https://github.com/${frappeuser}/erpnext" --branch "$erpnextbranc
 bench get-app "https://github.com/${frappeuser}/hrms" --branch "$hrmsbranch"
 # The app ships a WhatsApp Notification fixture, so frappe_whatsapp must be on the site.
 bench get-app "https://github.com/shridarpatil/frappe_whatsapp" --branch "${WHATSAPP_BRANCH:-master}"
+# hooks.py requires upande_core, so it must be on the bench before install-app.
+bench get-app "https://github.com/upandeltd/Upande-Core" --branch "${UPANDE_CORE_BRANCH:-main}"
 bench get-app upande_security "${GITHUB_WORKSPACE}"
 bench setup requirements --dev
 
