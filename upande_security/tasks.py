@@ -221,20 +221,22 @@ def _farm_boundary_ring(farm):
 	return None
 
 
-def _recent_alert_exists(shift_name, alert_kind):
+def _recent_alert_exists(shift_name, alert_kind, within_minutes=55):
 	"""One alert per shift per kind per hour — this task runs every 15
 	minutes (see hooks.py), and a guard who's genuinely out of zone or
-	unreachable should keep getting flagged, just not four times an hour."""
-	cutoff = frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-55)
-	return frappe.db.exists(
-		"Notification Log",
-		{
-			"document_type": "Security Guard Shift Assignment",
-			"document_name": shift_name,
-			"subject": ["like", alert_kind + ":%"],
-			"creation": [">=", cutoff],
-		},
-	)
+	unreachable should keep getting flagged, just not four times an hour.
+	`within_minutes=None`: once per shift, ever (a missed checkpoint)."""
+	filters = {
+		"document_type": "Security Guard Shift Assignment",
+		"document_name": shift_name,
+		"subject": ["like", alert_kind + ":%"],
+	}
+	if within_minutes:
+		filters["creation"] = [
+			">=",
+			frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-within_minutes),
+		]
+	return frappe.db.exists("Notification Log", filters)
 
 
 def _resolve_security_head_phone(company, farm):
@@ -653,7 +655,9 @@ def check_unscanned_checkpoints():
 				continue
 
 			alert_kind = "Unscanned checkpoint: " + checkpoint.checkpoint_name
-			if _recent_alert_exists(shift.name, alert_kind):
+			# once per shift per checkpoint: re-sent every hour to every recipient, one open shift with seven
+			# checkpoints made 308 notifications an hour (6.6 million on live by 25 Nov)
+			if _recent_alert_exists(shift.name, alert_kind, within_minutes=None):
 				continue
 
 			_notify_security_ops(
@@ -673,21 +677,17 @@ def check_unscanned_checkpoints():
 
 
 def _recent_vehicle_alert_exists(leg_name):
-	"""One overdue alert per open LEG per hour — this task runs every 15
-	minutes (see hooks.py), and a vehicle still not back should keep
-	getting flagged, just not four times an hour. Keyed on the Gate
-	Vehicle Verification leg's own name, not the vehicle task reference -
-	a vehicle can only have one truly open leg at a time in the normal
-	case, but keying this way keeps each leg's alert history independent
-	regardless. Mirrors _recent_alert_exists's own dedup window exactly."""
-	cutoff = frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-55)
+	"""One overdue alert per open LEG, once: re-sent every hour to every
+	recipient for as long as a leg stayed open, 128 legs made 1.19 million
+	notifications on live. Keyed on the Gate Vehicle Verification leg's own
+	name, not the vehicle task reference, so each leg's alert stands on its
+	own."""
 	return frappe.db.exists(
 		"Notification Log",
 		{
 			"document_type": "Gate Vehicle Verification",
 			"document_name": leg_name,
 			"subject": ["like", "Vehicle overdue:%"],
-			"creation": [">=", cutoff],
 		},
 	)
 
