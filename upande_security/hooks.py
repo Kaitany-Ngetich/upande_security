@@ -246,17 +246,6 @@ doc_events = {
 			"upande_security.cctv.vehicles.on_appointment_update",
 		],
 	},
-	# Auto-provision the Company/Farm User Permission rows the hierarchical
-	# access scoping (Patrol Report, Patrol GPS Log,
-	# Incident Report, Security Asset, Visitor Badge, Attendance, ...)
-	# depends on to actually restrict a Security Head/guard to their own
-	# company/farm instead of being silently unrestricted.
-	"Employee": {
-		"validate": "upande_security.api.user_permission_sync.sync_from_employee",
-	},
-	"Security Guard": {
-		"validate": "upande_security.api.user_permission_sync.sync_from_security_guard",
-	},
 	# Stamp Farm onto doctypes that otherwise carry no link back to a
 	# company/farm, so a Security Head's DocPerm row on them can actually
 	# be scoped by the standard Frappe Link + User Permission engine.

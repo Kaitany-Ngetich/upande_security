@@ -7,9 +7,8 @@ Guards live in one of two doctypes: internal guards are Employee records
 (linked to a User via user_id), external guards are Security Guard records
 (linked via their own `user` field). This mirrors the Employee-then-
 Security-Guard fallback used elsewhere in this app (submit_patrol_points,
-get_security_head_contact) — kept in one place here so the access-scoping
-User Permission sync (user_permission_sync.py) and the farm-stamping
-doc_events (scoping.py) don't each reinvent it.
+get_security_head_contact) — kept in one place here so the farm-stamping
+doc_events (scoping.py) and others don't each reinvent it.
 """
 
 import frappe
