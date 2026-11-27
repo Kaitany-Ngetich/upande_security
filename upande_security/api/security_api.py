@@ -3413,8 +3413,13 @@ def list_supplier_badges(status=None, company=None, limit=None):
 
 
 @frappe.whitelist()
-def issue_visitor_badge(name=None, badge_number=None):
+def issue_visitor_badge(name=None, badge_number=None, reference=None):
 	"""Link a pre-printed physical Visitor Badge to an Appointment.
+
+	`reference` is the badge QR as scanned (/visitor-received?company=&farm=
+	&badge=<n>). Every farm numbers its badges 1, 2, 3..., so the QR - not
+	the guard's record - says which farm's badge this is: Karen 5 and
+	Kapkolia 5 are different cards. A bare typed number uses the guard's pool.
 
 	The badge's QR is fixed (company + farm + badge number); issuing is only a
 	server-side pointer (current_appointment), never a per-visit code.
@@ -3460,13 +3465,22 @@ def issue_visitor_badge(name=None, badge_number=None):
 		current_user = frappe.session.user
 		company = ""
 		farm = ""
-		employee = frappe.db.get_value(
-			"Employee", {"user_id": current_user}, ["company", "custom_farm"], as_dict=True
+		scanned = None
+		if reference and not str(reference).strip().isdigit():
+			from upande_security.api.visitor_route import _badge_name
+
+			scanned = _badge_name(reference)
+		if scanned:
+			company, farm, badge_number = frappe.db.get_value(
+				"Gate Badge", scanned, ["company", "farm", "badge_number"]
+			)
+		employee = None if scanned else frappe.db.get_value(
+			"Employee", {"user_id": current_user, "status": "Active"}, ["company", "custom_farm"], as_dict=True
 		)
 		if employee:
 			company = employee.company or ""
 			farm = employee.custom_farm or ""
-		else:
+		elif not scanned:
 			user_full = frappe.db.get_value("User", current_user, "full_name") or ""
 			if user_full:
 				guard = frappe.db.get_value(
