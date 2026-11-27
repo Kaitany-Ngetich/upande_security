@@ -526,7 +526,7 @@ def check_unscanned_checkpoints():
 	checkpoints_by_farm = {}
 	for cp in frappe.get_all(
 		"Security Checkpoint",
-		filters={"farm": ["in", farms], "active": 1},
+		filters={"farm": ["in", farms], "active": 1, "checkpoint_type": ["!=", "Pipeline"]},
 		fields=["name", "checkpoint_name", "farm", "latitude", "longitude", "radius_m"],
 	):
 		checkpoints_by_farm.setdefault(cp.farm, []).append(cp)

@@ -2307,7 +2307,7 @@ def _map_checkpoints(farm, selected_date):
     if not frappe.has_permission("Security Checkpoint", ptype="read"):
         return []
 
-    filters = {"active": 1, "latitude": ["!=", 0], "longitude": ["!=", 0]}
+    filters = {"active": 1, "latitude": ["!=", 0], "longitude": ["!=", 0], "checkpoint_type": ["!=", "Pipeline"]}
     if farm:
         filters["farm"] = farm
     checkpoints = frappe.get_all(

@@ -51,11 +51,12 @@ FEATURE_FIELDS = [
 	"feature_passenger_names",
 	"feature_carried_items",
 	"feature_cctv",
+	"feature_pipeline_trace",
 ]
 
 # Flags that are OFF until someone switches them on. Every other flag counts as
 # on while unset (sites that predate a flag keep the behaviour they had).
-DEFAULT_OFF = {"feature_cctv"}
+DEFAULT_OFF = {"feature_cctv", "feature_pipeline_trace"}
 
 
 def get_enabled_features():

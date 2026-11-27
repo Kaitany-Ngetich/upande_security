@@ -1134,7 +1134,8 @@ def checkpoint_board(from_date=None, to_date=None, company=None, farm=None, resu
 	today = frappe.utils.nowdate()
 	from_date = str(frappe.utils.getdate(from_date or frappe.utils.add_days(today, -6)))
 	to_date = str(frappe.utils.getdate(to_date or today))
-	cp_filters = []
+	# Patrol checkpoints only - pipeline points are traced, not patrolled.
+	cp_filters = [["checkpoint_type", "!=", "Pipeline"]]
 	if farm:
 		cp_filters.append(["farm", "=", farm])
 	elif company:

@@ -5,11 +5,18 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "scan_type",
   "asset",
   "asset_name",
   "status",
   "scanned_at",
   "asset_status",
+  "checkpoint",
+  "checkpoint_name",
+  "pipeline",
+  "pipeline_sequence",
+  "condition",
+  "distance_m",
   "col_br_1",
   "scanned_by",
   "personel",
@@ -22,18 +29,29 @@
   "longitude",
   "gps_accuracy",
   "col_br_2",
-  "remarks"
+  "remarks",
+  "photo"
  ],
  "fields": [
+  {
+   "default": "Asset",
+   "fieldname": "scan_type",
+   "fieldtype": "Select",
+   "label": "Scan Type",
+   "options": "Asset\nPipeline",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
   {
    "fieldname": "asset",
    "fieldtype": "Link",
    "label": "Asset",
    "options": "Asset",
-   "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "search_index": 1
+   "search_index": 1,
+   "mandatory_depends_on": "eval:doc.scan_type!='Pipeline'",
+   "depends_on": "eval:doc.scan_type!='Pipeline'"
   },
   {
    "fieldname": "asset_name",
@@ -63,6 +81,55 @@
    "fieldname": "asset_status",
    "fieldtype": "Data",
    "label": "Asset Status at Scan",
+   "read_only": 1,
+   "depends_on": "eval:doc.scan_type!='Pipeline'"
+  },
+  {
+   "depends_on": "eval:doc.scan_type=='Pipeline'",
+   "fieldname": "checkpoint",
+   "fieldtype": "Link",
+   "label": "Pipeline Point",
+   "options": "Security Checkpoint",
+   "search_index": 1
+  },
+  {
+   "depends_on": "eval:doc.scan_type=='Pipeline'",
+   "fetch_from": "checkpoint.checkpoint_name",
+   "fieldname": "checkpoint_name",
+   "fieldtype": "Data",
+   "label": "Point Name",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.scan_type=='Pipeline'",
+   "fieldname": "pipeline",
+   "fieldtype": "Data",
+   "label": "Pipeline",
+   "in_standard_filter": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "depends_on": "eval:doc.scan_type=='Pipeline'",
+   "fieldname": "pipeline_sequence",
+   "fieldtype": "Int",
+   "label": "Order Along Pipeline",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.scan_type=='Pipeline'",
+   "fieldname": "condition",
+   "fieldtype": "Select",
+   "label": "Condition",
+   "options": "\nOK\nLeak\nDamaged\nValve Issue\nBlocked\nOther",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "depends_on": "eval:doc.scan_type=='Pipeline'",
+   "fieldname": "distance_m",
+   "fieldtype": "Float",
+   "label": "Distance From Point (m)",
    "read_only": 1
   },
   {
@@ -139,10 +206,15 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks"
+  },
+  {
+   "fieldname": "photo",
+   "fieldtype": "Attach Image",
+   "label": "Photo"
   }
  ],
  "links": [],
- "modified": "2026-10-13 16:00:00.000000",
+ "modified": "2026-11-27 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Asset Scan Log",

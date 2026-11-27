@@ -27,7 +27,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Attempt Type",
-   "options": "Gate Dispatch Rejected\nGate Receiving Rejected\nGate Vehicle Rejected\nInvalid Badge Scan\nInvalid Asset Scan\nOff-Shift Account Use\nContractor Badge Refused\nDelivery Without Receipt\nRestricted Zone Entry\nInvalid Checkpoint Scan",
+   "options": "Gate Dispatch Rejected\nGate Receiving Rejected\nGate Vehicle Rejected\nInvalid Badge Scan\nInvalid Asset Scan\nOff-Shift Account Use\nContractor Badge Refused\nDelivery Without Receipt\nRestricted Zone Entry\nInvalid Checkpoint Scan\nInvalid Pipeline Scan",
    "reqd": 1
   },
   {
@@ -114,7 +114,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-11-03 07:52:06.854886",
+ "modified": "2026-11-27 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Unauthorized Access Attempt",

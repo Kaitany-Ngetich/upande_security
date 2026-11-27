@@ -6,6 +6,9 @@
  "engine": "InnoDB",
  "field_order": [
   "checkpoint_name",
+  "checkpoint_type",
+  "pipeline",
+  "pipeline_sequence",
   "location_hint",
   "column_break_1",
   "company",
@@ -31,6 +34,33 @@
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1
+  },
+  {
+   "default": "Patrol",
+   "fieldname": "checkpoint_type",
+   "fieldtype": "Select",
+   "label": "Checkpoint Type",
+   "options": "Patrol\nPipeline",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Patrol: part of guard patrols. Pipeline: a point on a water pipeline, scanned from Pipeline Trace in the app and logged as an Asset Scan - never part of a patrol."
+  },
+  {
+   "depends_on": "eval:doc.checkpoint_type=='Pipeline'",
+   "mandatory_depends_on": "eval:doc.checkpoint_type=='Pipeline'",
+   "fieldname": "pipeline",
+   "fieldtype": "Data",
+   "label": "Pipeline",
+   "in_standard_filter": 1,
+   "search_index": 1,
+   "description": "Name of the line this point is on, e.g. Kapkolia Dam Main. Points with the same name form one pipeline."
+  },
+  {
+   "depends_on": "eval:doc.checkpoint_type=='Pipeline'",
+   "fieldname": "pipeline_sequence",
+   "fieldtype": "Int",
+   "label": "Order Along Pipeline",
+   "description": "1 at the source, then upwards along the line."
   },
   {
    "fieldname": "location_hint",
@@ -133,7 +163,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-26 17:00:00.000000",
+ "modified": "2026-11-27 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Checkpoint",

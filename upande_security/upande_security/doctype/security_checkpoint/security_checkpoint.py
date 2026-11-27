@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
 
 
@@ -19,6 +20,13 @@ class SecurityCheckpoint(Document):
 		# company would otherwise be labelled and alerted under the wrong one.
 		if self.farm:
 			self.company = frappe.db.get_value("Farm", self.farm, "company") or self.company
+		if self.checkpoint_type == "Pipeline":
+			self.pipeline = (self.pipeline or "").strip()
+			if not self.pipeline:
+				frappe.throw(_("Name the pipeline this point is on."), frappe.MandatoryError)
+		else:
+			self.pipeline = None
+			self.pipeline_sequence = None
 
 	def after_insert(self):
 		self.make_qr()

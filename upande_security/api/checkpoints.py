@@ -135,7 +135,8 @@ def patrol_plan(patrol, personel, internal_guard, external_guard):
 	# Only checkpoints a guard can actually scan: active, with a position set.
 	# One still waiting for its position would otherwise show as missed on
 	# every patrol until someone stood at it with the app.
-	scannable = {"active": 1, "latitude": ["!=", 0], "longitude": ["!=", 0]}
+	# Pipeline points are traced from their own screen, never patrolled.
+	scannable = {"active": 1, "latitude": ["!=", 0], "longitude": ["!=", 0], "checkpoint_type": ["!=", "Pipeline"]}
 
 	if route:
 		doc = frappe.get_doc("Patrol Route", route)
@@ -293,9 +294,13 @@ def scan_checkpoint(code=None, latitude=None, longitude=None, accuracy=None, moc
 		checkpoint = frappe.db.get_value(
 			CHECKPOINT,
 			name,
-			["name", "checkpoint_name", "farm", "company", "latitude", "longitude", "radius_m", "active"],
+			["name", "checkpoint_name", "farm", "company", "latitude", "longitude", "radius_m", "active", "checkpoint_type"],
 			as_dict=True,
 		) if name else None
+
+		if checkpoint and checkpoint.checkpoint_type == "Pipeline":
+			return {"accepted": False, "result": "Pipeline Point", "checkpoint_name": checkpoint.checkpoint_name,
+					"message": checkpoint.checkpoint_name + " is a pipeline point, not a patrol checkpoint. Scan it from Pipeline Trace."}
 
 		def refuse(result, message, **extra):
 			_log(result, checkpoint, *gps, **extra)
@@ -378,7 +383,7 @@ def list_checkpoints_for_setup(farm=None):
 			CHECKPOINT,
 			filters=filters,
 			fields=["name", "checkpoint_name", "farm", "location_hint", "latitude", "longitude",
-					"position_accuracy_m", "position_set_at", "radius_m"],
+					"position_accuracy_m", "position_set_at", "radius_m", "checkpoint_type", "pipeline"],
 			order_by="farm asc, checkpoint_name asc",
 			limit_page_length=1000,
 		)
@@ -393,6 +398,8 @@ def list_checkpoints_for_setup(farm=None):
 					"position_accuracy_m": r.position_accuracy_m,
 					"position_set_at": str(r.position_set_at) if r.position_set_at else None,
 					"radius_m": r.radius_m,
+					"checkpoint_type": r.checkpoint_type or "Patrol",
+					"pipeline": r.pipeline,
 				}
 				for r in rows
 			]
@@ -421,7 +428,7 @@ def set_checkpoint_position(code=None, readings=None, mocked=0):
 			return {"error": "Your phone is using a fake location - a position cannot be set from it."}
 		name = _checkpoint_name_from_scan(code)
 		if not name or not frappe.db.exists(CHECKPOINT, name):
-			return {"error": "This QR code is not a patrol checkpoint."}
+			return {"error": "This QR code is not a checkpoint."}
 
 		parsed = frappe.parse_json(readings) if isinstance(readings, str) else (readings or [])
 		usable = []

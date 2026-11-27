@@ -17,7 +17,11 @@ class PatrolRoute(Document):
 			if row.checkpoint in seen:
 				frappe.throw(_("Checkpoint {0} is listed twice.").format(row.checkpoint))
 			seen.add(row.checkpoint)
-			farm = frappe.db.get_value("Security Checkpoint", row.checkpoint, "farm")
+			farm, kind = frappe.db.get_value("Security Checkpoint", row.checkpoint, ["farm", "checkpoint_type"]) or (None, None)
+			if kind == "Pipeline":
+				frappe.throw(
+					_("{0} is a pipeline point - it is traced from Pipeline Trace, not patrolled.").format(row.checkpoint_name or row.checkpoint)
+				)
 			if farm and farm != self.farm:
 				frappe.throw(
 					_("Checkpoint {0} is on {1}, not {2}.").format(row.checkpoint_name or row.checkpoint, farm, self.farm)

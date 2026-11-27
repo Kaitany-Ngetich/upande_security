@@ -42,6 +42,7 @@
   "feature_gate_temp_exit",
   "feature_host_receipt_confirmation",
   "feature_cctv",
+  "feature_pipeline_trace",
   "staff_gate_mode_section",
   "staff_gate_modes",
   "feature_carried_items",
@@ -366,6 +367,13 @@
    "fieldname": "feature_cctv",
    "fieldtype": "Check",
    "label": "CCTV Integration (cameras, alerts, plate recognition)",
+   "permlevel": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "feature_pipeline_trace",
+   "fieldtype": "Check",
+   "label": "Pipeline Trace (scan pipeline checkpoints into Asset Scans)",
    "permlevel": 1
   },
   {
@@ -790,7 +798,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-22 09:30:00.000000",
+ "modified": "2026-11-27 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",
