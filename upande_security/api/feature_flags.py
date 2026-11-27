@@ -96,3 +96,12 @@ def require_feature(name, message=None):
 			message or frappe._("This feature is not enabled on this instance."),
 			frappe.PermissionError,
 		)
+
+
+@frappe.whitelist()
+def workspace_features():
+	"""The feature flags, for Desk pages that show or hide whole features -
+	the Security workspace's navigation block hides its CCTV section unless
+	feature_cctv is on. Read fresh on every call, so a switch in Security Ops
+	Settings shows on the next page load."""
+	return get_enabled_features()
