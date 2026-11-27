@@ -1524,7 +1524,7 @@ _META_KEYS = ("fieldname", "fieldtype", "label", "options", "description", "defa
 
 # The Words Used section talks about the words themselves: never relabel it.
 _TERMS_FIELDS = {"terminology_section", "use_custom_words", "site_label", "site_label_plural",
-	"terminology_column", "area_label", "area_label_plural"}
+	"terminology_col", "area_label", "area_label_plural"}
 
 
 def _field_meta(df, terms):

@@ -4,308 +4,142 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "feature_flags_section",
-  "feature_visitor_approval_workflow",
-  "feature_column_break_1",
-  "feature_contractor_checkin",
-  "feature_contractor_badges",
-  "feature_flags_section_2",
-  "feature_sos_alert",
-  "feature_patrol_geofence_alerts",
-  "feature_on_duty_tracking",
-  "feature_patrol_coverage_grid",
-  "feature_patrol_boundary_filter",
-  "feature_patrol_playback",
-  "feature_checkpoint_scanning",
-  "feature_security_alerts",
-  "feature_column_break_2",
-  "feature_watchlist",
-  "feature_asset_scanning",
-  "feature_flags_section_3",
-  "feature_gate_dispatch",
-  "feature_gate_receiving",
-  "feature_column_break_3",
-  "feature_vehicle_stickers",
-  "feature_visitor_badges",
-  "feature_supplier_badges",
-  "feature_flags_section_4",
-  "feature_command_center",
-  "feature_visitor_sms_otp",
-  "feature_appointment_extra_recipients",
-  "feature_flags_section_5",
+  "tab_gate",
+  "gate_features_section",
   "feature_staff_checkin",
   "feature_biometric_shift_checkin",
   "feature_vehicle_gate_tracking",
   "feature_taxi_driver_checkout",
+  "gate_features_col",
   "feature_passenger_names",
-  "feature_column_break_5",
+  "feature_carried_items",
   "feature_gate_temp_exit",
-  "feature_host_receipt_confirmation",
-  "feature_cctv",
-  "feature_pipeline_trace",
   "staff_gate_mode_section",
   "staff_gate_modes",
-  "feature_carried_items",
-  "emergency_contacts_section",
-  "emergency_contacts_link",
+  "vehicle_task_section",
+  "vehicle_task_sources",
+  "dispatch_section",
+  "feature_gate_dispatch",
+  "dispatch_col",
+  "feature_gate_receiving",
+  "dispatch_sources",
+  "badges_section",
+  "feature_vehicle_stickers",
+  "feature_supplier_badges",
+  "badges_col",
+  "feature_visitor_badges",
+  "feature_contractor_badges",
   "badge_emergency_section",
   "badge_emergency_contacts",
-  "nearby_alert_section",
-  "nearby_guard_alert_radius_m",
-  "nearby_alert_stale_minutes",
+  "tab_visitors",
+  "visitor_features_section",
+  "feature_visitor_approval_workflow",
+  "feature_host_receipt_confirmation",
+  "visitor_features_col",
+  "feature_contractor_checkin",
+  "visitor_sms_section",
+  "feature_visitor_sms_otp",
+  "visitor_booking_sms_template",
+  "visitor_otp_sms_template",
+  "visitor_thankyou_sms_template",
+  "appointment_notify_section",
+  "feature_appointment_extra_recipients",
+  "appointment_notification_recipients",
+  "tab_patrols",
+  "patrol_features_section",
+  "feature_on_duty_tracking",
+  "feature_patrol_geofence_alerts",
+  "feature_checkpoint_scanning",
+  "patrol_features_col",
+  "feature_asset_scanning",
+  "feature_pipeline_trace",
   "geofence_section",
   "on_duty_interval_minutes",
+  "geofence_col",
   "missed_checkin_minutes",
   "escalation_minutes",
+  "checkpoint_section",
+  "checkpoint_accuracy_allowance_m",
+  "checkpoint_col",
+  "checkpoint_max_accuracy_m",
+  "patrol_map_section",
+  "feature_patrol_coverage_grid",
+  "feature_patrol_boundary_filter",
+  "patrol_map_col",
+  "feature_patrol_playback",
   "coverage_grid_section",
   "coverage_grid_cell_width_m",
   "coverage_grid_cell_height_m",
-  "coverage_column_break",
+  "coverage_influence_radius_m",
+  "coverage_col",
   "coverage_fresh_hours",
   "coverage_stale_hours",
-  "coverage_influence_radius_m",
   "coverage_boundary_tolerance_m",
   "playback_section",
   "playback_include_on_duty",
-  "playback_column_break",
+  "playback_col",
   "playback_max_window_days",
-  "checkpoint_section",
-  "checkpoint_accuracy_allowance_m",
-  "checkpoint_column_break",
-  "checkpoint_max_accuracy_m",
-  "security_report_section",
-  "security_day_starts_at",
-  "security_report_subscriptions",
-  "hidden_incident_types",
+  "tab_alerts",
+  "alert_features_section",
+  "feature_security_alerts",
+  "feature_sos_alert",
+  "alert_features_col",
+  "feature_zone_breach_alerts",
+  "feature_watchlist",
   "notification_recipients_section",
   "notification_rules",
-  "visitor_sms_section",
-  "visitor_booking_sms_template",
-  "visitor_otp_sms_template",
-  "visitor_sms_column_break",
-  "visitor_thankyou_sms_template",
-  "appointment_notify_section",
-  "appointment_notification_recipients",
-  "gates_section",
-  "farm_gates",
-  "dispatch_section",
-  "dispatch_sources",
-  "vehicle_task_section",
-  "vehicle_task_sources",
-  "command_center_section",
-  "command_center_extra_users",
-  "feature_zone_breach_alerts",
+  "nearby_alert_section",
+  "nearby_guard_alert_radius_m",
+  "nearby_alert_col",
+  "nearby_alert_stale_minutes",
+  "zone_breach_section",
   "zone_breach_grace_minutes",
+  "emergency_contacts_section",
+  "emergency_contacts_link",
+  "tab_reports",
+  "security_report_section",
+  "security_report_subscriptions",
+  "hidden_incident_types",
+  "tab_command",
+  "command_center_section",
+  "feature_command_center",
+  "command_center_extra_users",
+  "cctv_section",
+  "feature_cctv",
+  "tab_app",
   "apk_release_section",
   "latest_apk_version",
   "latest_apk_url",
-  "apk_release_column_break",
   "latest_apk_required",
+  "apk_col",
   "latest_apk_notes",
   "apk_install_window_start",
   "apk_install_window_end",
-  "standard_shift_times_section",
-  "standard_shift_times",
+  "tab_site",
   "terminology_section",
   "use_custom_words",
+  "terminology_col",
   "site_label",
   "site_label_plural",
-  "terminology_column",
   "area_label",
-  "area_label_plural"
+  "area_label_plural",
+  "shift_times_section",
+  "security_day_starts_at",
+  "standard_shift_times",
+  "gates_section",
+  "farm_gates"
  ],
  "fields": [
   {
-   "fieldname": "feature_flags_section",
+   "fieldname": "tab_gate",
+   "fieldtype": "Tab Break",
+   "label": "1. Gate"
+  },
+  {
+   "fieldname": "gate_features_section",
    "fieldtype": "Section Break",
-   "label": "Feature Flags \u2014 Visitor Workflow",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_visitor_approval_workflow",
-   "fieldtype": "Check",
-   "label": "Require Visitor Approval Workflow",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "feature_column_break_1",
-   "fieldtype": "Column Break",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_contractor_checkin",
-   "fieldtype": "Check",
-   "label": "Contractor Gate Check-in",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "depends_on": "eval:doc.feature_contractor_checkin",
-   "description": "Off: contractor visits can be checked in without issuing contractor badges first, even where the company keeps a badge pool.",
-   "fieldname": "feature_contractor_badges",
-   "fieldtype": "Check",
-   "label": "Contractor Badges Required at Check-in",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "feature_flags_section_2",
-   "fieldtype": "Section Break",
-   "label": "Feature Flags \u2014 Alerts",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_sos_alert",
-   "fieldtype": "Check",
-   "label": "Nearby-Guard SOS Alert",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_patrol_geofence_alerts",
-   "fieldtype": "Check",
-   "label": "Patrol Geofence / Missed Check-in Alerts",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_on_duty_tracking",
-   "fieldtype": "Check",
-   "label": "On-Duty Location Tracking",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_patrol_coverage_grid",
-   "fieldtype": "Check",
-   "label": "Patrol Coverage Grid (Patrol Map)",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_patrol_boundary_filter",
-   "fieldtype": "Check",
-   "label": "Hide Patrol Points Outside Farm Boundary (Patrol Map)",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_patrol_playback",
-   "fieldtype": "Check",
-   "label": "Patrol Playback"
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_checkpoint_scanning",
-   "fieldtype": "Check",
-   "label": "Patrol Checkpoint Scanning"
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_security_alerts",
-   "fieldtype": "Check",
-   "label": "Unauthorized Access / Unscanned Checkpoint Alerts",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "feature_column_break_2",
-   "fieldtype": "Column Break",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_watchlist",
-   "fieldtype": "Check",
-   "label": "Security Watchlist Matching",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_asset_scanning",
-   "fieldtype": "Check",
-   "label": "Security Asset Scanning",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "feature_flags_section_3",
-   "fieldtype": "Section Break",
-   "label": "Feature Flags \u2014 Gate Verification",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_gate_dispatch",
-   "fieldtype": "Check",
-   "label": "Gate Dispatch Verification",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_gate_receiving",
-   "fieldtype": "Check",
-   "label": "Gate Receiving Verification",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "feature_column_break_3",
-   "fieldtype": "Column Break",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_vehicle_stickers",
-   "fieldtype": "Check",
-   "label": "Vehicle/Staff Stickers",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_visitor_badges",
-   "fieldtype": "Check",
-   "label": "Visitor Badge Printing",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_supplier_badges",
-   "fieldtype": "Check",
-   "label": "Supplier Badges",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "feature_flags_section_4",
-   "fieldtype": "Section Break",
-   "label": "Feature Flags \u2014 Admin",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_command_center",
-   "fieldtype": "Check",
-   "label": "Command Center",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_visitor_sms_otp",
-   "fieldtype": "Check",
-   "label": "Visitor SMS (booking code + checkout thank-you)",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_appointment_extra_recipients",
-   "fieldtype": "Check",
-   "label": "Extra Appointment Notification Recipients",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "feature_flags_section_5",
-   "fieldtype": "Section Break",
-   "label": "Feature Flags \u2014 Gate Modules",
-   "permlevel": 1
+   "label": "Gate Features",
+   "description": "Switch on what the gate app offers on this site."
   },
   {
    "default": "1",
@@ -336,57 +170,14 @@
    "permlevel": 1
   },
   {
+   "fieldname": "gate_features_col",
+   "fieldtype": "Column Break"
+  },
+  {
    "default": "1",
    "fieldname": "feature_passenger_names",
    "fieldtype": "Check",
    "label": "Passenger Names (Vehicle / Motorcycle)",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "feature_column_break_5",
-   "fieldtype": "Column Break",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_gate_temp_exit",
-   "fieldtype": "Check",
-   "label": "Temporary Exit / Re-entry",
-   "permlevel": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "feature_host_receipt_confirmation",
-   "fieldtype": "Check",
-   "label": "Host Receipt Confirmation (badge scan)",
-   "permlevel": 1
-  },
-  {
-   "default": "0",
-   "description": "Master switch for the CCTV module. Off by default and stays off until the legal review is done. When on, CCTV Settings decides which parts run.",
-   "fieldname": "feature_cctv",
-   "fieldtype": "Check",
-   "label": "CCTV Integration (cameras, alerts, plate recognition)",
-   "permlevel": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "feature_pipeline_trace",
-   "fieldtype": "Check",
-   "label": "Pipeline Trace (scan pipeline checkpoints into Asset Scans)",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "staff_gate_mode_section",
-   "fieldtype": "Section Break",
-   "label": "Staff Gate Mode (per Company)",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "staff_gate_modes",
-   "fieldtype": "Table",
-   "label": "Staff Gate Mode by Company",
-   "options": "Staff Gate Mode",
    "permlevel": 1
   },
   {
@@ -397,20 +188,107 @@
    "permlevel": 1
   },
   {
-   "fieldname": "emergency_contacts_section",
-   "fieldtype": "Section Break",
-   "label": "Emergency Contacts"
+   "default": "1",
+   "fieldname": "feature_gate_temp_exit",
+   "fieldtype": "Check",
+   "label": "Temporary Exit / Re-entry",
+   "permlevel": 1
   },
   {
-   "fieldname": "emergency_contacts_link",
-   "fieldtype": "HTML",
-   "label": "Emergency Contacts",
-   "options": "<p><a class='btn btn-default btn-sm' href='/app/security-emergency-contact'>Open Emergency Contacts</a></p>"
+   "fieldname": "staff_gate_mode_section",
+   "fieldtype": "Section Break",
+   "label": "Staff Gate Mode (per Company)"
+  },
+  {
+   "fieldname": "staff_gate_modes",
+   "fieldtype": "Table",
+   "label": "Staff Gate Mode by Company",
+   "options": "Staff Gate Mode",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "vehicle_task_section",
+   "fieldtype": "Section Break",
+   "label": "Gate Vehicle Verification Sources"
+  },
+  {
+   "fieldname": "vehicle_task_sources",
+   "fieldtype": "Table",
+   "label": "Vehicle Task Sources",
+   "options": "Vehicle Task Source"
+  },
+  {
+   "fieldname": "dispatch_section",
+   "fieldtype": "Section Break",
+   "label": "Dispatch & Receiving Checks"
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_gate_dispatch",
+   "fieldtype": "Check",
+   "label": "Gate Dispatch Verification",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "dispatch_col",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_gate_receiving",
+   "fieldtype": "Check",
+   "label": "Gate Receiving Verification",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "dispatch_sources",
+   "fieldtype": "Table",
+   "label": "Dispatch Sources",
+   "options": "Dispatch Source"
+  },
+  {
+   "fieldname": "badges_section",
+   "fieldtype": "Section Break",
+   "label": "Badges & Stickers"
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_vehicle_stickers",
+   "fieldtype": "Check",
+   "label": "Vehicle/Staff Stickers",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_supplier_badges",
+   "fieldtype": "Check",
+   "label": "Supplier Badges",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "badges_col",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_visitor_badges",
+   "fieldtype": "Check",
+   "label": "Visitor Badge Printing",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.feature_contractor_checkin",
+   "description": "Off: contractor visits can be checked in without issuing contractor badges first, even where the company keeps a badge pool.",
+   "fieldname": "feature_contractor_badges",
+   "fieldtype": "Check",
+   "label": "Contractor Badges Required at Check-in",
+   "permlevel": 1
   },
   {
    "fieldname": "badge_emergency_section",
    "fieldtype": "Section Break",
-   "label": "Badges per Company"
+   "label": "Badge Details per Company"
   },
   {
    "fieldname": "badge_emergency_contacts",
@@ -419,32 +297,151 @@
    "options": "Security Badge Emergency Contact"
   },
   {
-   "fieldname": "nearby_alert_section",
+   "fieldname": "tab_visitors",
+   "fieldtype": "Tab Break",
+   "label": "2. Visitors & Contractors"
+  },
+  {
+   "fieldname": "visitor_features_section",
    "fieldtype": "Section Break",
-   "label": "Nearby Guard SOS Alert"
+   "label": "Visitor & Contractor Features"
   },
   {
-   "default": "1500",
-   "fieldname": "nearby_guard_alert_radius_m",
-   "fieldtype": "Int",
-   "label": "Alert Radius (meters)"
+   "default": "1",
+   "fieldname": "feature_visitor_approval_workflow",
+   "fieldtype": "Check",
+   "label": "Require Visitor Approval Workflow",
+   "permlevel": 1
   },
   {
-   "default": "30",
-   "fieldname": "nearby_alert_stale_minutes",
-   "fieldtype": "Int",
-   "label": "Ignore Pings Older Than (minutes)"
+   "default": "1",
+   "fieldname": "feature_host_receipt_confirmation",
+   "fieldtype": "Check",
+   "label": "Host Receipt Confirmation (badge scan)",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "visitor_features_col",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_contractor_checkin",
+   "fieldtype": "Check",
+   "label": "Contractor Gate Check-in",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "visitor_sms_section",
+   "fieldtype": "Section Break",
+   "label": "Visitor SMS"
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_visitor_sms_otp",
+   "fieldtype": "Check",
+   "label": "Visitor SMS (booking code + checkout thank-you)",
+   "permlevel": 1
+  },
+  {
+   "default": "Hello {visitor}, your visit to {company} on {date} is booked. Show this code at the gate: {code}",
+   "fieldname": "visitor_booking_sms_template",
+   "fieldtype": "Small Text",
+   "label": "Booking Code SMS"
+  },
+  {
+   "default": "Welcome to {company}! Your visit code is {code}.",
+   "fieldname": "visitor_otp_sms_template",
+   "fieldtype": "Small Text",
+   "label": "Visitor Code SMS"
+  },
+  {
+   "default": "Thanks for visiting {company}, welcome again!",
+   "fieldname": "visitor_thankyou_sms_template",
+   "fieldtype": "Small Text",
+   "label": "Checkout Thank-You SMS"
+  },
+  {
+   "fieldname": "appointment_notify_section",
+   "fieldtype": "Section Break",
+   "label": "Appointment Notifications"
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_appointment_extra_recipients",
+   "fieldtype": "Check",
+   "label": "Extra Appointment Notification Recipients",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "appointment_notification_recipients",
+   "fieldtype": "Table",
+   "label": "Also Notify On New Appointments",
+   "options": "Appointment Notification Recipient",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "tab_patrols",
+   "fieldtype": "Tab Break",
+   "label": "3. Patrols & Checkpoints"
+  },
+  {
+   "fieldname": "patrol_features_section",
+   "fieldtype": "Section Break",
+   "label": "Patrol Features"
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_on_duty_tracking",
+   "fieldtype": "Check",
+   "label": "On-Duty Location Tracking",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_patrol_geofence_alerts",
+   "fieldtype": "Check",
+   "label": "Patrol Geofence / Missed Check-in Alerts",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_checkpoint_scanning",
+   "fieldtype": "Check",
+   "label": "Patrol Checkpoint Scanning"
+  },
+  {
+   "fieldname": "patrol_features_col",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_asset_scanning",
+   "fieldtype": "Check",
+   "label": "Security Asset Scanning",
+   "permlevel": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "feature_pipeline_trace",
+   "fieldtype": "Check",
+   "label": "Pipeline Trace (scan pipeline checkpoints into Asset Scans)",
+   "permlevel": 1
   },
   {
    "fieldname": "geofence_section",
    "fieldtype": "Section Break",
-   "label": "Patrol Geofence / Missed Check-in"
+   "label": "On-Duty Tracking & Missed Check-ins"
   },
   {
    "default": "5",
    "fieldname": "on_duty_interval_minutes",
    "fieldtype": "Int",
    "label": "On-Duty Position Interval (minutes)"
+  },
+  {
+   "fieldname": "geofence_col",
+   "fieldtype": "Column Break"
   },
   {
    "default": "30",
@@ -459,9 +456,63 @@
    "label": "SOS Escalation Threshold (minutes)"
   },
   {
+   "fieldname": "checkpoint_section",
+   "fieldtype": "Section Break",
+   "label": "Checkpoint GPS",
+   "depends_on": "eval:doc.feature_checkpoint_scanning"
+  },
+  {
+   "default": "7",
+   "fieldname": "checkpoint_accuracy_allowance_m",
+   "fieldtype": "Int",
+   "label": "GPS Accuracy Allowance (meters)",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "checkpoint_col",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "15",
+   "fieldname": "checkpoint_max_accuracy_m",
+   "fieldtype": "Int",
+   "label": "Refuse GPS Fixes Worse Than (meters)",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "patrol_map_section",
+   "fieldtype": "Section Break",
+   "label": "Patrol Map"
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_patrol_coverage_grid",
+   "fieldtype": "Check",
+   "label": "Patrol Coverage Grid (Patrol Map)",
+   "permlevel": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_patrol_boundary_filter",
+   "fieldtype": "Check",
+   "label": "Hide Patrol Points Outside Farm Boundary (Patrol Map)",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "patrol_map_col",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_patrol_playback",
+   "fieldtype": "Check",
+   "label": "Patrol Playback"
+  },
+  {
    "fieldname": "coverage_grid_section",
    "fieldtype": "Section Break",
-   "label": "Patrol Coverage Grid"
+   "label": "Patrol Coverage Grid",
+   "collapsible": 1
   },
   {
    "default": "50",
@@ -476,7 +527,13 @@
    "label": "Grid Cell Height, Y / North-South (meters)"
   },
   {
-   "fieldname": "coverage_column_break",
+   "default": "50",
+   "fieldname": "coverage_influence_radius_m",
+   "fieldtype": "Int",
+   "label": "Patrol Influence Radius (meters)"
+  },
+  {
+   "fieldname": "coverage_col",
    "fieldtype": "Column Break"
   },
   {
@@ -492,23 +549,17 @@
    "label": "Not Patrolled After (hours)"
   },
   {
-   "default": "50",
-   "fieldname": "coverage_influence_radius_m",
-   "fieldtype": "Int",
-   "label": "Patrol Influence Radius (meters)"
-  },
-  {
    "default": "5",
    "fieldname": "coverage_boundary_tolerance_m",
    "fieldtype": "Int",
    "label": "Boundary Tolerance (meters)"
   },
   {
-   "collapsible": 1,
-   "depends_on": "eval:doc.feature_patrol_playback",
    "fieldname": "playback_section",
    "fieldtype": "Section Break",
-   "label": "Patrol Playback"
+   "label": "Patrol Playback",
+   "collapsible": 1,
+   "depends_on": "eval:doc.feature_patrol_playback"
   },
   {
    "default": "1",
@@ -517,7 +568,7 @@
    "label": "Include On-Duty Positions"
   },
   {
-   "fieldname": "playback_column_break",
+   "fieldname": "playback_col",
    "fieldtype": "Column Break"
   },
   {
@@ -528,41 +579,109 @@
    "non_negative": 1
   },
   {
-   "collapsible": 1,
-   "depends_on": "eval:doc.feature_checkpoint_scanning",
-   "fieldname": "checkpoint_section",
+   "fieldname": "tab_alerts",
+   "fieldtype": "Tab Break",
+   "label": "4. Alerts & Emergencies"
+  },
+  {
+   "fieldname": "alert_features_section",
    "fieldtype": "Section Break",
-   "label": "Patrol Checkpoints"
+   "label": "Alert Features"
   },
   {
-   "default": "7",
-   "fieldname": "checkpoint_accuracy_allowance_m",
-   "fieldtype": "Int",
-   "label": "GPS Accuracy Allowance (meters)",
-   "non_negative": 1
+   "default": "1",
+   "fieldname": "feature_security_alerts",
+   "fieldtype": "Check",
+   "label": "Unauthorized Access / Unscanned Checkpoint Alerts",
+   "permlevel": 1
   },
   {
-   "fieldname": "checkpoint_column_break",
+   "default": "1",
+   "fieldname": "feature_sos_alert",
+   "fieldtype": "Check",
+   "label": "Nearby-Guard SOS Alert",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "alert_features_col",
    "fieldtype": "Column Break"
   },
   {
-   "default": "15",
-   "fieldname": "checkpoint_max_accuracy_m",
-   "fieldtype": "Int",
-   "label": "Refuse GPS Fixes Worse Than (meters)",
-   "non_negative": 1
+   "default": "1",
+   "fieldname": "feature_zone_breach_alerts",
+   "fieldtype": "Check",
+   "label": "Restricted Zone Breach Alerts"
   },
   {
-   "collapsible": 1,
+   "default": "1",
+   "fieldname": "feature_watchlist",
+   "fieldtype": "Check",
+   "label": "Security Watchlist Matching",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "notification_recipients_section",
+   "fieldtype": "Section Break",
+   "label": "Who Gets Alerts"
+  },
+  {
+   "fieldname": "notification_rules",
+   "fieldtype": "Table",
+   "label": "Notification Rules",
+   "options": "Security Notification Rule"
+  },
+  {
+   "fieldname": "nearby_alert_section",
+   "fieldtype": "Section Break",
+   "label": "Nearby-Guard SOS Alert"
+  },
+  {
+   "default": "1500",
+   "fieldname": "nearby_guard_alert_radius_m",
+   "fieldtype": "Int",
+   "label": "Alert Radius (meters)"
+  },
+  {
+   "fieldname": "nearby_alert_col",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "30",
+   "fieldname": "nearby_alert_stale_minutes",
+   "fieldtype": "Int",
+   "label": "Ignore Pings Older Than (minutes)"
+  },
+  {
+   "fieldname": "zone_breach_section",
+   "fieldtype": "Section Break",
+   "label": "Restricted Zone Breaches"
+  },
+  {
+   "default": "55",
+   "fieldname": "zone_breach_grace_minutes",
+   "fieldtype": "Int",
+   "label": "Zone Breach Repeat Window (minutes)"
+  },
+  {
+   "fieldname": "emergency_contacts_section",
+   "fieldtype": "Section Break",
+   "label": "Emergency Contacts"
+  },
+  {
+   "fieldname": "emergency_contacts_link",
+   "fieldtype": "HTML",
+   "label": "Emergency Contacts",
+   "options": "<p><a class='btn btn-default btn-sm' href='/app/security-emergency-contact'>Open Emergency Contacts</a></p>"
+  },
+  {
+   "fieldname": "tab_reports",
+   "fieldtype": "Tab Break",
+   "label": "5. Reports"
+  },
+  {
    "fieldname": "security_report_section",
    "fieldtype": "Section Break",
    "label": "Security Reports"
-  },
-  {
-   "default": "06:00:00",
-   "fieldname": "security_day_starts_at",
-   "fieldtype": "Time",
-   "label": "Security Day Starts At"
   },
   {
    "fieldname": "security_report_subscriptions",
@@ -577,93 +696,21 @@
    "label": "Incident Types Left Out"
   },
   {
-   "fieldname": "notification_recipients_section",
-   "fieldtype": "Section Break",
-   "label": "Notification Recipients"
-  },
-  {
-   "fieldname": "notification_rules",
-   "fieldtype": "Table",
-   "label": "Notification Rules",
-   "options": "Security Notification Rule"
-  },
-  {
-   "fieldname": "visitor_sms_section",
-   "fieldtype": "Section Break",
-   "label": "Visitor SMS Messages"
-  },
-  {
-   "default": "Hello {visitor}, your visit to {company} on {date} is booked. Show this code at the gate: {code}",
-   "fieldname": "visitor_booking_sms_template",
-   "fieldtype": "Small Text",
-   "label": "Booking Code SMS"
-  },
-  {
-   "default": "Welcome to {company}! Your visit code is {code}.",
-   "fieldname": "visitor_otp_sms_template",
-   "fieldtype": "Small Text",
-   "label": "Visitor Code SMS"
-  },
-  {
-   "fieldname": "visitor_sms_column_break",
-   "fieldtype": "Column Break"
-  },
-  {
-   "default": "Thanks for visiting {company}, welcome again!",
-   "fieldname": "visitor_thankyou_sms_template",
-   "fieldtype": "Small Text",
-   "label": "Checkout Thank-You SMS"
-  },
-  {
-   "fieldname": "appointment_notify_section",
-   "fieldtype": "Section Break",
-   "label": "Appointment Notification Recipients",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "appointment_notification_recipients",
-   "fieldtype": "Table",
-   "label": "Also Notify On New Appointments",
-   "options": "Appointment Notification Recipient",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "gates_section",
-   "fieldtype": "Section Break",
-   "label": "Farm Gates"
-  },
-  {
-   "fieldname": "farm_gates",
-   "fieldtype": "Table",
-   "label": "Gates",
-   "options": "Security Gate Config"
-  },
-  {
-   "fieldname": "dispatch_section",
-   "fieldtype": "Section Break",
-   "label": "Gate Dispatch Verification Sources"
-  },
-  {
-   "fieldname": "dispatch_sources",
-   "fieldtype": "Table",
-   "label": "Dispatch Sources",
-   "options": "Dispatch Source"
-  },
-  {
-   "fieldname": "vehicle_task_section",
-   "fieldtype": "Section Break",
-   "label": "Gate Vehicle Verification Sources"
-  },
-  {
-   "fieldname": "vehicle_task_sources",
-   "fieldtype": "Table",
-   "label": "Vehicle Task Sources",
-   "options": "Vehicle Task Source"
+   "fieldname": "tab_command",
+   "fieldtype": "Tab Break",
+   "label": "6. Command Center & CCTV"
   },
   {
    "fieldname": "command_center_section",
    "fieldtype": "Section Break",
-   "label": "Mobile Command Center Access"
+   "label": "Mobile Command Center"
+  },
+  {
+   "default": "1",
+   "fieldname": "feature_command_center",
+   "fieldtype": "Check",
+   "label": "Command Center",
+   "permlevel": 1
   },
   {
    "fieldname": "command_center_extra_users",
@@ -672,19 +719,24 @@
    "options": "Security Command Center User"
   },
   {
-   "default": "1",
-   "fieldname": "feature_zone_breach_alerts",
+   "fieldname": "cctv_section",
+   "fieldtype": "Section Break",
+   "label": "CCTV"
+  },
+  {
+   "default": "0",
+   "description": "Master switch for the CCTV module. Off by default and stays off until the legal review is done. When on, CCTV Settings decides which parts run.",
+   "fieldname": "feature_cctv",
    "fieldtype": "Check",
-   "label": "Restricted Zone Breach Alerts"
+   "label": "CCTV Integration (cameras, alerts, plate recognition)",
+   "permlevel": 1
   },
   {
-   "default": "55",
-   "fieldname": "zone_breach_grace_minutes",
-   "fieldtype": "Int",
-   "label": "Zone Breach Repeat Window (minutes)"
+   "fieldname": "tab_app",
+   "fieldtype": "Tab Break",
+   "label": "7. Mobile App"
   },
   {
-   "collapsible": 1,
    "fieldname": "apk_release_section",
    "fieldtype": "Section Break",
    "label": "Mobile App Release (Android APK)"
@@ -701,14 +753,14 @@
    "options": "URL"
   },
   {
-   "fieldname": "apk_release_column_break",
-   "fieldtype": "Column Break"
-  },
-  {
    "default": "0",
    "fieldname": "latest_apk_required",
    "fieldtype": "Check",
    "label": "Compulsory"
+  },
+  {
+   "fieldname": "apk_col",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "latest_apk_notes",
@@ -728,23 +780,15 @@
    "label": "Install Window To"
   },
   {
-   "collapsible": 1,
-   "fieldname": "standard_shift_times_section",
-   "fieldtype": "Section Break",
-   "label": "Standard Shift Times"
+   "fieldname": "tab_site",
+   "fieldtype": "Tab Break",
+   "label": "8. Site Setup"
   },
   {
-   "fieldname": "standard_shift_times",
-   "fieldtype": "Table",
-   "label": "Standard Shift Times",
-   "options": "Security Shift Time"
-  },
-  {
-   "collapsible": 1,
-   "description": "Still being built. What this organisation calls its places, for clients that are not farms (a factory, office, hotel, estate). Off: everything says Farm and Block, as before.",
    "fieldname": "terminology_section",
    "fieldtype": "Section Break",
-   "label": "Words Used (Beta)"
+   "label": "Words Used (Beta)",
+   "description": "Still being built. What this organisation calls its places, for clients that are not farms (a factory, office, hotel, estate). Off: everything says Farm and Block, as before."
   },
   {
    "default": "0",
@@ -752,6 +796,10 @@
    "fieldname": "use_custom_words",
    "fieldtype": "Check",
    "label": "Use Custom Words"
+  },
+  {
+   "fieldname": "terminology_col",
+   "fieldtype": "Column Break"
   },
   {
    "default": "Farm",
@@ -772,11 +820,6 @@
    "mandatory_depends_on": "eval:doc.use_custom_words"
   },
   {
-   "depends_on": "eval:doc.use_custom_words",
-   "fieldname": "terminology_column",
-   "fieldtype": "Column Break"
-  },
-  {
    "default": "Block",
    "depends_on": "eval:doc.use_custom_words",
    "description": "A part of a site (Security Block), e.g. Block, Zone, Wing, Floor.",
@@ -793,12 +836,40 @@
    "fieldtype": "Data",
    "label": "Areas Are Called",
    "mandatory_depends_on": "eval:doc.use_custom_words"
+  },
+  {
+   "fieldname": "shift_times_section",
+   "fieldtype": "Section Break",
+   "label": "Security Day & Shift Times"
+  },
+  {
+   "default": "06:00:00",
+   "fieldname": "security_day_starts_at",
+   "fieldtype": "Time",
+   "label": "Security Day Starts At"
+  },
+  {
+   "fieldname": "standard_shift_times",
+   "fieldtype": "Table",
+   "label": "Standard Shift Times",
+   "options": "Security Shift Time"
+  },
+  {
+   "fieldname": "gates_section",
+   "fieldtype": "Section Break",
+   "label": "Farm Gates"
+  },
+  {
+   "fieldname": "farm_gates",
+   "fieldtype": "Table",
+   "label": "Gates",
+   "options": "Security Gate Config"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-27 09:00:00.000000",
+ "modified": "2026-11-27 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",
