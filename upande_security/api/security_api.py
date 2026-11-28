@@ -3537,6 +3537,18 @@ def issue_visitor_badge(name=None, badge_number=None, reference=None):
 				+ str(badge.current_appointment)
 				+ ")"
 			}
+		# One badge per visit: a visit that still holds another badge keeps it
+		# - re-issuing used to overwrite the link and strand the first badge
+		# as Issued to a visit that no longer pointed at it.
+		held = appt.custom_visitor_badge
+		if held and held != badge.name:
+			old = frappe.db.get_value("Gate Badge", held, ["badge_number", "status", "current_appointment"], as_dict=True)
+			if old and old.status == "Issued" and old.current_appointment == name:
+				return {
+					"error": "This visit already has badge "
+					+ str(old.badge_number)
+					+ ". Collect it and check the visitor out, or release it in Gate Badge, before giving another."
+				}
 
 		badge_doc = frappe.get_doc("Gate Badge", badge.name)
 		badge_doc.status = "Issued"
