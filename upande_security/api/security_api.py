@@ -1353,14 +1353,19 @@ def search_visitor_appointment(query=None):
 
 
 @frappe.whitelist()
-def approved_appointments():
+def approved_appointments(search=None):
 	"""Visitors cleared to enter or already inside, for the gate's main list.
 	Cleared means approved by the host or by a secretary on the host's behalf,
-	or BOOKED for today: a visit booked ahead stays "Open" (the workflow only
-	moves it on at the gate), and check_in_visitor accepts Open, so it must be
-	on this list or the guard has nothing to tap. Only today's Open bookings -
-	older, never-used Open records stay off the list. Such rows carry
+	or BOOKED: a visit booked ahead stays "Open" (the workflow only moves it on
+	at the gate), and check_in_visitor accepts Open. Such rows carry
 	booked=True.
+
+	The list is TODAY's: visits scheduled for today, plus everyone checked in
+	whatever day they came (a visitor can stay overnight - those rows carry
+	overnight=True). Approvals for other days never fell off the list and
+	piled up into the hundreds, so they are left out; the guard finds an
+	older one with `search` (name, phone, ID, host, organisation or the
+	visit's own name), which looks across every day.
 
 	Ordering matters to the guard: anyone already Checked In sorts above
 	those merely Approved, then most recent first within each group. The
@@ -1370,6 +1375,26 @@ def approved_appointments():
 	try:
 		# A guard sees only visits to the farm they are at (visit_scope).
 		scope_sql, scope_params = visit_scope("a")
+		today = frappe.utils.today()
+		search = (search or "").strip()
+		if search:
+			like = "%" + search + "%"
+			match_sql = (
+				"(a.workflow_state IN ('Approved by Host', 'Approved by Secretary', 'Open', 'Visitor Checked In')"
+				" AND (a.customer_name LIKE %s OR a.customer_phone_number LIKE %s OR a.name LIKE %s"
+				" OR a.customer_organization LIKE %s OR e.employee_name LIKE %s"
+				" OR a.custom_id_number LIKE %s))"
+			)
+			match_params = [like] * 6
+			limit = 30
+		else:
+			match_sql = (
+				"(a.workflow_state = 'Visitor Checked In'"
+				" OR (a.workflow_state IN ('Approved by Host', 'Approved by Secretary', 'Open')"
+				" AND DATE(COALESCE(a.scheduled_time, a.creation)) = %s))"
+			)
+			match_params = [today]
+			limit = 200
 		rows = frappe.db.sql(
 			"""
 			SELECT a.name, a.customer_name, a.customer_phone_number,
@@ -1385,9 +1410,8 @@ def approved_appointments():
 			FROM `tabAppointment` a
 			LEFT JOIN `tabEmployee` e ON e.name = a.custom_meet_with
 			LEFT JOIN `tabGate Badge` b ON b.name = a.custom_visitor_badge
-			WHERE (a.workflow_state IN ('Approved by Host', 'Approved by Secretary', 'Visitor Checked In')
-			       OR (a.workflow_state = 'Open' AND DATE(a.scheduled_time) = %s))
-			"""
+			WHERE """
+			+ match_sql
 			+ scope_sql
 			+ """
 			ORDER BY
@@ -1397,9 +1421,9 @@ def approved_appointments():
 			  END,
 			  a.custom_check_in_time DESC,
 			  a.scheduled_time DESC
-			LIMIT 100
-			""",
-			tuple([frappe.utils.today()] + scope_params),
+			LIMIT """
+			+ str(limit),
+			tuple(match_params + scope_params),
 			as_dict=True,
 		)
 		result = []
@@ -1445,8 +1469,14 @@ def approved_appointments():
 					else "",
 					# Prefills the gate's visit-details step at check-in.
 					"organization": r.customer_organization or "",
-					# Booked for today, not yet through host review (state "Open").
+					# Booked, not yet through host review (state "Open").
 					"booked": r.workflow_state == "Open",
+					# Checked in on an earlier day and still inside.
+					"overnight": bool(
+						r.workflow_state == "Visitor Checked In"
+						and r.custom_check_in_time
+						and str(r.custom_check_in_time)[:10] < today
+					),
 				}
 			)
 		return result
