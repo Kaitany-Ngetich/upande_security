@@ -132,7 +132,7 @@
     {%- endfor %}
     {%- endfor %}
   </table>
-  <p style="font-size:10px;color:{{ HINT }};margin:6px 0 0">Over the 7 days: patrolled area counts each grid square a guard entered once. Coverage status: high 60% of the farm or more · half covered 40–60% · needs attention under 40%.</p>
+  <p style="font-size:10px;color:{{ HINT }};margin:6px 0 0">Over the 7 days: patrolled area is the ground within {{ r.week.sweep_offset_m or 100 }} m either side of the paths guards walked, inside the farm, overlap counted once. Coverage status: high 60% of the farm or more · half covered 40–60% · needs attention under 40%.</p>
   {%- endif %}
 
   {#- ── Gate and shift sections (visitors, contractors, staff, vehicles, shifts) ── -#}
@@ -272,8 +272,9 @@
   {%- set w = d.weights or {} %}
   <p style="font-size:10px;color:{{ HINT }};line-height:1.5;margin:4px 0 0">
     Score (0–100) = {{ pct(w.coverage) }} coverage + {{ pct(w.distance) }} distance + {{ pct(w.scans) }} valid checkpoint scans + {{ pct(w.safety) }} safety,
-    each against the best guard on the same farm. Area patrolled counts the farm's {{ d.cell_width_m }} × {{ d.cell_height_m }} m squares
-    any guard's GPS track entered, each once; the rest is not patrolled.
+    each against the best guard on the same farm. Area patrolled is the ground within {{ d.sweep_offset_m or 100 }} m either side of
+    each guard's walked path, inside the farm - overlap counted once for the farm; the rest is not patrolled. The map colours the
+    farm's {{ d.cell_width_m }} × {{ d.cell_height_m }} m squares by when a guard was last in them.
   </p>
   {%- endif %}
   {%- elif r.ranking %}

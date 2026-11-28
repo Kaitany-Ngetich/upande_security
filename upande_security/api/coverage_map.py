@@ -3,8 +3,9 @@
 
 """Patrol coverage maps for the security report: one picture per farm of the
 Patrol Map's grid cells, each filled by when a guard was last in it on the
-dashboard's green-to-dark-red colour ramp, inside the farm's boundary - the
-same cells the report's hectares count. Built only from the report window's pings (a day,
+dashboard's green-to-dark-red colour ramp, inside the farm's boundary. The
+caption's hectares are the ranking's swept ground (patrol_sweep), not these
+cells. Built only from the report window's pings (a day,
 a night, a week), as of the window's end, and the ramp spans that window:
 dark green is patrolled at its end, orange at its start, and dark red is
 kept for ground nobody patrolled in it. Drawn server-side with matplotlib

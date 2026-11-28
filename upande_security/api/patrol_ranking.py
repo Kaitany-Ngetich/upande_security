@@ -33,16 +33,24 @@ WHICH POINTS COUNT
   speed is at most MAX_SPEED_KMH: longer gaps are the phone asleep, faster
   steps are GPS jumps. Neither is patrolling. The same step rule
   (patrol_rules) sums the Patrol Map's and the app report's distance.
+
+AREA PATROLLED
+The hectares and percentages - each guard's and the farm's - are the ground
+swept: Patrol Sweep Offset metres either side of those same counted steps,
+inside the boundary (patrol_sweep). A second query per day reads the
+day's points in order to draw it; a day's corridor per guard is cached
+with its other figures. The grid cells are still worked out - they colour
+the coverage map - but no longer decide how much was patrolled.
 """
 
 import datetime
 import hashlib
 import json
-import math
 
 import frappe
 from frappe import _
 
+from upande_security.api import patrol_sweep
 from upande_security.api.feature_flags import is_feature_enabled
 from upande_security.api.patrol_coverage import (
 	MAX_ACCURACY_M,
@@ -181,6 +189,12 @@ def _merge(st, d):
 	st["seconds"] += d["seconds"]
 	st["patrol_ids"].update(d["patrols"] if "patrols" in d and not isinstance(d["patrols"], int) else d.get("patrol_ids") or ())
 	st["cells"].update(d["cells"])
+	# A live piece carries shapely geometries, a cached day its corridor as
+	# text; the period's corridor is their union, taken once at the end.
+	if d.get("sweeps"):
+		st["sweeps"].extend(d["sweeps"])
+	elif d.get("sweep"):
+		st["sweeps"].append(patrol_sweep.decode(d["sweep"]))
 	for key, pick in (("first", min), ("last", max)):
 		v = str(d[key]) if d.get(key) else None
 		st[key] = pick(filter(None, [st[key], v]), default=None)
@@ -199,7 +213,9 @@ def _window_stats(ctx, start, end, in_scope):
 		if a == day_from and b == day_to:
 			pieces = ((tuple(k.split("\x1f", 1)), v) for k, v in _day_stats(d, ctx).items())
 		elif a < b:
-			pieces = _guard_stats(ctx["geos"], str(a), str(b - datetime.timedelta(seconds=1)), ctx["boundary_on"]).items()
+			pieces = _guard_stats(
+				ctx["geos"], str(a), str(b - datetime.timedelta(seconds=1)), ctx["boundary_on"], ctx["offset"]
+			).items()
 		else:
 			pieces = ()
 		for (f, gid), piece in pieces:
@@ -291,13 +307,8 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 		guards = {gid: st for (ff, gid), st in stats.items() if ff == f}
 		if not guards:
 			continue
-		ranked, weights, farm_cov = _rank(f, guards, geo["grid"], shift_inc)
-		# Area in hectares: the farm's from its boundary, each guard's (and
-		# the farm's covered part) as their coverage share of it, so the
-		# hectares always agree with the percentages beside them.
-		farm_ha = _farm_hectares(geo) if geo["grid"] else None
-		for r in ranked:
-			r["area_ha"] = round(farm_ha * r["coverage_pct"] / 100, 2) if farm_ha and r["coverage_pct"] is not None else None
+		farm_m2 = (geo.get("sweep") or {}).get("m2") or None
+		ranked, weights, farm_cov, covered_m2 = _rank(f, guards, farm_m2, shift_inc)
 		rows += ranked
 		farm_info.append({
 			"farm": f,
@@ -306,10 +317,10 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 			"coverage_pct": farm_cov,
 			"weights": weights,
 			# Totals for the farm. Distance, time, patrols and scans add up
-			# across guards; area does not (two guards in the same cell cover
-			# it once), so covered_ha is everyone's cells together.
-			"area_ha": round(farm_ha, 2) if farm_ha else None,
-			"covered_ha": round(farm_ha * farm_cov / 100, 2) if farm_ha and farm_cov is not None else None,
+			# across guards; area does not (two guards on the same path sweep
+			# it once), so covered_ha is everyone's corridors together.
+			"area_ha": round(farm_m2 / 10000, 2) if farm_m2 else None,
+			"covered_ha": round(covered_m2 / 10000, 2) if farm_m2 else None,
 			"distance_km": round(sum(r["distance_km"] for r in ranked), 2),
 			"patrol_hours": round(sum(r["patrol_hours"] for r in ranked), 2),
 			"patrols": sum(r["patrols"] for r in ranked),
@@ -350,6 +361,7 @@ def get_guard_ranking(period="this_week", from_date=None, to_date=None, farm=Non
 		"day_start": day_start().strftime("%H:%M"),
 		"cell_width_m": ctx["width"],
 		"cell_height_m": ctx["height"],
+		"sweep_offset_m": ctx["offset"],
 		"weights": WEIGHTS,
 		"no_scan_weights": NO_SCAN_WEIGHTS,
 		"max_gap_s": MAX_GAP_S,
@@ -371,7 +383,7 @@ def _digest(text, length):
 
 def _empty_stats(kind):
 	return {"kind": kind, "points": 0, "metres": 0.0, "seconds": 0, "patrols": 0, "patrol_ids": set(),
-			"cells": set(), "first": None, "last": None, "scans": 0, "valid_scans": 0}
+			"cells": set(), "sweeps": [], "first": None, "last": None, "scans": 0, "valid_scans": 0}
 
 
 def _context():
@@ -388,11 +400,14 @@ def _context():
 	boundary_on = is_feature_enabled("feature_patrol_boundary_filter")
 	tol = frappe.db.get_single_value("Security Ops Settings", "coverage_boundary_tolerance_m")
 	tol = 5 if tol is None else max(0, int(tol))
+	offset = patrol_sweep.offset_m()
 	geos = [_farm_geo(f, width, height, tol) for f in frappe.get_all("Farm", pluck="name", order_by="name asc")]
 	config = _digest(json.dumps(
-		[[g["farm"], g["key"]] for g in geos] + [boundary_on, MAX_ACCURACY_M, MAX_GAP_S, MAX_SPEED_KMH, RULES_VERSION]
+		[[g["farm"], g["key"]] for g in geos]
+		+ [boundary_on, MAX_ACCURACY_M, MAX_GAP_S, MAX_SPEED_KMH, RULES_VERSION, offset, patrol_sweep.SWEEP_VERSION]
 	), 12)
-	return {"width": width, "height": height, "boundary_on": boundary_on, "geos": geos, "config": config}
+	return {"width": width, "height": height, "boundary_on": boundary_on, "offset": offset, "geos": geos,
+		"config": config}
 
 
 def warm_ranking_days():
@@ -427,7 +442,7 @@ def _day_stats(day, ctx):
 	cached = frappe.cache.get_value(key)
 	if cached is not None:
 		return cached
-	raw = _guard_stats(ctx["geos"], f"{day} 00:00:00", f"{day} 23:59:59", ctx["boundary_on"])
+	raw = _guard_stats(ctx["geos"], f"{day} 00:00:00", f"{day} 23:59:59", ctx["boundary_on"], ctx["offset"])
 	out = {
 		f + "\x1f" + g: {
 			"kind": s["kind"],
@@ -436,6 +451,7 @@ def _day_stats(day, ctx):
 			"seconds": s["seconds"],
 			"patrols": sorted(s["patrol_ids"]),
 			"cells": sorted(s["cells"]),
+			"sweep": patrol_sweep.encode(patrol_sweep.union(s["sweeps"])),
 			"first": str(s["first"]) if s["first"] else None,
 			"last": str(s["last"]) if s["last"] else None,
 		}
@@ -458,15 +474,19 @@ def _farm_geo(farm, width, height, tol_m):
 	  Points Outside Farm Boundary rule), "off" the boundary grown by ~110 m
 	  (where the map still takes untagged points). Simplified to ~1 m so the
 	  database's point-in-polygon test stays cheap.
+	- sweep: the flat metre frame the patrolled corridors are drawn in, the
+	  boundary in it (WKB) and its area in m² - None without a boundary.
+	  Independent of the grid, so a farm too large for one still gets its
+	  hectares.
 	"""
 	modified = frappe.db.get_value("Farm", farm, "modified")
 	key = "upande_security:ranking_geo:" + _digest(
-		json.dumps([farm, str(modified), width, height, tol_m]), 20
+		json.dumps([farm, str(modified), width, height, tol_m, "sweep", patrol_sweep.SWEEP_VERSION]), 20
 	)
 	cached = frappe.cache.get_value(key)
 	if cached:
 		return cached
-	geo = {"farm": farm, "key": key, "grid": None, "on": None, "off": None, "area": 0}
+	geo = {"farm": farm, "key": key, "grid": None, "on": None, "off": None, "area": 0, "sweep": None}
 	try:
 		poly = _load_farm_polygon(farm)
 	except Exception:
@@ -480,6 +500,10 @@ def _farm_geo(farm, width, height, tol_m):
 
 		geo["on"] = area(poly.buffer(tol_m / 111320.0) if tol_m else poly)
 		geo["off"] = area(poly.buffer(0.001))
+		fr = patrol_sweep.frame(poly)
+		shape_m = patrol_sweep.farm_shape(poly, fr)
+		if not shape_m.is_empty and shape_m.area > 0:
+			geo["sweep"] = {"frame": fr, "farm": patrol_sweep.encode(shape_m), "m2": float(shape_m.area)}
 		cells, g = _build_cells(poly, width, height)
 		if cells:
 			geo["grid"] = {
@@ -506,8 +530,10 @@ _POINT_WHERE = [
 ] + POINT_WHERE_SQL
 
 
-def _guard_stats(geos, start, end, boundary_on):
-	"""{(farm, guard id): stats} for every farm in `geos`, from one query.
+def _point_source(geos, boundary_on, params):
+	"""SQL for the window's counted points, each with the farm it counts for
+	(farm_hit), guard (g), kind, patrol, captured_at, lat and lng - or None
+	when no farm can take a point. Adds its parameters to `params`.
 
 	Which farm a point counts for follows the Patrol Map (fetchPatrolData /
 	patrol_playback.farm_points):
@@ -523,7 +549,6 @@ def _guard_stats(geos, start, end, boundary_on):
 	mode tests are answered from the index, so only points inside a farm
 	are read from the table. Saved-farm points come through
 	(farm, captured_at). See the module docstring for the rest."""
-	params = {"start": start, "end": end, **sql_params()}
 	shaped = sorted((g for g in geos if g.get("on" if boundary_on else "off")), key=lambda g: g["area"])
 	if boundary_on:
 		saved_farms = [g["farm"] for g in geos if not g.get("on")]
@@ -564,7 +589,21 @@ def _guard_stats(geos, start, end, boundary_on):
 		where = list(_POINT_WHERE) + ["farm in %(saved_farms)s"]
 		force = _force_index("farm_captured_at")
 		branches.append(f"select farm as farm_hit, {cols} from `tabPatrol GPS Log`{force} where {' and '.join(where)}")
-	if not branches:
+	return " union all ".join(branches) if branches else None
+
+
+def _guard_stats(geos, start, end, boundary_on, offset=None):
+	"""{(farm, guard id): stats} for every farm in `geos`: distance, time,
+	patrols, grid cells and - when `offset` is given - the swept corridor.
+
+	One pass: the database picks the window's points (the boundary tests,
+	the expensive part) and works out each step from the previous fix of the
+	same guard's same patrol on the same farm, and hands the points back in
+	order - ~60 bytes each. Summing them here costs a fraction of picking
+	them, and the corridor needs the path itself, not totals."""
+	params = {"start": start, "end": end, **sql_params()}
+	source = _point_source(geos, boundary_on, params)
+	if not source:
 		return {}
 
 	cell_cases = []
@@ -579,52 +618,66 @@ def _guard_stats(geos, start, end, boundary_on):
 	cell_sql = f"case farm_hit {' '.join(cell_cases)} end" if cell_cases else "null"
 
 	step_secs, step_metres = step_sql("w")
-	# Innermost: the points with the farm each counts for. Middle: each fix
-	# with the step from the previous fix of the same guard's same patrol on
-	# the same farm. Outer: summed per (farm, guard, cell) - a step is
-	# credited to the cell it ends in, and a partition's first fix (no
-	# previous step) marks one patrol.
+	# Inner: the points with the farm each counts for. Middle: each fix with
+	# the step from the previous fix of the same guard's same patrol on the
+	# same farm, and the grid cell it lies in. A step is credited to the
+	# cell it ends in; a partition's first fix (no step) starts a patrol.
 	sql = f"""
-		select farm_hit, g, kind, cell,
-			count(*) as points,
-			sum(if(ok, metres, 0)) as metres,
-			sum(if(ok, secs, 0)) as seconds,
-			group_concat(distinct patrol separator '\\n') as patrols,
-			min(captured_at) as first_at,
-			max(captured_at) as last_at
+		select farm_hit, g, kind, patrol, captured_at, lat, lng, cell, secs, metres,
+			{STEP_COUNTS_SQL} as ok
 		from (
-			select farm_hit, g, kind, patrol, cell, captured_at, metres, secs,
-				{STEP_COUNTS_SQL} as ok
-			from (
-				select farm_hit, g, kind, patrol, captured_at, {cell_sql} as cell,
-					{step_secs} as secs,
-					{step_metres} as metres
-				from ({' union all '.join(branches)}) p
-				where g is not null
-				window w as (partition by farm_hit, g, patrol order by captured_at)
-			) s
-		) t
-		group by farm_hit, g, kind, cell
+			select farm_hit, g, kind, patrol, captured_at, lat, lng, {cell_sql} as cell,
+				{step_secs} as secs,
+				{step_metres} as metres
+			from ({source}) p
+			where g is not null
+			window w as (partition by farm_hit, g, patrol order by captured_at)
+		) s
+		order by farm_hit, g, patrol, captured_at
 	"""
 	keys = {g["farm"]: set(g["grid"]["keys"]) for g in geos if g.get("grid")}
-	out = {}
-	for r in frappe.db.sql(sql, params, as_dict=True):
-		k = (r.farm_hit, r.g)
+	frames = {g["farm"]: g["sweep"] for g in geos if g.get("sweep")} if offset else {}
+	out, tracks = {}, {}
+	walk, walk_key = None, None
+	for farm_hit, g, kind, patrol, at, lat, lng, cell, secs, metres, ok in frappe.db.sql(sql, params):
+		k = (farm_hit, g)
 		s = out.get(k)
 		if s is None:
-			s = out[k] = _empty_stats(r.kind)
-		s["points"] += int(r.points or 0)
-		s["metres"] += float(r.metres or 0)
-		s["seconds"] += int(r.seconds or 0)
-		s["patrol_ids"].update(p for p in (r.patrols or "").split("\n") if p)
-		if r.cell and r.cell in keys.get(r.farm_hit, ()):
-			s["cells"].add(r.cell)
-		if r.first_at and (s["first"] is None or r.first_at < s["first"]):
-			s["first"] = r.first_at
-		if r.last_at and (s["last"] is None or r.last_at > s["last"]):
-			s["last"] = r.last_at
-	return out
+			s = out[k] = _empty_stats(kind)
+		s["points"] += 1
+		if ok:
+			s["metres"] += float(metres or 0)
+			s["seconds"] += int(secs or 0)
+		if patrol:
+			s["patrol_ids"].add(patrol)
+		if cell and cell in keys.get(farm_hit, ()):
+			s["cells"].add(cell)
+		if at and (s["first"] is None or at < s["first"]):
+			s["first"] = at
+		if at and (s["last"] is None or at > s["last"]):
+			s["last"] = at
+		# The corridor: each unbroken run of counted steps is one walk. A
+		# step that does not count (a gap, a GPS jump) or a new patrol starts
+		# a new walk, so no corridor bridges ground nobody walked.
+		fr = frames.get(farm_hit)
+		if fr is None:
+			continue
+		pt = patrol_sweep.to_metres(fr["frame"], float(lng), float(lat))
+		wk = (farm_hit, g, patrol)
+		if wk == walk_key and ok:
+			walk.append(pt)
+		else:
+			walk, walk_key = [pt], wk
+			tracks.setdefault(k, []).append(walk)
 
+	farms_m = {}
+	for (farm, g), walks in tracks.items():
+		if farm not in farms_m:
+			farms_m[farm] = patrol_sweep.decode(frames[farm]["farm"])
+		swept = patrol_sweep.corridor(walks, offset, farms_m[farm])
+		if swept is not None:
+			out[(farm, g)]["sweeps"].append(swept)
+	return out
 
 def _force_index(name):
 	if frappe.db.db_type == "mariadb" and frappe.db.has_index("tabPatrol GPS Log", name):
@@ -728,9 +781,11 @@ def _shift_incidents(farms, start, end):
 	return out
 
 
-def _rank(farm, guards, grid, shift_inc=None):
+def _rank(farm, guards, farm_m2, shift_inc=None):
 	"""Score and rank one farm's guards. Returns (rows, weights, farm
-	coverage %) - farm coverage being every guard's cells together.
+	coverage %, farm covered m²) - the farm's covered ground being every
+	guard's swept corridor together, overlap once. farm_m2 is the farm's
+	area; None (no boundary) ranks without coverage.
 	Safety: scored incidents per shift, against the farm's worst rate."""
 	shift_inc = shift_inc or {}
 
@@ -738,14 +793,19 @@ def _rank(farm, guards, grid, shift_inc=None):
 		si = shift_inc.get((farm, gid)) or {}
 		n = sum(1 for i in (si.get("incidents") or []) if i["scored"])
 		return (n / si["shifts"]) if n and si.get("shifts") else float(n)
-	total_cells = grid["cells"] if grid else 0
 	any_scans = any(s["valid_scans"] for s in guards.values())
-	if total_cells:
+	if farm_m2:
 		weights = WEIGHTS if any_scans else NO_SCAN_WEIGHTS
 	else:
 		weights = NO_COVERAGE_WEIGHTS if any_scans else DISTANCE_ONLY
 
-	best_cov = max((len(s["cells"]) for s in guards.values()), default=0)
+	swept = {gid: patrol_sweep.union(s.get("sweeps") or []) for gid, s in guards.items()}
+	swept_m2 = {gid: patrol_sweep.area_m2(g) for gid, g in swept.items()}
+
+	def pct(m2):
+		return round(100 * m2 / farm_m2, 1) if farm_m2 else None
+
+	best_cov = max(swept_m2.values(), default=0)
 	best_m = max((s["metres"] for s in guards.values()), default=0)
 	best_scans = max((s["valid_scans"] for s in guards.values()), default=0)
 	worst_rate = max((inc_rate(g) for g in guards), default=0)
@@ -755,9 +815,9 @@ def _rank(farm, guards, grid, shift_inc=None):
 
 	rows = []
 	for gid, s in guards.items():
-		n = len(s["cells"])
+		m2 = swept_m2[gid]
 		score = 100 * (
-			weights["coverage"] * share(n, best_cov)
+			weights["coverage"] * share(m2, best_cov)
 			+ weights["distance"] * share(s["metres"], best_m)
 			+ weights["scans"] * share(s["valid_scans"], best_scans)
 			+ weights["safety"] * (1 - share(inc_rate(gid), worst_rate))
@@ -767,8 +827,11 @@ def _rank(farm, guards, grid, shift_inc=None):
 			"guard": gid,
 			"kind": s["kind"],
 			"distance_km": round(s["metres"] / 1000, 2),
-			"cells": n,
-			"coverage_pct": round(100 * n / total_cells, 1) if total_cells else None,
+			# Grid squares entered - what the coverage map colours. The
+			# area and percentage are the swept ground, not these.
+			"cells": len(s["cells"]),
+			"coverage_pct": pct(m2),
+			"area_ha": round(m2 / 10000, 2) if farm_m2 else None,
 			"patrol_hours": round(s["seconds"] / 3600, 2),
 			"patrols": s["patrols"],
 			"points": s["points"],
@@ -782,22 +845,8 @@ def _rank(farm, guards, grid, shift_inc=None):
 	for i, r in enumerate(rows, 1):
 		r["rank"] = i
 
-	all_cells = set()
-	for s in guards.values():
-		all_cells |= s["cells"]
-	farm_cov = round(100 * len(all_cells) / total_cells, 1) if total_cells else None
-	return rows, weights, farm_cov
-
-
-def _farm_hectares(geo):
-	"""The farm boundary's area in hectares. geo["area"] is in square
-	degrees; at farm scale an equirectangular projection at the farm's
-	latitude is accurate to well under 1%."""
-	bbox = (geo.get("on") or {}).get("bbox")
-	if not geo.get("area") or not bbox:
-		return None
-	lat = math.radians((bbox[1] + bbox[3]) / 2)
-	return geo["area"] * 111320 * math.cos(lat) * 110540 / 10000
+	covered_m2 = patrol_sweep.area_m2(patrol_sweep.union(swept.values())) if farm_m2 else 0.0
+	return rows, weights, pct(covered_m2), covered_m2
 
 
 def _guard_names(pairs):
