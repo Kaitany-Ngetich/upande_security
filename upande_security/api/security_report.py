@@ -774,7 +774,8 @@ def _week_summary(last, farm=None, company=None):
 	ranking = _ranking("custom", str(first_w), str(last_w), farm, company)
 	incidents = dict(_incidents(start_w, end_w, farm, company)["by_farm"])
 	return {"from_date": str(first_w), "to_date": str(last_w), "start": str(start_w), "end": str(end_w),
-		"period_text": window_label(start_w, end_w), "farms": ranking.get("farms") or [], "incidents": incidents}
+		"period_text": window_label(start_w, end_w), "farms": ranking.get("farms") or [], "incidents": incidents,
+		"sweep_offset_m": ranking.get("sweep_offset_m")}
 
 
 def build_report(first, last, farm=None, company=None, sections=SECTIONS, half="all", doctypes=()):

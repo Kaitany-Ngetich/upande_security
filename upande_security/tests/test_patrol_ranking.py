@@ -7,12 +7,17 @@ import datetime
 import unittest
 from unittest.mock import patch
 
+from shapely.geometry import box
+
 from upande_security.api import patrol_ranking as pr
 
 
-def _stats(cells=0, metres=0.0, valid_scans=0):
+def _stats(swept_m=0, metres=0.0, valid_scans=0):
+	"""A guard whose swept ground is a strip `swept_m` metres wide by 100 m
+	tall from x = 0, so two guards' strips overlap from the left edge."""
 	s = pr._empty_stats("External Guard")
-	s["cells"] = {f"{i}-0" for i in range(cells)}
+	if swept_m:
+		s["sweeps"] = [box(0, 0, swept_m, 100)]
 	s["metres"] = metres
 	s["valid_scans"] = valid_scans
 	return s
@@ -57,9 +62,9 @@ class TestResolvePeriod(unittest.TestCase):
 
 class TestRank(unittest.TestCase):
 	def test_scores_against_the_best_on_the_farm(self):
-		grid = {"cells": 100}
-		guards = {"a": _stats(cells=50, metres=10000), "b": _stats(cells=25, metres=20000)}
-		rows, weights, farm_cov = pr._rank("F", guards, grid)
+		# Farm 10 000 m²; a swept 5 000 m², b 2 500 m² inside a's strip.
+		guards = {"a": _stats(swept_m=50, metres=10000), "b": _stats(swept_m=25, metres=20000)}
+		rows, weights, farm_cov, covered_m2 = pr._rank("F", guards, 10000)
 		self.assertEqual(weights, pr.NO_SCAN_WEIGHTS)
 		by = {r["guard"]: r for r in rows}
 		# No incidents: everyone has full safety (0.2).
@@ -68,12 +73,15 @@ class TestRank(unittest.TestCase):
 		self.assertEqual(by["b"]["score"], 75.0)
 		self.assertEqual([r["guard"] for r in rows], ["a", "b"])
 		self.assertEqual(by["a"]["coverage_pct"], 50.0)
-		# Cells 0..49 and 0..24 overlap: the farm as a whole saw 50.
+		self.assertEqual(by["a"]["area_ha"], 0.5)
+		self.assertEqual(by["b"]["area_ha"], 0.25)
+		# b's strip lies inside a's: the farm as a whole swept 5 000 m² once.
 		self.assertEqual(farm_cov, 50.0)
+		self.assertEqual(covered_m2, 5000)
 
 	def test_scans_count_when_the_farm_has_any(self):
-		guards = {"a": _stats(cells=10, metres=1000, valid_scans=4), "b": _stats(cells=10, metres=1000)}
-		rows, weights, _ = pr._rank("F", guards, {"cells": 20})
+		guards = {"a": _stats(swept_m=10, metres=1000, valid_scans=4), "b": _stats(swept_m=10, metres=1000)}
+		rows, weights, _, _ = pr._rank("F", guards, 20000)
 		self.assertEqual(weights, pr.WEIGHTS)
 		by = {r["guard"]: r for r in rows}
 		self.assertEqual(by["a"]["score"], 100.0)
@@ -82,7 +90,7 @@ class TestRank(unittest.TestCase):
 
 	def test_no_boundary_ranks_on_distance(self):
 		guards = {"a": _stats(metres=3000), "b": _stats(metres=1500)}
-		rows, weights, farm_cov = pr._rank("F", guards, None)
+		rows, weights, farm_cov, _ = pr._rank("F", guards, None)
 		self.assertEqual(weights, pr.DISTANCE_ONLY)
 		self.assertIsNone(farm_cov)
 		self.assertEqual([(r["guard"], r["score"], r["coverage_pct"]) for r in rows], [("a", 100.0, None), ("b", 60.0, None)])
@@ -95,8 +103,8 @@ def _inc(nature, severity="Medium"):
 
 class TestSafety(unittest.TestCase):
 	def rank(self, inc_a, inc_b):
-		guards = {"a": _stats(cells=10, metres=1000), "b": _stats(cells=10, metres=1000)}
-		rows, weights, _ = pr._rank("F", guards, {"cells": 20}, {("F", "a"): inc_a, ("F", "b"): inc_b})
+		guards = {"a": _stats(swept_m=10, metres=1000), "b": _stats(swept_m=10, metres=1000)}
+		rows, weights, _, _ = pr._rank("F", guards, 20000, {("F", "a"): inc_a, ("F", "b"): inc_b})
 		self.assertEqual(weights, pr.NO_SCAN_WEIGHTS)
 		return {r["guard"]: r["score"] for r in rows}
 

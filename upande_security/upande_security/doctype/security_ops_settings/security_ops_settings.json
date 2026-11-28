@@ -75,6 +75,7 @@
   "coverage_fresh_hours",
   "coverage_stale_hours",
   "coverage_boundary_tolerance_m",
+  "coverage_sweep_offset_m",
   "playback_section",
   "playback_include_on_duty",
   "playback_col",
@@ -555,6 +556,13 @@
    "label": "Boundary Tolerance (meters)"
   },
   {
+   "default": "100",
+   "fieldname": "coverage_sweep_offset_m",
+   "fieldtype": "Int",
+   "label": "Patrol Sweep Offset (meters)",
+   "description": "How far either side of a guard's walked path counts as patrolled. The area patrolled in the Guard ranking and the security report is this corridor along every counted step, inside the farm's boundary, overlap counted once. The grid above only colours the coverage map."
+  },
+  {
    "fieldname": "playback_section",
    "fieldtype": "Section Break",
    "label": "Patrol Playback",
@@ -869,7 +877,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-27 10:00:00.000000",
+ "modified": "2026-11-28 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Security",
  "name": "Security Ops Settings",
