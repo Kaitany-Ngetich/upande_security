@@ -7723,8 +7723,10 @@ def daily_summary(date=None):
 def gate_activity():
 	"""Gate-guard 'Activity' tab: recent appointments in states the other tabs don't cover.
 
-	Read-only, takes no parameters, and has NO company/farm scoping (unlike
-	daily_summary) -- every guard sees every farm's rows. Pre-existing; kept.
+	Read-only, takes no parameters. Scoped like the Approved list
+	(visit_scope): a guard sees only visits to the farm they are at, a
+	Security Head their own companies/farms. It used to show every farm's
+	rows to every guard.
 
 	Approved-by-Host / Checked-In appear on the Approved tab and Checked-Out on
 	the Summary tab, so this feed is everything else: pending reviews,
@@ -7755,6 +7757,7 @@ def gate_activity():
 		window_start = str(frappe.utils.add_days(today, -7)) + " 00:00:00"
 
 		placeholders = ",".join(["%s"] * len(states))
+		scope_sql, scope_params = visit_scope("a")
 
 		rows = frappe.db.sql(
 			"""
@@ -7768,6 +7771,9 @@ def gate_activity():
 			+ placeholders
 			+ """)
 			  AND a.modified >= %s
+			"""
+			+ scope_sql
+			+ """
 			ORDER BY
 			  CASE a.workflow_state
 				WHEN 'Pending Host Review'        THEN 1
@@ -7784,7 +7790,7 @@ def gate_activity():
 			  a.modified DESC
 			LIMIT 200
 			""",
-			tuple(states) + (window_start,),
+			tuple(states) + (window_start,) + tuple(scope_params),
 			as_dict=True,
 		)
 
